@@ -1,0 +1,38 @@
+{
+  "name": "cartograph",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Cartograph — Scientific Metasearch & Literature Discovery Hub (Cross-Platform Windows, Linux, macOS)",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/launcher-bridge.mjs --with-vite",
+    "start": "node server/launcher-bridge.mjs --with-vite --open",
+    "vite": "vite --port 5173",
+    "bridge": "node server/launcher-bridge.mjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 4173",
+    "tauri": "tauri",
+    "desktop": "tauri dev",
+    "desktop:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-http": "^2.9.0",
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "@tauri-apps/plugin-shell": "^2.6.0",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.6",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.6",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.5"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "6": "context.tsx",
+  "9": "tauri.conf.json",
+  "10": "default.json",
+  "11": "iniciar-desktop-linux.sh",
+  "12": "build.rs",
+  "13": "lib.rs",
+  "14": "main.rs",
+  "15": "app"
+}
