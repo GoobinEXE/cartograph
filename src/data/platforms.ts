@@ -8,27 +8,27 @@ export const CATEGORY_META: Record<
   'global-index': {
     label: 'Grandes Bases Globais & Preprints',
     subtitle: 'Indexadores bibliográficos mundiais, registros de DOI e repositórios de acesso aberto.',
-    badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+    badgeClass: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20',
   },
   'regional-latam': {
     label: 'Bases Brasileiras & Ibero-Americanas',
     subtitle: 'Literatura arbitrada nacional, teses, dissertações e portais públicos de acesso diamante.',
-    badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    badgeClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
   },
   'ai-synthesis': {
     label: 'IAs Acadêmicas & Síntese de Evidências',
     subtitle: 'Extração estruturada de achados, consenso empírico e classificação semântica de citações.',
-    badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+    badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
   },
   'citation-graph': {
     label: 'Grafos de Citação & Mapeamento Visual',
     subtitle: 'Redes de co-citação, acoplamento bibliográfico e descoberta visual por topologia.',
-    badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
   },
   'evidence-health': {
     label: 'Biomédicas, Saúde & Revisão Sistemática',
     subtitle: 'Literatura médica indexada (MEDLINE/NIH), ensaios clínicos e sínteses Cochrane.',
-    badgeClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    badgeClass: 'bg-rose-500/10 text-rose-300 border-rose-500/20',
   },
 };
 
@@ -39,27 +39,27 @@ export function getLocalizedCategoryMeta(
     'global-index': {
       label: t('catGlobalIndex'),
       subtitle: t('catGlobalIndexSub'),
-      badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+      badgeClass: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20',
     },
     'regional-latam': {
       label: t('catRegionalLatam'),
       subtitle: t('catRegionalLatamSub'),
-      badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+      badgeClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
     },
     'ai-synthesis': {
       label: t('catAiSynthesis'),
       subtitle: t('catAiSynthesisSub'),
-      badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+      badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
     },
     'citation-graph': {
       label: t('catCitationGraph'),
       subtitle: t('catCitationGraphSub'),
-      badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+      badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
     },
     'evidence-health': {
       label: t('catEvidenceHealth'),
       subtitle: t('catEvidenceHealthSub'),
-      badgeClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+      badgeClass: 'bg-rose-500/10 text-rose-300 border-rose-500/20',
     },
   };
 }
@@ -70,15 +70,15 @@ export const ACCESS_BADGES: Record<
 > = {
   gratuito: {
     label: '100% Gratuito / Open',
-    className: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50',
+    className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   },
   'aberto-institucional': {
     label: 'Acesso Aberto + CAFe',
-    className: 'bg-sky-950/80 text-sky-300 border-sky-700/50',
+    className: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
   },
   freemium: {
     label: 'Gratuito c/ Cota IA',
-    className: 'bg-indigo-950/80 text-indigo-300 border-indigo-700/50',
+    className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
   },
 };
 
@@ -88,15 +88,15 @@ export function getLocalizedAccessBadges(
   return {
     gratuito: {
       label: t('accessGratuito'),
-      className: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50',
+      className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     },
     'aberto-institucional': {
       label: t('accessAbertoInst'),
-      className: 'bg-sky-950/80 text-sky-300 border-sky-700/50',
+      className: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
     },
     freemium: {
       label: t('accessFreemium'),
-      className: 'bg-indigo-950/80 text-indigo-300 border-indigo-700/50',
+      className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
     },
   };
 }
