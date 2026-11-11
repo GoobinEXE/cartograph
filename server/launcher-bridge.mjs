@@ -1,6 +1,8 @@
 import http from 'node:http';
 import { execFile, spawn } from 'node:child_process';
 import { URL } from 'node:url';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const BRIDGE_PORT = Number(process.env.BRIDGE_PORT || 4789);
 const args = new Set(process.argv.slice(2));
@@ -206,6 +208,73 @@ const server = http.createServer(async (req, res) => {
         ok: false,
         original: text,
         translated: text,
+      });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && reqUrl.pathname === '/api/feedback') {
+    let rawBody = '';
+    req.on('data', (chunk) => {
+      rawBody += chunk;
+      if (rawBody.length > 50_000) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(rawBody || '{}');
+        const feedbackEntry = {
+          id: parsed.id || `fb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: parsed.type || 'general',
+          subject: String(parsed.subject || '').trim(),
+          message: String(parsed.message || '').trim(),
+          relatedUrl: String(parsed.relatedUrl || '').trim() || undefined,
+          institution: String(parsed.institution || '').trim() || undefined,
+          userEmail: String(parsed.userEmail || '').trim() || undefined,
+          rating: Number(parsed.rating || 5),
+          createdAt: parsed.createdAt || new Date().toISOString(),
+          platform: process.platform,
+        };
+
+        const feedbackDir = path.resolve('data');
+        if (!fs.existsSync(feedbackDir)) {
+          fs.mkdirSync(feedbackDir, { recursive: true });
+        }
+        const feedbackFile = path.join(feedbackDir, 'user_feedback.jsonl');
+        fs.appendFileSync(feedbackFile, JSON.stringify(feedbackEntry) + '\n', 'utf-8');
+
+        sendJson(res, 200, {
+          ok: true,
+          id: feedbackEntry.id,
+          savedAt: feedbackEntry.createdAt,
+        });
+      } catch (err) {
+        sendJson(res, 500, {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Falha ao salvar feedback',
+        });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && reqUrl.pathname === '/api/feedback') {
+    try {
+      const feedbackFile = path.resolve('data', 'user_feedback.jsonl');
+      if (!fs.existsSync(feedbackFile)) {
+        sendJson(res, 200, { ok: true, items: [] });
+        return;
+      }
+      const raw = fs.readFileSync(feedbackFile, 'utf-8');
+      const lines = raw
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+      sendJson(res, 200, { ok: true, items: lines });
+    } catch (err) {
+      sendJson(res, 500, {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Falha ao listar feedbacks',
       });
     }
     return;

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/arxiv", "destination": "/api/arxiv.ts" },
+    { "source": "/api/zenodo", "destination": "/api/zenodo.ts" },
+    { "source": "/api/translate", "destination": "/api/translate.ts" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+

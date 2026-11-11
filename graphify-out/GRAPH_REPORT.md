@@ -1,19 +1,24 @@
 # Graph Report - SUPER PESQUISADOR 2000  (2026-11-11)
 
 ## Corpus Check
-- 26 files · ~17,800 words
+- 28 files · ~22,611 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 10 file(s) not represented in the graph (top: (none) 2, .command 2, .bat 2)
+- Unclassified: 9 file(s) not represented in the graph (top: (none) 2, .command 2, .bat 2)
 
 ## Summary
-- 192 nodes · 333 edges · 16 communities (10 shown, 6 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 12 edges (avg confidence: 0.86)
+- 208 nodes · 359 edges · 17 communities (11 shown, 6 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 12 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `862e9a2f`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Package Metadata & Toolchain
-- Academic Command Center & Boolean Builder
-- Literature Matrix & Citation Exporters
+- App.tsx
+- Cartograph
 - TypeScript Compiler Configuration
 - Cross-Platform OS Launcher Bridge
 - Federated Scientific API Aggregator
@@ -23,17 +28,18 @@
 - tauri.conf.json
 - default.json
 - iniciar-desktop-linux.sh
-- app
+- cartograph
+- FederatedResultsPanel.tsx
 
 ## God Nodes (most connected - your core abstractions)
-1. `compilerOptions` - 16 edges
-2. `runFederatedSearch()` - 15 edges
-3. `AcademicCommandCenter()` - 13 edges
+1. `AcademicCommandCenter()` - 17 edges
+2. `compilerOptions` - 16 edges
+3. `runFederatedSearch()` - 15 edges
 4. `cleanDoi()` - 11 edges
 5. `scripts` - 10 edges
-6. `SavedLiteratureDrawer()` - 9 edges
-7. `useI18n()` - 9 edges
-8. `react` - 8 edges
+6. `react` - 9 edges
+7. `SavedLiteratureDrawer()` - 9 edges
+8. `useI18n()` - 9 edges
 9. `FederatedResultsPanel()` - 7 edges
 10. `NormalizedPaper` - 7 edges
 
@@ -55,19 +61,19 @@
 ## Hyperedges (group relationships)
 - **Pipeline de Metabusca Científica Paralela (5 APIs Abertas)** — src_services_academicaggregator_runfederatedsearch, src_services_academicaggregator_searchopenalex, src_services_academicaggregator_searchsemanticscholar, src_services_academicaggregator_searcheuropepmc, src_services_academicaggregator_searcharxiv, src_services_academicaggregator_searchcrossref, src_services_academicaggregator_deduplicatepapers [EXTRACTED 1.00]
 
-## Communities (16 total, 6 thin omitted)
+## Communities (17 total, 6 thin omitted)
 
 ### Community 0 - "Package Metadata & Toolchain"
 Cohesion: 0.07
-Nodes (37): dependencies, lucide-react@^0.469.0, react-dom@^18.3.1, @tauri-apps/api@^2.12.4, @tauri-apps/plugin-http@^2.9.0, @tauri-apps/plugin-opener@^2.7.3, @tauri-apps/plugin-shell@^2.6.0, description (+29 more)
+Nodes (37): dependencies, lucide-react@^0.469.0, react@^18.3.1, react-dom@^18.3.1, @tauri-apps/api@^2.12.4, @tauri-apps/plugin-http@^2.9.0, @tauri-apps/plugin-opener@^2.7.3, @tauri-apps/plugin-shell@^2.6.0 (+29 more)
 
-### Community 1 - "Academic Command Center & Boolean Builder"
-Cohesion: 0.15
-Nodes (18): Especificação do Agregador Federado de 5 APIs Científicas, AcademicCommandCenter(), BooleanBuilderDrawer(), BooleanBuilderDrawerProps, ACCESS_BADGES, CATEGORY_META, getLocalizedAccessBadges(), getLocalizedCategoryMeta() (+10 more)
+### Community 1 - "App.tsx"
+Cohesion: 0.12
+Nodes (28): Especificação do Agregador Federado de 5 APIs Científicas, lucide-react, react, AcademicCommandCenter(), renderAreaIcon(), BooleanBuilderDrawer(), BooleanBuilderDrawerProps, PrismMonogram() (+20 more)
 
-### Community 2 - "Literature Matrix & Citation Exporters"
-Cohesion: 0.24
-Nodes (18): FederatedResultsPanel(), FederatedResultsPanelProps, SavedLiteratureDrawer(), SavedLiteratureDrawerProps, useI18n(), AccessModel, ApiSourceId, NormalizedPaper (+10 more)
+### Community 2 - "Cartograph"
+Cohesion: 0.22
+Nodes (8): 1. Modo Desktop Executável (Tauri v2 + Rust), 2. Modo Web Local + Bridge de Sistema, Cartograph, 🔬 Cobertura de Fontes Científicas Integradas, 🚀 Modos de Execução, 📑 Recursos e Utilitários, 🛠️ Requisitos de Desenvolvimento, 📌 Visão Geral da Arquitetura
 
 ### Community 3 - "TypeScript Compiler Configuration"
 Cohesion: 0.11
@@ -82,8 +88,8 @@ Cohesion: 0.24
 Nodes (6): args, BRIDGE_PORT, openUrlNative(), sendJson(), server, launchUrlsCrossPlatform()
 
 ### Community 6 - "context.tsx"
-Cohesion: 0.21
-Nodes (11): HTML Entrypoint (#root / Nexus Acadêmico 2000), react@^18.3.1, react, AVAILABLE_LANGUAGES, detectBrowserLanguage(), I18nContext, I18nContextType, I18nProvider() (+3 more)
+Cohesion: 0.24
+Nodes (9): HTML Entrypoint (#root / Nexus Acadêmico 2000), AVAILABLE_LANGUAGES, detectBrowserLanguage(), I18nContext, I18nContextType, I18nProvider(), LanguageOption, SupportedLanguage (+1 more)
 
 ### Community 7 - "NPM Execution Scripts"
 Cohesion: 0.20
@@ -97,25 +103,29 @@ Nodes (19): debugApplicationIdSuffix, app, security, windows, build, beforeBuild
 Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
 
+### Community 16 - "FederatedResultsPanel.tsx"
+Cohesion: 0.27
+Nodes (16): FederatedResultsPanel(), FederatedResultsPanelProps, SavedLiteratureDrawer(), SavedLiteratureDrawerProps, useI18n(), NormalizedPaper, SavedPaperItem, SourceFetchStatus (+8 more)
+
 ## Knowledge Gaps
-- **2 isolated node(s):** `app`, `HTML Entrypoint (#root / Nexus Acadêmico 2000)`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 77 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **2 isolated node(s):** `cartograph`, `HTML Entrypoint (#root / Nexus Acadêmico 2000)`
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 84 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `context.tsx` to `Package Metadata & Toolchain`, `Academic Command Center & Boolean Builder`, `Literature Matrix & Citation Exporters`?**
-  _High betweenness centrality (0.104) - this node is a cross-community bridge._
+- **Why does `react` connect `App.tsx` to `Package Metadata & Toolchain`, `FederatedResultsPanel.tsx`, `context.tsx`?**
+  _High betweenness centrality (0.098) - this node is a cross-community bridge._
 - **Are the 10 inferred relationships involving `runFederatedSearch()` (e.g. with `searchArxiv()` and `searchCrossref()`) actually correct?**
   _`runFederatedSearch()` has 10 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `app`, `HTML Entrypoint (#root / Nexus Acadêmico 2000)` to the rest of the system?**
+- **What connects `cartograph`, `HTML Entrypoint (#root / Nexus Acadêmico 2000)` to the rest of the system?**
   _2 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Package Metadata & Toolchain` be split into smaller, more focused modules?**
-  _Cohesion score 0.07422402159244265 - nodes in this community are weakly interconnected._
-- **Why does `launchUrlsCrossPlatform()` connect `Federated Scientific API Aggregator` to `Package Metadata & Toolchain`, `Academic Command Center & Boolean Builder`, `Cross-Platform OS Launcher Bridge`?**
-  _High betweenness centrality (0.085) - this node is a cross-community bridge._
-- **Should `Academic Command Center & Boolean Builder` be split into smaller, more focused modules?**
-  _Cohesion score 0.14855072463768115 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `Package Metadata & Toolchain` to `Academic Command Center & Boolean Builder`, `Literature Matrix & Citation Exporters`?**
-  _High betweenness centrality (0.075) - this node is a cross-community bridge._
+  _Cohesion score 0.0728744939271255 - nodes in this community are weakly interconnected._
+- **Why does `launchUrlsCrossPlatform()` connect `Federated Scientific API Aggregator` to `Package Metadata & Toolchain`, `App.tsx`, `Cross-Platform OS Launcher Bridge`?**
+  _High betweenness centrality (0.076) - this node is a cross-community bridge._
+- **Should `App.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.11587301587301588 - nodes in this community are weakly interconnected._
+- **Why does `lucide-react` connect `App.tsx` to `Package Metadata & Toolchain`, `FederatedResultsPanel.tsx`?**
+  _High betweenness centrality (0.069) - this node is a cross-community bridge._

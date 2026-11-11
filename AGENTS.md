@@ -48,8 +48,8 @@ O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (Re
 
 ## 3. Topologia de Módulos do Projeto
 
-- `src/types/academic.ts`: Contratos estritos de dados para plataformas (`PlatformConfig`), artigos normalizados (`NormalizedPaper`), estado do construtor booleano (`BooleanQueryState`), filtros de busca (`SearchFilters`) e itens de fichamento (`SavedPaperItem`).
-- `src/data/platforms.ts`: Catálogo curado de **38 plataformas científicas** classificadas por nível de validação par-a-par, modelo de acesso (`gratuito`, `aberto-institucional`, `freemium`), categoria operacional (`global-index`, `regional-latam`, `ai-synthesis`, `citation-graph`, `evidence-health`), 7 perfis de lançamento temático (`LAUNCH_PRESETS`) e geradores dinâmicos de URL de busca.
+- `src/types/academic.ts`: Contratos estritos de dados para plataformas (`PlatformConfig`), áreas especializadas (`ThematicArea`: `tecnologia`, `ia`, `saude`, `arte`, `games`, `software`, `hardware`, `multidisciplinar`), artigos normalizados (`NormalizedPaper`), estado do construtor booleano (`BooleanQueryState`), filtros de busca (`SearchFilters`), modelos de acesso (`AccessModel`: `gratuito`, `aberto-institucional`, `freemium`, `pago`) e itens de fichamento (`SavedPaperItem`).
+- `src/data/platforms.ts`: Catálogo curado de **82 plataformas científicas** classificadas por nível de validação par-a-par, modelo de acesso (`gratuito`, `aberto-institucional`, `freemium`, `pago`), áreas temáticas disciplinares (`thematicAreas`), categoria operacional (`global-index`, `regional-latam`, `ai-synthesis`, `citation-graph`, `evidence-health`, `commercial-publishers`), 15 perfis de lançamento temático (`LAUNCH_PRESETS`) e geradores dinâmicos de URL de busca com suporte a autenticação institucional e paywalls acadêmicos internacionais.
 - `src/utils/queryBuilder.ts`: Motor determinístico de construção de queries booleanas (`AND`, `OR`, `NOT`, termos exatos, recorte temporal, filtro de revisões sistemáticas/meta-análises) e dicionário técnico de expansão bilíngue Português ↔ Inglês para pesquisa acadêmica.
 - `src/services/academicAggregator.ts`: Agregador federado assíncrono (`Promise.allSettled`) que consulta paralelamente **10 APIs científicas abertas e gratuitas**:
   1. **OpenAlex API** (`api.openalex.org/works`): 250M+ obras científicas com métricas de citação, conceitos e links diretos de PDF Open Access.
@@ -68,11 +68,39 @@ O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (Re
   - Dispara abertura nativa de múltiplas URLs no sistema operacional (`cmd /c start` em `win32`, `open` em `darwin`, `xdg-open` em `linux`) com controle de cadência (throttling de 120ms por aba para evitar travamento do navegador).
   - Provê proxy local para a API XML do `arXiv` e tradução gratuita de termos técnicos PT→EN.
 - `src/i18n/context.tsx` e `src/i18n/translations.ts`: Camada reativa de internacionalização multilíngue com auto-detecção da língua do sistema operacional/navegador (`navigator.languages`), persistência em `localStorage` e suporte nativo a Português, Inglês, Espanhol e Francês.
-- `src/App.tsx`: Interface principal com atalhos de teclado (`Ctrl/Cmd + K` para foco na busca, `Ctrl/Cmd + Enter` para busca federada, `Shift + Enter` para lançamento multi-abas), seletor visual de idioma, abas de operação (Metabuscador Integrado, Diretório de Plataformas, Construtor Booleano e Fichamento/Exportação).
+- `src/utils/deduplication.ts`: Motor determinístico de deduplicação multicritério em 3 níveis (DOI canônico, identificadores exatos PMID/arXiv e proximidade textual Jaro-Winkler/Levenshtein) com fusão enriquecida de metadados.
+- `src/utils/abstractParser.ts`: Parser determinístico de resumos estruturados (*Structured Abstracts*) e extração de metodologia, desenho de estudo e tamanho amostral ($N$) via regex heurístico e vocabulários controlados.
+- `src/utils/prismaFlow.ts` e `src/components/PrismaFlowDiagram.tsx`: Motor de cálculo e renderização interativa do fluxograma oficial **PRISMA 2020** com exportação vetorial (SVG) e rastreamento de motivos de exclusão.
+- `api/`: Funções Serverless (Vercel / Cloudflare) para proxy de CORS e APIs acadêmicas que exigem resolução remota (`/api/arxiv`, `/api/zenodo`, `/api/translate`).
+- `src/App.tsx`: Interface principal com atalhos de teclado (`Ctrl/Cmd + K` para foco na busca, `Ctrl/Cmd + Enter` para busca federada, `Shift + Enter` para lançamento multi-abas), seletor visual de idioma, abas de operação (Metabuscador Integrado, Diretório de Plataformas, Construtor Booleano, Fichamento e Triagem PRISMA 2020).
 
 ---
 
-## 4. Diretrizes de Qualidade de Código e Escrita (WP:AISIGNS / Anti-Chatbotese)
+## 4. Arquitetura de Deploy Web e Monetização sem Dependência de IA
+
+O Cartograph opera em modelo híbrido (**Web First para democratização + Desktop Tauri v2 para Power Users**). As funcionalidades premium (*Plano Pro*) são construídas estritamente com **engenharia de software determinística**, garantindo 100% de reprodutibilidade científica, ausência de alucinações e margem de lucro de ~95% (custo fixo sem consumo de tokens de LLM):
+
+### 4.1 Matriz de Funcionalidades Determinísticas (Plano Free vs Pro)
+
+| Funcionalidade | Free / Básico | Pro / Pesquisador Avançado | Mecanismo Técnico |
+| :--- | :--- | :--- | :--- |
+| **Metabusca e Coleta** | 10 APIs abertas em paralelo | 10 APIs abertas + importação de arquivos BibTeX/RIS externos | Agregador federado assíncrono. |
+| **Deduplicação de Artigos** | Deduplicação básica por DOI | Deduplicação multicritério com relatório de fusão e score de similaridade | `src/utils/deduplication.ts` (Jaro-Winkler + Levenshtein). |
+| **Resumos e Metodologia** | Resumo bruto textual | Parser de resumos estruturados (Objetivo, Métodos, Amostra $N$, Conclusão) | `src/utils/abstractParser.ts` (regex e vocabulário MeSH). |
+| **Triagem Sistemática** | Fichamento linear simples | Fluxo completo PRISMA 2020 com marcação cega de motivos de exclusão | `src/types/academic.ts` (`screeningStatus` e `exclusionReason`). |
+| **Diagrama de Evidência** | Indisponível | Gerador dinâmico de Fluxograma PRISMA 2020 em SVG/PDF | `src/components/PrismaFlowDiagram.tsx`. |
+| **Exportação de Dados** | CSV simples e BibTeX | Matriz completa de Revisão Sistemática (PRISMA Matrix) | `src/utils/citationExporter.ts`. |
+
+### 4.2 Infraestrutura de Nuvem e Proxies Serverless
+
+Para publicação em produção web (Vercel ou Cloudflare Pages):
+1. O frontend React/Vite é servido em Edge CDN global com compressão Brotli.
+2. As rotas `/api/arxiv`, `/api/zenodo` e `/api/translate` são executadas como funções Serverless Node.js na pasta `api/`.
+3. O frontend detecta dinamicamente a presença do Tauri ou do Launcher Bridge local; caso esteja em ambiente web convencional, instrui o pesquisador sobre o bloqueador de pop-ups ou oferece lista com abertura sob demanda.
+
+---
+
+## 5. Diretrizes de Qualidade de Código e Escrita (WP:AISIGNS / Anti-Chatbotese)
 
 1. **Tipagem Estrita:** Proibido uso de `any` implícito. Todas as respostas de APIs externas devem passar por funções *type-guard* ou mapeadores defensivos com *fallback* seguro.
 2. **Resiliência de Rede:** Se uma API externa atingir *rate-limit* (ex.: Semantic Scholar HTTP 429), o agregador deve degradar graciosamente exibindo o status individual de cada fonte sem interromper os resultados das demais APIs.

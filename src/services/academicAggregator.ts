@@ -1,4 +1,5 @@
-import { ApiSourceId, NormalizedPaper, SourceFetchStatus } from '../types/academic';
+import { ApiSourceId, DeduplicationSummary, NormalizedPaper, SourceFetchStatus } from '../types/academic';
+import { deduplicatePapersAdvanced } from '../utils/deduplication';
 
 function cleanDoi(rawDoi?: string | null): string | null {
   if (!rawDoi) return null;
@@ -631,42 +632,18 @@ export async function searchDataCite(
 }
 
 export function deduplicatePapers(papers: NormalizedPaper[]): NormalizedPaper[] {
-  const byKey = new Map<string, NormalizedPaper>();
-
-  for (const paper of papers) {
-    const normalizedTitle = paper.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\u00C0-\u017F]/g, '')
-      .slice(0, 80);
-    const key = paper.doi ? `doi:${paper.doi}` : `title:${normalizedTitle}`;
-
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, paper);
-    } else {
-      // Merge rich fields (prefer PDF URL, abstract, higher citation count)
-      byKey.set(key, {
-        ...existing,
-        pdfUrl: existing.pdfUrl || paper.pdfUrl,
-        isOpenAccess: existing.isOpenAccess || paper.isOpenAccess,
-        citationCount: Math.max(existing.citationCount, paper.citationCount),
-        abstractText:
-          existing.abstractText && existing.abstractText.length > (paper.abstractText?.length || 0)
-            ? existing.abstractText
-            : paper.abstractText || existing.abstractText,
-        doi: existing.doi || paper.doi,
-      });
-    }
-  }
-
-  return Array.from(byKey.values());
+  return deduplicatePapersAdvanced(papers).papers;
 }
 
 export async function runFederatedSearch(
   query: string,
   yearFrom?: number,
   onSourceUpdate?: (statuses: SourceFetchStatus[]) => void
-): Promise<{ papers: NormalizedPaper[]; statuses: SourceFetchStatus[] }> {
+): Promise<{
+  papers: NormalizedPaper[];
+  statuses: SourceFetchStatus[];
+  deduplicationSummary: DeduplicationSummary;
+}> {
   const sources: Array<{
     id: ApiSourceId;
     label: string;
@@ -724,9 +701,12 @@ export async function runFederatedSearch(
     })
   );
 
+  const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(allPapers);
+
   return {
-    papers: deduplicatePapers(allPapers),
+    papers: dedupedPapers,
     statuses,
+    deduplicationSummary: summary,
   };
 }
 

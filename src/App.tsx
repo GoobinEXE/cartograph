@@ -1,65 +1,166 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   PLATFORMS,
+  THEMATIC_AREAS,
   getLocalizedAccessBadges,
   getLocalizedCategoryMeta,
   getLocalizedLaunchPresets,
+  getLocalizedThematicAreas,
 } from './data/platforms';
 import {
   BooleanQueryState,
+  DeduplicationSummary,
   NormalizedPaper,
   PlatformCategory,
   SavedPaperItem,
+  ScreeningStatus,
   SourceFetchStatus,
+  ThematicArea,
 } from './types/academic';
 import {
   launchUrlsCrossPlatform,
   runFederatedSearch,
 } from './services/academicAggregator';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
+import { parseAbstractMetadata } from './utils/abstractParser';
 import { BooleanBuilderDrawer } from './components/BooleanBuilderDrawer';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
 import { SavedLiteratureDrawer } from './components/SavedLiteratureDrawer';
+import { FeedbackView } from './components/FeedbackView';
+import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
 import { useI18n } from './i18n/context';
 import {
-  BookMarked,
-  BrainCircuit,
+  Activity,
+  ArrowUpRight,
+  Bot,
   Check,
-  CheckSquare,
   ChevronDown,
-  Compass,
+  Code,
   Cpu,
-  Database,
-  ExternalLink,
+  Gamepad2,
   Globe,
-  Languages,
-  Layers,
+  HardDrive,
+  LayoutGrid,
+  List,
   Loader2,
-  Rocket,
+  Moon,
+  Palette,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
-  Square,
-  Terminal,
+  Sun,
   X,
 } from 'lucide-react';
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
+const STORAGE_KEY_THEME = 'cartograph_theme_v1';
+const STORAGE_KEY_SIDEBAR_DRAWERS = 'cartograph_sidebar_drawers_v2';
+
+type SidebarSectionKey = 'areas' | 'access' | 'presets' | 'categories';
+
+function renderAreaIcon(area: ThematicArea, className: string = 'w-3.5 h-3.5') {
+  switch (area) {
+    case 'tecnologia':
+      return <Cpu className={className} />;
+    case 'ia':
+      return <Bot className={className} />;
+    case 'saude':
+      return <Activity className={className} />;
+    case 'arte':
+      return <Palette className={className} />;
+    case 'games':
+      return <Gamepad2 className={className} />;
+    case 'software':
+      return <Code className={className} />;
+    case 'hardware':
+      return <HardDrive className={className} />;
+    case 'multidisciplinar':
+    default:
+      return <Globe className={className} />;
+  }
+}
 
 export default function AcademicCommandCenter() {
   const { language, setLanguage, t, availableLanguages } = useI18n();
 
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_THEME);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // ignore
+    }
+    return 'light';
+  });
+
   const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'platforms' | 'federated' | 'saved'>('platforms');
+  const [activeTab, setActiveTab] = useState<'platforms' | 'federated' | 'saved' | 'feedback'>('platforms');
   const [activeCategory, setActiveCategory] = useState<'all' | PlatformCategory>('all');
-  const [onlyStrictlyFree, setOnlyStrictlyFree] = useState(false);
+  const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [accessFilter, setAccessFilter] = useState<'all' | 'gratuito' | 'pago' | 'aberto-institucional' | 'freemium'>('all');
   const [showBooleanDrawer, setShowBooleanDrawer] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
+
+  const [sidebarDrawers, setSidebarDrawers] = useState<Record<SidebarSectionKey, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_DRAWERS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return {
+            areas: parsed.areas !== false,
+            access: parsed.access !== false,
+            presets: parsed.presets !== false,
+            categories: parsed.categories !== false,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return {
+      areas: true,
+      access: true,
+      presets: true,
+      categories: true,
+    };
+  });
+
+  const toggleSidebarDrawer = (key: SidebarSectionKey) => {
+    setSidebarDrawers((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(STORAGE_KEY_SIDEBAR_DRAWERS, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const allDrawersOpen = Object.values(sidebarDrawers).every(Boolean);
+
+  const toggleAllSidebarDrawers = () => {
+    const targetState = !allDrawersOpen;
+    const next = {
+      areas: targetState,
+      access: targetState,
+      presets: targetState,
+      categories: targetState,
+    };
+    setSidebarDrawers(next);
+    try {
+      localStorage.setItem(STORAGE_KEY_SIDEBAR_DRAWERS, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
 
   const localizedPresets = useMemo(() => getLocalizedLaunchPresets(t), [t]);
   const localizedCategoryMeta = useMemo(() => getLocalizedCategoryMeta(t), [t]);
   const localizedAccessBadges = useMemo(() => getLocalizedAccessBadges(t), [t]);
+  const localizedThematicAreas = useMemo(() => getLocalizedThematicAreas(t), [t]);
 
   const [booleanState, setBooleanState] = useState<BooleanQueryState>({
     mainConcept: '',
@@ -110,6 +211,7 @@ export default function AcademicCommandCenter() {
 
   const [federatedPapers, setFederatedPapers] = useState<NormalizedPaper[]>([]);
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
+  const [dedupSummary, setDedupSummary] = useState<DeduplicationSummary | null>(null);
   const [isSearchingApis, setIsSearchingApis] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isLaunchingTabs, setIsLaunchingTabs] = useState(false);
@@ -121,6 +223,15 @@ export default function AcademicCommandCenter() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem(STORAGE_KEY_THEME, theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   useEffect(() => {
     try {
@@ -193,10 +304,11 @@ export default function AcademicCommandCenter() {
   const visiblePlatforms = useMemo(() => {
     return PLATFORMS.filter((p) => {
       if (activeCategory !== 'all' && p.category !== activeCategory) return false;
-      if (onlyStrictlyFree && p.accessModel !== 'gratuito') return false;
+      if (accessFilter !== 'all' && p.accessModel !== accessFilter) return false;
+      if (selectedArea !== 'all' && !p.thematicAreas.includes(selectedArea)) return false;
       return true;
     });
-  }, [activeCategory, onlyStrictlyFree]);
+  }, [activeCategory, accessFilter, selectedArea]);
 
   const savedIdsSet = useMemo(
     () => new Set(savedPapers.map((s) => s.id)),
@@ -240,7 +352,7 @@ export default function AcademicCommandCenter() {
       if (translated) {
         setQuery(translated);
         setStatusBanner(t('termTranslatedBanner', { term: translated }));
-        setTimeout(() => setStatusBanner(null), 4500);
+        setTimeout(() => setStatusBanner(null), 4000);
       }
     } finally {
       setIsTranslating(false);
@@ -252,13 +364,14 @@ export default function AcademicCommandCenter() {
     setActiveTab('federated');
     setIsSearchingApis(true);
     try {
-      const { papers, statuses } = await runFederatedSearch(
+      const { papers, statuses, deduplicationSummary } = await runFederatedSearch(
         trimmedQuery,
         yearStartNum,
         (liveStatuses) => setSourceStatuses(liveStatuses)
       );
       setFederatedPapers(papers);
       setSourceStatuses(statuses);
+      setDedupSummary(deduplicationSummary);
     } finally {
       setIsSearchingApis(false);
     }
@@ -278,9 +391,13 @@ export default function AcademicCommandCenter() {
               count: result.launchedCount,
               osName: bridgeStatus.osName,
             })
-          : t('platformsOpenedBrowser', { count: result.launchedCount })
+          : `${t('platformsOpenedBrowser', { count: result.launchedCount })}${
+              urls.length > 1
+                ? ' • Dica: Autorize pop-ups no navegador para abrir múltiplas abas simultaneamente.'
+                : ''
+            }`
       );
-      setTimeout(() => setStatusBanner(null), 4500);
+      setTimeout(() => setStatusBanner(null), 5000);
     } finally {
       setIsLaunchingTabs(false);
     }
@@ -297,14 +414,39 @@ export default function AcademicCommandCenter() {
       if (exists) {
         return prev.filter((item) => item.id !== paper.id);
       }
+      const extractedMetadata = parseAbstractMetadata(
+        paper.title,
+        paper.abstractText,
+        paper.publicationType
+      );
       const newItem: SavedPaperItem = {
         ...paper,
         savedAt: new Date().toISOString(),
         researcherNotes: '',
         relevanceTag: 'alta',
+        screeningStatus: 'unscreened',
+        extractedMetadata,
       };
       return [newItem, ...prev];
     });
+  };
+
+  const handleUpdateScreening = (
+    id: string,
+    status: ScreeningStatus,
+    reason?: string
+  ) => {
+    setSavedPapers((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              screeningStatus: status,
+              exclusionReason: status === 'excluded' ? reason : undefined,
+            }
+          : item
+      )
+    );
   };
 
   const handleUpdateNotes = (id: string, notes: string) => {
@@ -326,525 +468,975 @@ export default function AcademicCommandCenter() {
     setSavedPapers((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const sourceBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    sourceStatuses.forEach((s) => {
+      if (s.count > 0) {
+        counts[s.label] = s.count;
+      }
+    });
+    return counts;
+  }, [sourceStatuses]);
+
+  const activeCategoryHeading =
+    activeCategory === 'all'
+      ? {
+          title: t('allCategories', { count: PLATFORMS.length }).replace(/\s*\(\d+\)/, ''),
+          subtitle: t('heroSubtitle'),
+        }
+      : {
+          title: localizedCategoryMeta[activeCategory].label,
+          subtitle: localizedCategoryMeta[activeCategory].subtitle,
+        };
+
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 font-sans pb-20 selection:bg-cyan-500/20 selection:text-cyan-200">
-      {/* Subtle Ambient Radial Highlight */}
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(14,165,233,0.06),rgba(255,255,255,0))]" />
-
-      {/* Top System Bar — Clean, Translucent, Focused */}
-      <header className="border-b border-white/[0.06] bg-[#0B0F17]/85 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 font-semibold text-slate-100 tracking-tight">
-              <div className="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                <BrainCircuit className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-bold tracking-normal">{t('appName')}</span>
-              <span className="text-slate-600 font-normal">/</span>
-              <span className="text-slate-400 font-normal hidden sm:inline">
-                {t('appTagline')}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Automatic / Manual Language Selector */}
-            <div className="relative" ref={langMenuRef}>
-              <button
-                type="button"
-                onClick={() => setShowLangMenu((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs"
-                title="Idioma / Language"
-              >
-                <Globe className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-medium uppercase tracking-wider">{language}</span>
-                <ChevronDown className="w-3 h-3 text-slate-500" />
-              </button>
-
-              {showLangMenu && (
-                <div className="absolute right-0 mt-1.5 w-44 rounded-xl bg-slate-900/95 border border-slate-800 shadow-2xl py-1 z-50 backdrop-blur-xl">
-                  <div className="px-3 py-1.5 text-[10px] uppercase font-semibold text-slate-500 border-b border-slate-800/80">
-                    Idioma / Language
-                  </div>
-                  {availableLanguages.map((langOpt) => (
-                    <button
-                      key={langOpt.code}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(langOpt.code);
-                        setShowLangMenu(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors cursor-pointer text-left ${
-                        language === langOpt.code
-                          ? 'bg-cyan-500/10 text-cyan-300 font-medium'
-                          : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                      }`}
-                    >
-                      <span>{langOpt.nativeLabel}</span>
-                      {language === langOpt.code && <Check className="w-3.5 h-3.5 text-cyan-400" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Desktop Local Bridge Status Pill */}
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                bridgeStatus.online
-                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                  : 'bg-slate-900/80 text-slate-400 border-slate-800'
-              }`}
-              title="O Bridge Nativo abre abas diretamente pelo Sistema Operacional, contornando bloqueadores de pop-up."
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  bridgeStatus.online ? 'bg-emerald-400' : 'bg-slate-500'
-                }`}
-              />
-              <span className="hidden sm:inline">
-                {bridgeStatus.online
-                  ? t('bridgeActive', { osName: bridgeStatus.osName })
-                  : t('bridgeOffline')}
-              </span>
-              <Terminal className="w-3 h-3 sm:hidden text-slate-400" />
-            </span>
-
-            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900/90 border border-slate-800 text-slate-400 font-mono text-[10px]">
-              {t('keyboardShortcut')}
-            </kbd>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 relative z-10">
-        {/* Hero Section — Minimalist Search Omnibox */}
-        <section className="mb-8">
-          <div className="text-center max-w-3xl mx-auto mb-6">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-slate-100">
-              {t('heroTitle')}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-2xl mx-auto leading-relaxed">
-              {t('heroSubtitle')}
-            </p>
-          </div>
-
-          {/* Omnibox Container */}
-          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-2 sm:p-2.5 shadow-2xl transition-all focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/30">
-            {/* Input Row */}
-            <div className="relative flex items-center">
-              <div className="pl-3.5 pr-2 text-slate-400 pointer-events-none">
-                <Search className="w-5 h-5 text-cyan-400/80" />
-              </div>
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-20">
+      {/* Academic Search Header — Google Scholar / Semantic Scholar / Consensus Pattern */}
+      <header className="sticky top-0 z-30 bg-[var(--bg-canvas)]/95 backdrop-blur-md border-b border-[var(--divider)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-3.5">
+          {/* Top Search & Brand Row */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-1">
+              {/* Brand Wordmark with Prism Monogram */}
+              <div className="flex items-center justify-between">
+                <a
+                  href="#top"
+                  onClick={(e) => {
                     e.preventDefault();
-                    handleHybridOmniSearch();
-                  } else if (e.key === 'Enter' && e.shiftKey) {
-                    e.preventDefault();
-                    handleLaunchSelectedPlatforms();
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleRunFederatedSearch();
-                  }
-                }}
-                placeholder={t('searchPlaceholder')}
-                className="w-full py-3.5 pl-1 pr-10 bg-transparent text-sm sm:text-base text-slate-100 placeholder-slate-500 focus:outline-none font-sans"
-              />
-
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  className="p-1 rounded-md text-slate-500 hover:text-slate-300 transition-colors mr-2 cursor-pointer"
-                  title="Limpar busca"
+                    setActiveTab('platforms');
+                    setActiveCategory('all');
+                    setSelectedArea('all');
+                  }}
+                  className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
+                  title="Cartograph — Desenvolvido pela Prism"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+                  <PrismMonogram className="h-5 w-auto" />
+                  <div className="flex flex-col leading-none">
+                    <span className="font-heading font-semibold text-[17px] tracking-tight">Cartograph</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wider mt-0.5">by Prism</span>
+                  </div>
+                </a>
 
-            {/* Omnibox Footer Toolbar: Query Tools & Action Launchers */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2.5 mt-1 border-t border-slate-800/80 px-1.5">
-              {/* Secondary Query Helpers */}
-              <div className="flex items-center gap-1.5">
+                {/* Mobile Controls */}
+                <div className="flex items-center gap-1.5 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                    className="p-2 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                  >
+                    {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Borderless Search Pill (Google Scholar / Consensus Style) */}
+              <div className="flex-1 max-w-2xl flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 transition-all">
+                <Search className="w-4 h-4 text-[var(--text-muted)] shrink-0 mr-2.5" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      handleHybridOmniSearch();
+                    } else if (e.key === 'Enter' && e.shiftKey) {
+                      e.preventDefault();
+                      handleLaunchSelectedPlatforms();
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleRunFederatedSearch();
+                    }
+                  }}
+                  placeholder={t('searchPlaceholder')}
+                  className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+                />
+
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-1 cursor-pointer"
+                    title="Limpar busca"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleTranslatePtToEn}
                   disabled={!isValidQuery || isTranslating}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors mr-1 ${
                     isValidQuery
-                      ? 'bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 border-slate-800 hover:border-slate-700 cursor-pointer'
-                      : 'text-slate-600 border-transparent cursor-not-allowed'
+                      ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
+                      : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
                   }`}
-                  title="Traduzir consulta do Português para terminologia acadêmica internacional em Inglês"
+                  title="Traduzir termos para inglês acadêmico"
                 >
-                  {isTranslating ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                  ) : (
-                    <Languages className="w-3.5 h-3.5 text-cyan-400/80" />
-                  )}
-                  <span>{t('translateBtn')}</span>
+                  {isTranslating ? '...' : 'PT→EN'}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowBooleanDrawer((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-full transition-colors mr-1.5 cursor-pointer ${
                     showBooleanDrawer
-                      ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-                      : 'bg-slate-950/60 hover:bg-slate-800 text-slate-300 border-slate-800 hover:border-slate-700'
+                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   }`}
+                  title={t('booleanBuilderBtn')}
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>{t('booleanBuilderBtn')}</span>
                 </button>
-              </div>
 
-              {/* Primary Search Actions */}
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleRunFederatedSearch}
                   disabled={!isValidQuery || isSearchingApis}
-                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-xs transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-opacity shrink-0 ${
                     isValidQuery
-                      ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-950/40 cursor-pointer'
-                      : 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                      ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer'
+                      : 'bg-[var(--bg-hover)] text-[var(--text-muted)] cursor-not-allowed'
                   }`}
-                  title="Consultar 10 APIs científicas abertas (Enter)"
                 >
-                  {isSearchingApis ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Database className="w-3.5 h-3.5" />
+                  {isSearchingApis && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Buscar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right Actions: Batch Portal Launch + Theme + Language */}
+            <div className="flex items-center justify-between sm:justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleLaunchSelectedPlatforms}
+                disabled={!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
+                  isValidQuery && selectedPlatformIds.length > 0
+                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] hover:opacity-85 cursor-pointer'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed'
+                }`}
+                title="Abrir pesquisa em abas nos portais selecionados (Shift + Enter)"
+              >
+                <span>Abrir {selectedPlatformIds.length} portais</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                  className="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+                  title="Alternar modo Claro / Escuro"
+                >
+                  {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                </button>
+
+                <div className="relative" ref={langMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowLangMenu((v) => !v)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer uppercase"
+                  >
+                    <span>{language}</span>
+                    <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />
+                  </button>
+
+                  {showLangMenu && (
+                    <div className="absolute right-0 mt-1.5 w-36 rounded-xl bg-[var(--bg-canvas)] shadow-xl py-1.5 z-50">
+                      {availableLanguages.map((langOpt) => (
+                        <button
+                          key={langOpt.code}
+                          type="button"
+                          onClick={() => {
+                            setLanguage(langOpt.code);
+                            setShowLangMenu(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3.5 py-1.5 text-xs transition-colors cursor-pointer text-left ${
+                            language === langOpt.code
+                              ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-semibold'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+                          }`}
+                        >
+                          <span>{langOpt.nativeLabel}</span>
+                          {language === langOpt.code && <Check className="w-3 h-3" />}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                  <span>{t('btnSearchApis')}</span>
-                  <span className="hidden md:inline font-mono text-[10px] opacity-70">↵</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLaunchSelectedPlatforms}
-                  disabled={!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs}
-                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-xs transition-all ${
-                    isValidQuery && selectedPlatformIds.length > 0
-                      ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/40 cursor-pointer'
-                      : 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
-                  }`}
-                  title="Lançar abas nas plataformas selecionadas (Shift + Enter)"
-                >
-                  <Rocket className="w-3.5 h-3.5" />
-                  <span>{t('btnLaunchTabs', { count: selectedPlatformIds.length })}</span>
-                  <span className="hidden md:inline font-mono text-[10px] opacity-70">⇧↵</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleHybridOmniSearch}
-                  disabled={!isValidQuery}
-                  className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-medium text-xs border transition-all ${
-                    isValidQuery
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer'
-                      : 'text-slate-600 border-transparent cursor-not-allowed'
-                  }`}
-                  title="Busca Híbrida Total (Ctrl/Cmd + Enter)"
-                >
-                  <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden xl:inline">{t('btnTotalSearch')}</span>
-                </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Quick Status Toast Banner */}
+          {/* Optional Advanced Boolean Drawer */}
+          {showBooleanDrawer && (
+            <BooleanBuilderDrawer
+              state={booleanState}
+              onChange={setBooleanState}
+              onApplyCompiledQuery={(compiled) => {
+                setQuery(compiled);
+                setStatusBanner(t('booleanAppliedBanner'));
+                setTimeout(() => setStatusBanner(null), 3500);
+              }}
+            />
+          )}
+
+          {/* Status Banner */}
           {statusBanner && (
-            <div className="mt-3 px-4 py-2 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-xs text-cyan-200 flex items-center justify-between animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent-blue-tint)] text-xs text-[var(--link-academic)] flex items-center justify-between">
               <span>{statusBanner}</span>
               <button
                 type="button"
                 onClick={() => setStatusBanner(null)}
-                className="text-cyan-400 hover:text-white ml-3 cursor-pointer"
+                className="ml-3 cursor-pointer"
               >
                 ✕
               </button>
             </div>
           )}
 
-          {/* Preset Profiles Bar (Cumulative Multi-Select) */}
-          <div className="mt-4 pt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-medium text-slate-400 mr-1.5">
-              {t('presetsTitle')}
-            </span>
-            {localizedPresets.map((preset) => {
-              const matchedCount = preset.platformIds.filter((id) =>
-                selectedPlatformIds.includes(id)
-              ).length;
-              const isFullyActive =
-                matchedCount === preset.platformIds.length &&
-                preset.platformIds.length > 0;
-              const isPartiallyActive = matchedCount > 0 && !isFullyActive;
-
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => handleTogglePreset(preset.id, preset.platformIds)}
-                  title={preset.description}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
-                    isFullyActive
-                      ? 'bg-cyan-500/15 text-cyan-200 border-cyan-500/40 shadow-xs'
-                      : isPartiallyActive
-                      ? 'bg-slate-900/90 text-cyan-300/80 border-cyan-500/20 hover:border-cyan-500/40'
-                      : 'bg-slate-950/60 hover:bg-slate-850 text-slate-300 border-slate-800/80'
-                  }`}
-                >
-                  {isFullyActive ? (
-                    <CheckSquare className="w-3 h-3 text-cyan-400 shrink-0" />
-                  ) : (
-                    <Square
-                      className={`w-3 h-3 shrink-0 ${
-                        isPartiallyActive ? 'text-cyan-400/70' : 'text-slate-500'
-                      }`}
-                    />
-                  )}
-                  <span>{preset.name}</span>
-                  {isPartiallyActive && (
-                    <span className="text-[10px] font-mono px-1 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-700/30">
-                      {matchedCount}/{preset.platformIds.length}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            <div className="flex items-center gap-2 ml-auto text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
-                className="text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
-              >
-                {t('selectAll', { count: PLATFORMS.length })}
-              </button>
-              <span className="text-slate-700">·</span>
-              <button
-                type="button"
-                onClick={() => setSelectedPlatformIds([])}
-                className="text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
-              >
-                {t('clearSelection')}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Optional Boolean Builder Drawer */}
-        {showBooleanDrawer && (
-          <BooleanBuilderDrawer
-            state={booleanState}
-            onChange={setBooleanState}
-            onApplyCompiledQuery={(compiled) => {
-              setQuery(compiled);
-              setStatusBanner(t('booleanAppliedBanner'));
-              setTimeout(() => setStatusBanner(null), 3500);
-            }}
-          />
-        )}
-
-        {/* Modern Segmented Navigation Dock */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b border-white/[0.06] pb-3">
-          <nav className="inline-flex p-1 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md gap-1">
+          {/* Familiar Academic Navigation Bar (Underline Tabs like Google Scholar / Semantic Scholar) */}
+          <nav className="flex items-center gap-6 mt-3 overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab('platforms')}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'platforms'
-                  ? 'bg-slate-800 text-slate-100 shadow-sm border border-slate-700/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              <Compass className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{t('tabPlatforms', { count: PLATFORMS.length })}</span>
+              {t('tabPlatforms', { count: PLATFORMS.length })}
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('federated')}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'federated'
-                  ? 'bg-slate-800 text-slate-100 shadow-sm border border-slate-700/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              <Layers className="w-3.5 h-3.5 text-indigo-400" />
-              <span>{t('tabFederated', { count: federatedPapers.length })}</span>
+              {t('tabFederated', { count: federatedPapers.length })}
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('saved')}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'saved'
-                  ? 'bg-slate-800 text-slate-100 shadow-sm border border-slate-700/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              <BookMarked className="w-3.5 h-3.5 text-amber-400" />
-              <span>{t('tabSaved', { count: savedPapers.length })}</span>
+              {t('tabSaved', { count: savedPapers.length })}
             </button>
-          </nav>
 
-          {activeTab === 'platforms' && (
             <button
               type="button"
-              onClick={() => setOnlyStrictlyFree((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
-                onlyStrictlyFree
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                  : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
+              onClick={() => setActiveTab('feedback')}
+              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                activeTab === 'feedback'
+                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{t('filterStrictlyFree')}</span>
+              {t('tabFeedback')}
             </button>
-          )}
+          </nav>
         </div>
+      </header>
 
+      {/* Main Content Workspace */}
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {/* TAB 1: PLATFORMS DIRECTORY */}
         {activeTab === 'platforms' && (
-          <div>
-            {/* Category Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 mb-5">
-              <button
-                type="button"
-                onClick={() => setActiveCategory('all')}
-                className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
-                  activeCategory === 'all'
-                    ? 'bg-slate-100 text-slate-950 border-white'
-                    : 'bg-slate-900/50 text-slate-400 border-slate-800/80 hover:text-slate-200'
-                }`}
-              >
-                {t('allCategories', { count: PLATFORMS.length })}
-              </button>
-              {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
-                const meta = localizedCategoryMeta[catKey];
-                const count = PLATFORMS.filter((p) => p.category === catKey).length;
-                return (
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[290px_1fr] gap-6 xl:gap-8 items-start">
+            {/* Left Sidebar — Scroll Individual com Gavetas Retráteis / Expansíveis */}
+            <aside
+              className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
+              aria-label="Filtros e navegação de plataformas"
+            >
+              {/* Header com Ação Rápida de Expandir / Recolher Todas */}
+              <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                  <span>Filtros & Navegação</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleAllSidebarDrawers}
+                  className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
+                  title={allDrawersOpen ? 'Recolher todas as gavetas' : 'Expandir todas as gavetas'}
+                >
+                  {allDrawersOpen ? 'Recolher tudo' : 'Expandir tudo'}
+                </button>
+              </div>
+
+              {/* Gaveta 1: Disciplines / Specialized Areas */}
+              <div className="border-b border-[var(--divider)] pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('areas')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('areas');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.areas}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                      {t('thematicAreasTitle')}
+                    </span>
+                    {selectedArea !== 'all' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                        {localizedThematicAreas[selectedArea]?.label || selectedArea}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {selectedArea !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedArea('all');
+                        }}
+                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                        sidebarDrawers.areas ? 'rotate-0' : '-rotate-90'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {sidebarDrawers.areas && (
+                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedArea('all')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        selectedArea === 'all'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Globe className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                        <span className="truncate">{t('areaAll')}</span>
+                      </div>
+                      <span className="text-xs text-[var(--text-muted)] shrink-0">{PLATFORMS.length}</span>
+                    </button>
+
+                    {THEMATIC_AREAS.map((areaKey) => {
+                      const meta = localizedThematicAreas[areaKey];
+                      const count = PLATFORMS.filter((p) => p.thematicAreas.includes(areaKey)).length;
+                      return (
+                        <button
+                          key={areaKey}
+                          type="button"
+                          onClick={() => setSelectedArea(areaKey)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                            selectedArea === areaKey
+                              ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            {renderAreaIcon(areaKey, 'w-3.5 h-3.5 text-[var(--text-muted)] shrink-0')}
+                            <span className="truncate">{meta.label}</span>
+                          </div>
+                          <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Gaveta 2: Access Model Filter */}
+              <div className="border-b border-[var(--divider)] pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('access')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('access');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.access}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                      Modelo de Acesso
+                    </span>
+                    {accessFilter !== 'all' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                        {accessFilter === 'gratuito'
+                          ? 'Gratuito'
+                          : accessFilter === 'pago'
+                          ? 'Assinatura'
+                          : accessFilter === 'aberto-institucional'
+                          ? 'Institucional'
+                          : 'Freemium'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {accessFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAccessFilter('all');
+                        }}
+                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                        sidebarDrawers.access ? 'rotate-0' : '-rotate-90'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {sidebarDrawers.access && (
+                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAccessFilter('all')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        accessFilter === 'all'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>Todos os modelos</span>
+                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAccessFilter('gratuito')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        accessFilter === 'gratuito'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>100% Gratuitas & Open</span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {PLATFORMS.filter((p) => p.accessModel === 'gratuito').length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAccessFilter('pago')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        accessFilter === 'pago'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>Pagas / Assinatura</span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {PLATFORMS.filter((p) => p.accessModel === 'pago').length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAccessFilter('aberto-institucional')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        accessFilter === 'aberto-institucional'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>Acesso Aberto + CAFe</span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {PLATFORMS.filter((p) => p.accessModel === 'aberto-institucional').length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAccessFilter('freemium')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        accessFilter === 'freemium'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>Gratuito c/ Cota IA</span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {PLATFORMS.filter((p) => p.accessModel === 'freemium').length}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Gaveta 3: Cumulative Presets List */}
+              <div className="border-b border-[var(--divider)] pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('presets')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('presets');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.presets}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                      Seleção Rápida
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums shrink-0 ${
+                        selectedPlatformIds.length > 0
+                          ? 'bg-[var(--link-academic)]/15 text-[var(--link-academic)]'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+                      }`}
+                      title={`${selectedPlatformIds.length} de ${PLATFORMS.length} plataformas selecionadas`}
+                    >
+                      {selectedPlatformIds.length}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
+                      sidebarDrawers.presets ? 'rotate-0' : '-rotate-90'
+                    }`}
+                  />
+                </div>
+
+                {sidebarDrawers.presets && (
+                  <div className="space-y-1 text-[13px] pt-1.5">
+                    {/* Sub-barra de Ações da Gaveta */}
+                    <div className="flex items-center justify-between px-2 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
+                      <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                        {selectedPlatformIds.length} de {PLATFORMS.length} ativas
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
+                          className="text-[11px] font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
+                        >
+                          Todas
+                        </button>
+                        <span className="text-[var(--divider)] text-[10px]">·</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlatformIds([])}
+                          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+                    {localizedPresets.map((preset) => {
+                      const matchedCount = preset.platformIds.filter((id) =>
+                        selectedPlatformIds.includes(id)
+                      ).length;
+                      const isFullyActive =
+                        matchedCount === preset.platformIds.length &&
+                        preset.platformIds.length > 0;
+                      const isPartiallyActive = matchedCount > 0 && !isFullyActive;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleTogglePreset(preset.id, preset.platformIds)}
+                          title={preset.description}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                            isFullyActive
+                              ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isFullyActive}
+                              ref={(el) => {
+                                if (el) el.indeterminate = isPartiallyActive;
+                              }}
+                              readOnly
+                              className="rounded accent-[var(--link-academic)] pointer-events-none"
+                            />
+                            <span className="truncate">{preset.name}</span>
+                          </div>
+                          <span className="text-xs text-[var(--text-muted)] shrink-0">
+                            {matchedCount}/{preset.platformIds.length}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Gaveta 4: Functional Categories */}
+              <div>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('categories')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('categories');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.categories}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                      Tipo de Plataforma
+                    </span>
+                    {activeCategory !== 'all' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                        {localizedCategoryMeta[activeCategory]?.label.split('&')[0].trim() || activeCategory}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {activeCategory !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCategory('all');
+                        }}
+                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                        sidebarDrawers.categories ? 'rotate-0' : '-rotate-90'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {sidebarDrawers.categories && (
+                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategory('all')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        activeCategory === 'all'
+                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span>Todas as categorias</span>
+                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                    </button>
+
+                    {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
+                      const meta = localizedCategoryMeta[catKey];
+                      const count = PLATFORMS.filter((p) => p.category === catKey).length;
+                      return (
+                        <button
+                          key={catKey}
+                          type="button"
+                          onClick={() => setActiveCategory(catKey)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                            activeCategory === catKey
+                              ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
+                          <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            {/* Right Main Directory Area */}
+            <div className="min-w-0">
+              {/* Specialized Areas Horizontal Quick Filter */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-3 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setSelectedArea('all')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    selectedArea === 'all'
+                      ? 'bg-[var(--link-academic)] text-white'
+                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>{t('areaAll')}</span>
+                  <span className="opacity-70 text-[11px]">({PLATFORMS.length})</span>
+                </button>
+                {THEMATIC_AREAS.map((areaKey) => {
+                  const meta = localizedThematicAreas[areaKey];
+                  const count = PLATFORMS.filter((p) => p.thematicAreas.includes(areaKey)).length;
+                  const isActive = selectedArea === areaKey;
+                  return (
+                    <button
+                      key={areaKey}
+                      type="button"
+                      onClick={() => setSelectedArea(areaKey)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? 'bg-[var(--link-academic)] text-white'
+                          : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {renderAreaIcon(areaKey, 'w-3.5 h-3.5')}
+                      <span>{meta.label}</span>
+                      <span className="opacity-70 text-[11px]">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Directory Header */}
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <div>
+                  <h1 className="font-heading text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                    {selectedArea !== 'all' && renderAreaIcon(selectedArea, 'w-4 h-4 text-[var(--link-academic)]')}
+                    <span>
+                      {selectedArea !== 'all'
+                        ? localizedThematicAreas[selectedArea].label
+                        : activeCategoryHeading.title}
+                    </span>
+                  </h1>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {visiblePlatforms.length} portais correspondentes · {selectedPlatformIds.length} marcados para abertura simultânea
+                  </p>
+                </div>
+
+                {/* Borderless View Switcher */}
+                <div className="inline-flex rounded-lg bg-[var(--bg-subtle)] p-1">
                   <button
-                    key={catKey}
                     type="button"
-                    onClick={() => setActiveCategory(catKey)}
-                    className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
-                      activeCategory === catKey
-                        ? meta.badgeClass
-                        : 'bg-slate-900/50 text-slate-400 border-slate-800/80 hover:text-slate-200'
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                      viewMode === 'grid'
+                        ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
+                    title="Visualização em blocos"
                   >
-                    {meta.label} ({count})
+                    <LayoutGrid className="w-3.5 h-3.5" />
                   </button>
-                );
-              })}
-            </div>
-
-            {/* Platforms Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visiblePlatforms.map((platform) => {
-                const isSelected = selectedPlatformIds.includes(platform.id);
-                const catMeta = localizedCategoryMeta[platform.category];
-                const accessBadge = localizedAccessBadges[platform.accessModel];
-                const searchUrl = platform.buildUrl(
-                  encodedQuery,
-                  trimmedQuery,
-                  yearStartNum
-                );
-
-                return (
-                  <div
-                    key={platform.id}
-                    className={`group relative rounded-2xl p-4 sm:p-5 border transition-all flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-slate-900/60 border-cyan-500/40 shadow-sm'
-                        : 'bg-slate-900/35 border-slate-800/70 hover:border-slate-700/80'
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                      viewMode === 'list'
+                        ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
+                    title="Visualização em lista acadêmica"
                   >
-                    <div>
-                      <div className="flex items-start justify-between gap-3 mb-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePlatformSelection(platform.id)}
-                            className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
-                            title={
-                              isSelected
-                                ? 'Incluída no lote (clique para desmarcar)'
-                                : 'Clique para incluir no lote'
-                            }
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="w-4 h-4 text-cyan-400" />
-                            ) : (
-                              <Square className="w-4 h-4 text-slate-600 group-hover:text-slate-400" />
-                            )}
-                          </button>
-                          <div>
-                            <h3 className="text-sm font-semibold text-slate-100 leading-tight">
-                              {platform.name}
-                            </h3>
-                            <span className="text-[11px] text-slate-400">
-                              {platform.shortTag}
-                            </span>
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* VIEW 1: BORDERLESS SOFT SURFACE CARDS */}
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                  {visiblePlatforms.map((platform) => {
+                    const isSelected = selectedPlatformIds.includes(platform.id);
+                    const accessBadge = localizedAccessBadges[platform.accessModel];
+                    const targetUrl = platform.buildUrl(
+                      encodedQuery,
+                      trimmedQuery,
+                      yearStartNum
+                    );
+
+                    return (
+                      <div
+                        key={platform.id}
+                        className={`group rounded-2xl p-4 transition-colors flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-[var(--accent-blue-tint)]'
+                            : 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)]/75'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleTogglePlatformSelection(platform.id)}
+                                className="mt-1 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
+                                title="Incluir na abertura em lote"
+                              />
+                              <div className="min-w-0">
+                                <a
+                                  href={targetUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[15px] font-semibold text-[var(--link-academic)] hover:underline inline-flex items-center gap-1 leading-snug"
+                                >
+                                  <span>{platform.name}</span>
+                                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </a>
+                                <div className="text-xs text-[var(--meta-green)] truncate">
+                                  {platform.shortTag} · {accessBadge.label.split('/')[0].trim()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mt-2 mb-2.5">
+                            {platform.description}
+                          </p>
+
+                          {/* Discipline Tags */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {platform.thematicAreas
+                              .filter((a) => a !== 'multidisciplinar')
+                              .map((area) => (
+                                <button
+                                  key={area}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedArea(area);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
+                                >
+                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-70')}
+                                  <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
+                                </button>
+                              ))}
                           </div>
                         </div>
 
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-medium border shrink-0 ${accessBadge.className}`}
-                        >
-                          {accessBadge.label}
-                        </span>
+                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)] pt-1">
+                          <span className="truncate">{platform.coverageNote}</span>
+                          <a
+                            href={targetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-[var(--link-academic)] hover:underline shrink-0"
+                          >
+                            {isValidQuery ? 'Pesquisar ↗' : 'Abrir ↗'}
+                          </a>
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      <p className="text-xs text-slate-300/85 leading-relaxed mb-3">
-                        {platform.description}
-                      </p>
+              {/* VIEW 2: CLASSIC GOOGLE SCHOLAR / SEMANTIC SCHOLAR LIST */}
+              {viewMode === 'list' && (
+                <div className="space-y-6 max-w-3xl">
+                  {visiblePlatforms.map((platform) => {
+                    const isSelected = selectedPlatformIds.includes(platform.id);
+                    const accessBadge = localizedAccessBadges[platform.accessModel];
+                    const targetUrl = platform.buildUrl(
+                      encodedQuery,
+                      trimmedQuery,
+                      yearStartNum
+                    );
 
-                      <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2 mb-3">
-                        <span className="text-slate-500">{t('coverageLabel')}</span>
-                        <span className="text-slate-300 font-medium truncate max-w-[190px]">
-                          {platform.coverageNote}
-                        </span>
+                    return (
+                      <div key={platform.id} className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleTogglePlatformSelection(platform.id)}
+                          className="mt-1.5 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-4">
+                            <h3 className="text-[16px] font-semibold leading-snug">
+                              <a
+                                href={targetUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[var(--link-academic)] hover:underline"
+                              >
+                                {platform.name}
+                              </a>
+                            </h3>
+                            <a
+                              href={targetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-[var(--link-academic)] hover:underline shrink-0"
+                            >
+                              {isValidQuery ? 'Pesquisar ↗' : 'Abrir portal ↗'}
+                            </a>
+                          </div>
+
+                          <div className="text-[13px] text-[var(--meta-green)] mt-0.5 mb-1">
+                            {platform.shortTag} - {platform.coverageNote} - {accessBadge.label}
+                          </div>
+
+                          <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
+                            {platform.description}
+                          </p>
+
+                          {/* Discipline Tags */}
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {platform.thematicAreas
+                              .filter((a) => a !== 'multidisciplinar')
+                              .map((area) => (
+                                <button
+                                  key={area}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedArea(area);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
+                                >
+                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-70')}
+                                  <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
+                                </button>
+                              ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="pt-1 mt-auto">
-                      <a
-                        href={isValidQuery ? searchUrl : undefined}
-                        target={isValidQuery ? '_blank' : undefined}
-                        rel="noopener noreferrer"
-                        onClick={(e) => {
-                          if (!isValidQuery) e.preventDefault();
-                        }}
-                        className={`w-full py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs font-semibold border transition-all ${
-                          isValidQuery
-                            ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-100 border-slate-700 hover:border-slate-600 cursor-pointer'
-                            : 'bg-slate-950/40 text-slate-600 border-slate-800/60 cursor-not-allowed'
-                        }`}
-                      >
-                        <Globe className="w-3.5 h-3.5 text-cyan-400/80" />
-                        <span>
-                          {isValidQuery
-                            ? t('platformSearchBtn', { name: platform.name })
-                            : t('enterTopicAbove')}
-                        </span>
-                        <ExternalLink className="w-3 h-3 text-slate-400" />
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -857,6 +1449,7 @@ export default function AcademicCommandCenter() {
             isSearching={isSearchingApis}
             savedIds={savedIdsSet}
             onToggleSave={handleToggleSavePaper}
+            deduplicationSummary={dedupSummary}
           />
         )}
 
@@ -864,13 +1457,50 @@ export default function AcademicCommandCenter() {
         {activeTab === 'saved' && (
           <SavedLiteratureDrawer
             items={savedPapers}
+            dedupSummary={dedupSummary}
+            sourceBreakdown={sourceBreakdown}
             onUpdateNotes={handleUpdateNotes}
             onUpdateRelevance={handleUpdateRelevance}
+            onUpdateScreening={handleUpdateScreening}
             onRemoveItem={handleRemoveSaved}
             onClearAll={() => setSavedPapers([])}
           />
         )}
+
+        {/* TAB 4: USER FEEDBACK & COMMUNITY CONTRIBUTIONS */}
+        {activeTab === 'feedback' && <FeedbackView />}
       </main>
+
+      {/* Prism Institutional Footer */}
+      <footer className="mt-20 border-t border-[var(--divider)] pt-6 pb-12 text-xs text-[var(--text-muted)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <PrismSpectralBar className="h-[2px] w-full mb-6 opacity-80" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <PrismMonogram className="h-4 w-auto" />
+              <div className="text-[13px]">
+                <span className="font-semibold text-[var(--text-primary)]">Cartograph</span>
+                <span className="mx-2 text-[var(--text-muted)]">·</span>
+                <span>Desenvolvido pela Prism</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-[12px] text-[var(--text-muted)]">
+              <span>Pesquisa acadêmica e metabusca integrada em periódicos e repositórios abertos.</span>
+              <span className="hidden sm:inline">·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('feedback');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                {t('tabFeedback')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

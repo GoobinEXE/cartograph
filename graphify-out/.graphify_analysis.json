@@ -1,0 +1,385 @@
+{
+  "communities": {
+    "0": [
+      "agents_graphify_protocol",
+      "centro_de_comando_acad_mico",
+      "src_app",
+      "src_app_academiccommandcenter",
+      "src_app_renderareaicon",
+      "src_app_sidebarsectionkey",
+      "src_components_booleanbuilderdrawer",
+      "src_components_booleanbuilderdrawer_booleanbuilderdrawer",
+      "src_components_booleanbuilderdrawer_booleanbuilderdrawerprops",
+      "src_components_feedbackview",
+      "src_components_feedbackview_feedbackview",
+      "src_components_feedbackview_feedbackviewprops",
+      "src_components_prismlogo",
+      "src_components_prismlogo_prismmonogram",
+      "src_components_prismlogo_prismspectralbar",
+      "src_data_platforms",
+      "src_data_platforms_access_badges",
+      "src_data_platforms_category_meta",
+      "src_data_platforms_getlocalizedaccessbadges",
+      "src_data_platforms_getlocalizedcategorymeta",
+      "src_data_platforms_getlocalizedlaunchpresets",
+      "src_data_platforms_getlocalizedthematicareas",
+      "src_data_platforms_launch_presets",
+      "src_data_platforms_platforms",
+      "src_data_platforms_thematic_areas",
+      "src_types_academic",
+      "src_types_academic_accessmodel",
+      "src_types_academic_apisourceid",
+      "src_types_academic_booleanquerystate",
+      "src_types_academic_feedbacktype",
+      "src_types_academic_launchpreset",
+      "src_types_academic_platformcategory",
+      "src_types_academic_platformconfig",
+      "src_types_academic_thematicarea",
+      "src_types_academic_userfeedbackitem",
+      "src_utils_querybuilder",
+      "src_utils_querybuilder_academic_pt_en_glossary",
+      "src_utils_querybuilder_compilebooleanquery",
+      "src_utils_querybuilder_translateacademicquerypttoen"
+    ],
+    "1": [
+      "package",
+      "package_dependencies",
+      "package_dependencies_lucide_react",
+      "package_dependencies_react_dom",
+      "package_dependencies_tauri_apps_api",
+      "package_dependencies_tauri_apps_plugin_http",
+      "package_dependencies_tauri_apps_plugin_opener",
+      "package_dependencies_tauri_apps_plugin_shell",
+      "package_description",
+      "package_devdependencies",
+      "package_devdependencies_tailwindcss",
+      "package_devdependencies_tailwindcss_vite",
+      "package_devdependencies_tauri_apps_cli",
+      "package_devdependencies_types_node",
+      "package_devdependencies_types_react",
+      "package_devdependencies_types_react_dom",
+      "package_devdependencies_typescript",
+      "package_devdependencies_vite",
+      "package_devdependencies_vitejs_plugin_react",
+      "package_name",
+      "package_private",
+      "package_type",
+      "package_version",
+      "ref_lucide_react",
+      "ref_react_dom",
+      "ref_tailwindcss",
+      "ref_tailwindcss_vite",
+      "ref_tauri_apps_api",
+      "ref_tauri_apps_cli",
+      "ref_tauri_apps_plugin_http",
+      "ref_tauri_apps_plugin_opener",
+      "ref_tauri_apps_plugin_shell",
+      "ref_types_node",
+      "ref_types_react",
+      "ref_types_react_dom",
+      "ref_typescript",
+      "ref_vite",
+      "ref_vitejs_plugin_react",
+      "vite_config"
+    ],
+    "2": [
+      "src_tauri_tauri_conf",
+      "src_tauri_tauri_conf_android_debugapplicationidsuffix",
+      "src_tauri_tauri_conf_app",
+      "src_tauri_tauri_conf_app_security",
+      "src_tauri_tauri_conf_app_windows",
+      "src_tauri_tauri_conf_build",
+      "src_tauri_tauri_conf_build_beforebuildcommand",
+      "src_tauri_tauri_conf_build_beforedevcommand",
+      "src_tauri_tauri_conf_build_devurl",
+      "src_tauri_tauri_conf_build_frontenddist",
+      "src_tauri_tauri_conf_bundle",
+      "src_tauri_tauri_conf_bundle_active",
+      "src_tauri_tauri_conf_bundle_android",
+      "src_tauri_tauri_conf_bundle_icon",
+      "src_tauri_tauri_conf_bundle_targets",
+      "src_tauri_tauri_conf_identifier",
+      "src_tauri_tauri_conf_productname",
+      "src_tauri_tauri_conf_schema",
+      "src_tauri_tauri_conf_security_csp",
+      "src_tauri_tauri_conf_version"
+    ],
+    "3": [
+      "src_components_federatedresultspanel",
+      "src_components_federatedresultspanel_federatedresultspanel",
+      "src_components_federatedresultspanel_federatedresultspanelprops",
+      "src_components_savedliteraturedrawer",
+      "src_components_savedliteraturedrawer_savedliteraturedrawer",
+      "src_components_savedliteraturedrawer_savedliteraturedrawerprops",
+      "src_i18n_context_usei18n",
+      "src_types_academic_normalizedpaper",
+      "src_types_academic_savedpaperitem",
+      "src_types_academic_sourcefetchstatus",
+      "src_utils_citationexporter",
+      "src_utils_citationexporter_escapecsvcell",
+      "src_utils_citationexporter_exportsavedpaperscsv",
+      "src_utils_citationexporter_formatabntcitation",
+      "src_utils_citationexporter_formatapacitation",
+      "src_utils_citationexporter_formatauthorabnt",
+      "src_utils_citationexporter_formatauthorapa",
+      "src_utils_citationexporter_formatbibtexentry",
+      "src_utils_citationexporter_triggerfiledownload"
+    ],
+    "4": [
+      "tsconfig",
+      "tsconfig_compileroptions",
+      "tsconfig_compileroptions_allowimportingtsextensions",
+      "tsconfig_compileroptions_isolatedmodules",
+      "tsconfig_compileroptions_jsx",
+      "tsconfig_compileroptions_lib",
+      "tsconfig_compileroptions_module",
+      "tsconfig_compileroptions_moduledetection",
+      "tsconfig_compileroptions_moduleresolution",
+      "tsconfig_compileroptions_noemit",
+      "tsconfig_compileroptions_nofallthroughcasesinswitch",
+      "tsconfig_compileroptions_nounusedlocals",
+      "tsconfig_compileroptions_nounusedparameters",
+      "tsconfig_compileroptions_skiplibcheck",
+      "tsconfig_compileroptions_strict",
+      "tsconfig_compileroptions_target",
+      "tsconfig_compileroptions_usedefineforclassfields",
+      "tsconfig_include"
+    ],
+    "5": [
+      "agents_federated_metasearch_spec",
+      "src_services_academicaggregator",
+      "src_services_academicaggregator_cleandoi",
+      "src_services_academicaggregator_deduplicatepapers",
+      "src_services_academicaggregator_reconstructopenalexabstract",
+      "src_services_academicaggregator_runfederatedsearch",
+      "src_services_academicaggregator_searcharxiv",
+      "src_services_academicaggregator_searchcrossref",
+      "src_services_academicaggregator_searchdatacite",
+      "src_services_academicaggregator_searchdoaj",
+      "src_services_academicaggregator_searcheuropepmc",
+      "src_services_academicaggregator_searchhalopenscience",
+      "src_services_academicaggregator_searchopenalex",
+      "src_services_academicaggregator_searchpubmedentrez",
+      "src_services_academicaggregator_searchsemanticscholar",
+      "src_services_academicaggregator_searchzenodo"
+    ],
+    "6": [
+      "index_root_mount",
+      "package_dependencies_react",
+      "ref_react",
+      "src_i18n_context",
+      "src_i18n_context_available_languages",
+      "src_i18n_context_detectbrowserlanguage",
+      "src_i18n_context_i18ncontext",
+      "src_i18n_context_i18ncontexttype",
+      "src_i18n_context_i18nprovider",
+      "src_i18n_context_languageoption",
+      "src_i18n_translations",
+      "src_i18n_translations_supportedlanguage",
+      "src_i18n_translations_translations",
+      "src_index",
+      "src_main"
+    ],
+    "7": [
+      "agents_crossplatform_architecture",
+      "ref_node_child_process",
+      "ref_node_fs",
+      "ref_node_http",
+      "ref_node_path",
+      "ref_node_url",
+      "server_launcher_bridge",
+      "server_launcher_bridge_args",
+      "server_launcher_bridge_bridge_port",
+      "server_launcher_bridge_openurlnative",
+      "server_launcher_bridge_sendjson",
+      "server_launcher_bridge_server",
+      "src_services_academicaggregator_launchurlscrossplatform"
+    ],
+    "8": [
+      "package_scripts",
+      "package_scripts_bridge",
+      "package_scripts_build",
+      "package_scripts_desktop",
+      "package_scripts_desktop_build",
+      "package_scripts_dev",
+      "package_scripts_preview",
+      "package_scripts_start",
+      "package_scripts_tauri",
+      "package_scripts_vite"
+    ],
+    "9": [
+      "readme",
+      "readme_1_modo_desktop_execut\u00e1vel_tauri_v2_rust",
+      "readme_2_modo_web_local_bridge_de_sistema",
+      "readme_cartograph",
+      "readme_cobertura_de_fontes_cient\u00edficas_integradas",
+      "readme_modos_de_execu\u00e7\u00e3o",
+      "readme_recursos_e_utilit\u00e1rios",
+      "readme_requisitos_de_desenvolvimento",
+      "readme_vis\u00e3o_geral_da_arquitetura"
+    ],
+    "10": [
+      "src_tauri_capabilities_default",
+      "src_tauri_capabilities_default_description",
+      "src_tauri_capabilities_default_identifier",
+      "src_tauri_capabilities_default_permissions",
+      "src_tauri_capabilities_default_schema",
+      "src_tauri_capabilities_default_windows"
+    ],
+    "11": [
+      "iniciar_desktop_linux",
+      "iniciar_desktop_linux_sh__entry"
+    ],
+    "12": [
+      "iniciar_linux",
+      "iniciar_linux_sh__entry"
+    ],
+    "13": [
+      "src_tauri_build",
+      "src_tauri_build_main"
+    ],
+    "14": [
+      "src_tauri_src_lib",
+      "src_tauri_src_lib_run"
+    ],
+    "15": [
+      "src_tauri_src_main",
+      "src_tauri_src_main_main"
+    ],
+    "16": [
+      "pkg_cartograph"
+    ]
+  },
+  "cohesion": {
+    "0": 0.11336032388663968,
+    "1": 0.07422402159244265,
+    "2": 0.1,
+    "3": 0.27485380116959063,
+    "4": 0.1111111111111111,
+    "5": 0.30833333333333335,
+    "6": 0.20952380952380953,
+    "7": 0.19230769230769232,
+    "8": 0.2,
+    "9": 0.2222222222222222,
+    "10": 0.3333333333333333,
+    "11": 1.0,
+    "12": 1.0,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0
+  },
+  "gods": [
+    {
+      "id": "src_app_academiccommandcenter",
+      "label": "AcademicCommandCenter()",
+      "degree": 18
+    },
+    {
+      "id": "tsconfig_compileroptions",
+      "label": "compilerOptions",
+      "degree": 16
+    },
+    {
+      "id": "src_services_academicaggregator_runfederatedsearch",
+      "label": "runFederatedSearch()",
+      "degree": 15
+    },
+    {
+      "id": "src_i18n_context_usei18n",
+      "label": "useI18n()",
+      "degree": 11
+    },
+    {
+      "id": "src_services_academicaggregator_cleandoi",
+      "label": "cleanDoi()",
+      "degree": 11
+    },
+    {
+      "id": "package_scripts",
+      "label": "scripts",
+      "degree": 10
+    },
+    {
+      "id": "ref_react",
+      "label": "react",
+      "degree": 10
+    },
+    {
+      "id": "src_components_savedliteraturedrawer_savedliteraturedrawer",
+      "label": "SavedLiteratureDrawer()",
+      "degree": 9
+    },
+    {
+      "id": "ref_lucide_react",
+      "label": "lucide-react",
+      "degree": 7
+    },
+    {
+      "id": "src_components_federatedresultspanel_federatedresultspanel",
+      "label": "FederatedResultsPanel()",
+      "degree": 7
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Especifica\u00e7\u00e3o do Agregador Federado de 5 APIs Cient\u00edficas",
+      "target": "PLATFORMS",
+      "source_files": [
+        "AGENTS.md",
+        "src/data/platforms.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Especifica\u00e7\u00e3o do Agregador Federado de 5 APIs Cient\u00edficas",
+      "target": "runFederatedSearch()",
+      "source_files": [
+        "AGENTS.md",
+        "src/services/academicAggregator.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `Especifica\u00e7\u00e3o do Agregador Federado de 5 APIs Cient\u00edficas` unexpectedly reaches hub `runFederatedSearch()`"
+    },
+    {
+      "source": "Protocolo Query-First Graphify (Otimiza\u00e7\u00e3o de Tokens)",
+      "target": "AcademicCommandCenter()",
+      "source_files": [
+        "AGENTS.md",
+        "src/App.tsx"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `Protocolo Query-First Graphify (Otimiza\u00e7\u00e3o de Tokens)` unexpectedly reaches hub `AcademicCommandCenter()`"
+    },
+    {
+      "source": "Arquitetura H\u00edbrida Multiplataforma (Windows, Linux, macOS)",
+      "target": "launchUrlsCrossPlatform()",
+      "source_files": [
+        "AGENTS.md",
+        "src/services/academicAggregator.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `Arquitetura H\u00edbrida Multiplataforma (Windows, Linux, macOS)` unexpectedly reaches hub `launchUrlsCrossPlatform()`"
+    },
+    {
+      "source": "Arquitetura H\u00edbrida Multiplataforma (Windows, Linux, macOS)",
+      "target": "openUrlNative()",
+      "source_files": [
+        "AGENTS.md",
+        "server/launcher-bridge.mjs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "rationale_for",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

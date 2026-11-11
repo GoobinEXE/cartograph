@@ -1,11 +1,22 @@
 export type PlatformCategory =
   | 'global-index'
+  | 'commercial-publishers'
   | 'regional-latam'
   | 'ai-synthesis'
   | 'citation-graph'
   | 'evidence-health';
 
-export type AccessModel = 'gratuito' | 'aberto-institucional' | 'freemium';
+export type AccessModel = 'gratuito' | 'aberto-institucional' | 'freemium' | 'pago';
+
+export type ThematicArea =
+  | 'tecnologia'
+  | 'ia'
+  | 'saude'
+  | 'arte'
+  | 'games'
+  | 'software'
+  | 'hardware'
+  | 'multidisciplinar';
 
 export interface PlatformConfig {
   id: string;
@@ -13,6 +24,7 @@ export interface PlatformConfig {
   shortTag: string;
   category: PlatformCategory;
   accessModel: AccessModel;
+  thematicAreas: ThematicArea[];
   trustScore: 1 | 2 | 3 | 4 | 5;
   supportsBoolean: boolean;
   hasDirectApi: boolean;
@@ -70,10 +82,54 @@ export interface BooleanQueryState {
   studyDesign: 'any' | 'systematic-review' | 'rct' | 'empirical-causal' | 'open-access-only';
 }
 
+export type ScreeningStatus = 'unscreened' | 'included' | 'excluded';
+
+export type ScreeningExclusionReason =
+  | 'populacao_inadequada'
+  | 'desenho_incompativel'
+  | 'desfecho_irrelevante'
+  | 'texto_completo_inacessivel'
+  | 'duplicata_residual'
+  | 'outro';
+
+export interface ExtractedPaperMetadata {
+  objective?: string;
+  methods?: string;
+  sampleSize?: string;
+  studyDesign?: string;
+  results?: string;
+  conclusion?: string;
+  hasStructuredAbstract: boolean;
+}
+
 export interface SavedPaperItem extends NormalizedPaper {
   savedAt: string;
   researcherNotes: string;
   relevanceTag: 'alta' | 'media' | 'revisar';
+  screeningStatus?: ScreeningStatus;
+  exclusionReason?: string;
+  extractedMetadata?: ExtractedPaperMetadata;
+}
+
+export interface Prisma2020Counts {
+  identifiedTotal: number;
+  bySource: Record<string, number>;
+  duplicatesRemoved: number;
+  screenedTotal: number;
+  excludedScreening: number;
+  excludedReasons: Record<string, number>;
+  fullTextAssessed: number;
+  excludedFullText: number;
+  includedStudies: number;
+}
+
+export interface DeduplicationSummary {
+  originalCount: number;
+  uniqueCount: number;
+  duplicatesRemoved: number;
+  mergedByDoi: number;
+  mergedByPmidOrArxiv: number;
+  mergedByFuzzyTitle: number;
 }
 
 export interface LaunchPreset {
@@ -81,4 +137,18 @@ export interface LaunchPreset {
   name: string;
   description: string;
   platformIds: string[];
+}
+
+export type FeedbackType = 'suggestion' | 'correction' | 'feature' | 'general';
+
+export interface UserFeedbackItem {
+  id: string;
+  type: FeedbackType;
+  subject: string;
+  message: string;
+  relatedUrl?: string;
+  institution?: string;
+  userEmail?: string;
+  rating: number;
+  createdAt: string;
 }

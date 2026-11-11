@@ -1,4 +1,6 @@
 {
+  "1": "App.tsx",
+  "2": "Cartograph",
   "6": "context.tsx",
   "9": "tauri.conf.json",
   "10": "default.json",
@@ -6,5 +8,6 @@
   "12": "build.rs",
   "13": "lib.rs",
   "14": "main.rs",
-  "15": "app"
+  "15": "cartograph",
+  "16": "FederatedResultsPanel.tsx"
 }

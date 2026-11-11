@@ -101,27 +101,55 @@ export function exportSavedPapersCsv(items: SavedPaperItem[]): string {
     'Link_Pagina',
     'Base_Indexadora',
     'Prioridade',
+    'Status_Triagem_PRISMA',
+    'Motivo_Exclusao',
+    'Delineamento_Estudo',
+    'Amostra_N',
+    'Objetivo_Extraido',
+    'Metodologia_Extraida',
+    'Resultados_Extraidos',
+    'Conclusao_Extraida',
     'Notas_Fichamento',
     'Resumo_Abstract',
     'Referencia_ABNT',
+    'Referencia_APA',
   ];
 
-  const rows = items.map((item) => [
-    escapeCsvCell(item.title),
-    escapeCsvCell(item.authors.join('; ')),
-    escapeCsvCell(item.year ?? ''),
-    escapeCsvCell(item.venue),
-    escapeCsvCell(item.citationCount),
-    escapeCsvCell(item.isOpenAccess ? 'Sim' : 'Nao'),
-    escapeCsvCell(item.doi ? `https://doi.org/${item.doi}` : ''),
-    escapeCsvCell(item.pdfUrl ?? ''),
-    escapeCsvCell(item.url),
-    escapeCsvCell(item.sourceLabel),
-    escapeCsvCell(item.relevanceTag.toUpperCase()),
-    escapeCsvCell(item.researcherNotes),
-    escapeCsvCell(item.abstractText ?? ''),
-    escapeCsvCell(formatAbntCitation(item)),
-  ]);
+  const rows = items.map((item) => {
+    const meta = item.extractedMetadata;
+    const screeningLabel =
+      item.screeningStatus === 'included'
+        ? 'INCLUIDO'
+        : item.screeningStatus === 'excluded'
+        ? 'EXCLUIDO'
+        : 'PENDENTE';
+
+    return [
+      escapeCsvCell(item.title),
+      escapeCsvCell(item.authors.join('; ')),
+      escapeCsvCell(item.year ?? ''),
+      escapeCsvCell(item.venue),
+      escapeCsvCell(item.citationCount),
+      escapeCsvCell(item.isOpenAccess ? 'Sim' : 'Nao'),
+      escapeCsvCell(item.doi ? `https://doi.org/${item.doi}` : ''),
+      escapeCsvCell(item.pdfUrl ?? ''),
+      escapeCsvCell(item.url),
+      escapeCsvCell(item.sourceLabel),
+      escapeCsvCell(item.relevanceTag.toUpperCase()),
+      escapeCsvCell(screeningLabel),
+      escapeCsvCell(item.exclusionReason ?? ''),
+      escapeCsvCell(meta?.studyDesign ?? ''),
+      escapeCsvCell(meta?.sampleSize ?? ''),
+      escapeCsvCell(meta?.objective ?? ''),
+      escapeCsvCell(meta?.methods ?? ''),
+      escapeCsvCell(meta?.results ?? ''),
+      escapeCsvCell(meta?.conclusion ?? ''),
+      escapeCsvCell(item.researcherNotes),
+      escapeCsvCell(item.abstractText ?? ''),
+      escapeCsvCell(formatAbntCitation(item)),
+      escapeCsvCell(formatApaCitation(item)),
+    ];
+  });
 
   // Prepend UTF-8 BOM (\uFEFF) for seamless opening in Microsoft Excel (Windows/macOS) and LibreOffice (Linux)
   return '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
