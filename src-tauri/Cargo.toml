@@ -1,7 +1,7 @@
 [package]
-name = "app"
-version = "0.1.0"
-description = "A Tauri App"
+name = "cartograph"
+version = "2.1.0"
+description = "Cartograph — Scientific Metasearch Hub"
 authors = ["you"]
 license = ""
 repository = ""

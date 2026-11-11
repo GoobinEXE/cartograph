@@ -1,4 +1,4 @@
-# Super Pesquisador 2000 (Nexus Acadêmico)
+# Cartograph
 
 Hub federado de metabusca científica, exploração bibliográfica e exportação estruturada de literatura acadêmica. O sistema opera tanto em modo **Web + Bridge Local** quanto em **Janela Nativa Desktop Standalone (Tauri v2 + Rust)**.
 
@@ -101,3 +101,4 @@ Launchers de duplo clique:
 
 - **Node.js** >= 18
 - **Rust & Cargo** (necessários apenas para compilar o executável desktop via Tauri v2)
+
