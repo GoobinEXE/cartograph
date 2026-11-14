@@ -48,10 +48,10 @@ O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (Re
 
 ## 3. Topologia de Módulos do Projeto
 
-- `src/types/academic.ts`: Contratos estritos de dados para plataformas (`PlatformConfig`), áreas especializadas (`ThematicArea`: `tecnologia`, `ia`, `saude`, `arte`, `games`, `software`, `hardware`, `multidisciplinar`), artigos normalizados (`NormalizedPaper`), estado do construtor booleano (`BooleanQueryState`), filtros de busca (`SearchFilters`), modelos de acesso (`AccessModel`: `gratuito`, `aberto-institucional`, `freemium`, `pago`) e itens de fichamento (`SavedPaperItem`).
-- `src/data/platforms.ts`: Catálogo curado de **82 plataformas científicas** classificadas por nível de validação par-a-par, modelo de acesso (`gratuito`, `aberto-institucional`, `freemium`, `pago`), áreas temáticas disciplinares (`thematicAreas`), categoria operacional (`global-index`, `regional-latam`, `ai-synthesis`, `citation-graph`, `evidence-health`, `commercial-publishers`), 15 perfis de lançamento temático (`LAUNCH_PRESETS`) e geradores dinâmicos de URL de busca com suporte a autenticação institucional e paywalls acadêmicos internacionais.
+- `src/types/academic.ts`: Contratos estritos de dados para plataformas (`PlatformConfig`), áreas especializadas (`ThematicArea`: `tecnologia`, `ia`, `saude`, `ciencias-exatas`, `biociencias`, `geociencias`, `economia-politicas`, `patentes-normas`, `arte`, `games`, `software`, `hardware`, `multidisciplinar`), artigos normalizados (`NormalizedPaper`), estado do construtor booleano (`BooleanQueryState`), filtros de busca (`SearchFilters`), modelos de acesso (`AccessModel`: `gratuito`, `aberto-institucional`, `freemium`, `pago`) e itens de fichamento (`SavedPaperItem`).
+- `src/data/platforms.ts`: Catálogo curado de **111 plataformas científicas, tecnológicas e acadêmicas** classificadas por nível de validação par-a-par, modelo de acesso (`gratuito`, `aberto-institucional`, `freemium`, `pago`), áreas temáticas disciplinares (`thematicAreas`), categoria operacional (`global-index`, `regional-latam`, `ai-synthesis`, `citation-graph`, `evidence-health`, `commercial-publishers`, `tech-patents`, `niche-science`), **20 perfis de lançamento temático** (`LAUNCH_PRESETS`) e geradores dinâmicos de URL de busca com suporte a autenticação institucional e paywalls acadêmicos internacionais.
 - `src/utils/queryBuilder.ts`: Motor determinístico de construção de queries booleanas (`AND`, `OR`, `NOT`, termos exatos, recorte temporal, filtro de revisões sistemáticas/meta-análises) e dicionário técnico de expansão bilíngue Português ↔ Inglês para pesquisa acadêmica.
-- `src/services/academicAggregator.ts`: Agregador federado assíncrono (`Promise.allSettled`) que consulta paralelamente **10 APIs científicas abertas e gratuitas**:
+- `src/services/academicAggregator.ts`: Agregador federado assíncrono (`Promise.allSettled`) que consulta paralelamente **15 APIs científicas e tecnológicas abertas e gratuitas**:
   1. **OpenAlex API** (`api.openalex.org/works`): 250M+ obras científicas com métricas de citação, conceitos e links diretos de PDF Open Access.
   2. **Semantic Scholar Graph API** (`api.semanticscholar.org/graph/v1/paper/search`): relevância semântica, TL;DR, contagem de citações influentes e PDFs abertos.
   3. **PubMed NCBI Entrez E-Utilities** (`eutils.ncbi.nlm.nih.gov/entrez/eutils/`): busca direta no índice oficial MEDLINE / National Library of Medicine (NIH) com resolução de PMID, DOI e PubMed Central PDF.
@@ -62,6 +62,11 @@ O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (Re
   8. **Zenodo / CERN OpenAIRE API** (`zenodo.org/api/records` via proxy `/api/zenodo`): artigos, conjuntos de dados (datasets), pacotes de replicação e software científico hospedados no CERN.
   9. **HAL Open Science API** (`api.archives-ouvertes.fr/search/`): repositório nacional multi-institucional operado pelo CNRS (França) com mais de 3,5 milhões de documentos acadêmicos e textos completos.
   10. **DataCite Commons REST API** (`api.datacite.org/dois`): registro mundial de DOIs para conjuntos de dados empíricos, preprints (OSF, Figshare, Dryad) e relatórios técnicos.
+  11. **INSPIRE-HEP API** (`inspirehep.net/api/literature`): literatura de física de altas energias, aceleradores e computação quântica operada por CERN, DESY, Fermilab e SLAC.
+  12. **Figshare REST API v2** (`api.figshare.com/v2/articles/search`): conjuntos de dados científicos, códigos de replicação e materiais suplementares.
+  13. **GBIF Literature API** (`api.gbif.org/v1/literature/search`): literatura científica revisada por pares sobre biodiversidade, ecologia e clima.
+  14. **OSTI.GOV API** (`osti.gov/api/v1/records` via proxy `/api/osti`): relatórios técnicos e pesquisas do Departamento de Energia dos EUA (DOE).
+  15. **NASA NTRS API** (`ntrs.nasa.gov/api/citations/search` via proxy `/api/ntrs`): relatórios técnicos aeroespaciais, propulsão e engenharia de sistemas da NASA.
   Inclui normalização de registros, deduplicação por DOI canônico e título normalizado, e ordenação multicritério (relevância, citações, ano, Open Access).
 - `src/utils/citationExporter.ts`: Formatação determinística de referências segundo **ABNT NBR 6023:2018**, **APA 7ª Edição**, **BibTeX** e exportação de **Matriz de Revisão de Literatura em CSV** (UTF-8 com BOM para abertura direta no Excel/LibreOffice em Windows, Linux e macOS).
 - `server/launcher-bridge.mjs`: Servidor HTTP local zero-dependência externa pesada (Node.js nativo `http` + `child_process`) que:
@@ -71,7 +76,7 @@ O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (Re
 - `src/utils/deduplication.ts`: Motor determinístico de deduplicação multicritério em 3 níveis (DOI canônico, identificadores exatos PMID/arXiv e proximidade textual Jaro-Winkler/Levenshtein) com fusão enriquecida de metadados.
 - `src/utils/abstractParser.ts`: Parser determinístico de resumos estruturados (*Structured Abstracts*) e extração de metodologia, desenho de estudo e tamanho amostral ($N$) via regex heurístico e vocabulários controlados.
 - `src/utils/prismaFlow.ts` e `src/components/PrismaFlowDiagram.tsx`: Motor de cálculo e renderização interativa do fluxograma oficial **PRISMA 2020** com exportação vetorial (SVG) e rastreamento de motivos de exclusão.
-- `api/`: Funções Serverless (Vercel / Cloudflare) para proxy de CORS e APIs acadêmicas que exigem resolução remota (`/api/arxiv`, `/api/zenodo`, `/api/translate`).
+- `api/`: Funções Serverless (Vercel / Cloudflare) para proxy de CORS e APIs acadêmicas que exigem resolução remota (`/api/arxiv`, `/api/zenodo`, `/api/osti`, `/api/ntrs`, `/api/translate`, `/api/feedback`).
 - `src/App.tsx`: Interface principal com atalhos de teclado (`Ctrl/Cmd + K` para foco na busca, `Ctrl/Cmd + Enter` para busca federada, `Shift + Enter` para lançamento multi-abas), seletor visual de idioma, abas de operação (Metabuscador Integrado, Diretório de Plataformas, Construtor Booleano, Fichamento e Triagem PRISMA 2020).
 
 ---
@@ -84,7 +89,7 @@ O Cartograph opera em modelo híbrido (**Web First para democratização + Deskt
 
 | Funcionalidade | Free / Básico | Pro / Pesquisador Avançado | Mecanismo Técnico |
 | :--- | :--- | :--- | :--- |
-| **Metabusca e Coleta** | 10 APIs abertas em paralelo | 10 APIs abertas + importação de arquivos BibTeX/RIS externos | Agregador federado assíncrono. |
+| **Metabusca e Coleta** | 15 APIs abertas em paralelo | 15 APIs abertas + importação de arquivos BibTeX/RIS externos | Agregador federado assíncrono. |
 | **Deduplicação de Artigos** | Deduplicação básica por DOI | Deduplicação multicritério com relatório de fusão e score de similaridade | `src/utils/deduplication.ts` (Jaro-Winkler + Levenshtein). |
 | **Resumos e Metodologia** | Resumo bruto textual | Parser de resumos estruturados (Objetivo, Métodos, Amostra $N$, Conclusão) | `src/utils/abstractParser.ts` (regex e vocabulário MeSH). |
 | **Triagem Sistemática** | Fichamento linear simples | Fluxo completo PRISMA 2020 com marcação cega de motivos de exclusão | `src/types/academic.ts` (`screeningStatus` e `exclusionReason`). |

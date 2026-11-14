@@ -23,6 +23,7 @@ export default async function handler(req: any, res: any) {
       headers: {
         'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub; mailto:research@cartograph.org)',
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     const xmlText = await response.text();

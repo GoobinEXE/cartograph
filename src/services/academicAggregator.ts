@@ -1,6 +1,49 @@
 import { ApiSourceId, DeduplicationSummary, NormalizedPaper, SourceFetchStatus } from '../types/academic';
 import { deduplicatePapersAdvanced } from '../utils/deduplication';
 
+export function isTauriRuntime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
+}
+
+export async function crossPlatformFetch(
+  proxyUrl: string,
+  directUrl: string,
+  init?: RequestInit
+): Promise<Response> {
+  if (isTauriRuntime()) {
+    try {
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      return await tauriFetch(directUrl, init);
+    } catch {
+      // Fallback to standard fetch if plugin fails to load
+    }
+  }
+
+  try {
+    const proxyRes = await fetch(proxyUrl, init);
+    const contentType = proxyRes.headers.get('content-type') || '';
+    if (proxyRes.ok && !contentType.includes('text/html')) {
+      return proxyRes;
+    }
+  } catch {
+    // Fallback to direct URL
+  }
+
+  try {
+    const directRes = await fetch(directUrl, init);
+    if (directRes.ok) {
+      return directRes;
+    }
+  } catch {
+    // Fallback to public CORS relay when hosted on static GitHub Pages without /api/*
+  }
+
+  return fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`);
+}
+
 function cleanDoi(rawDoi?: string | null): string | null {
   if (!rawDoi) return null;
   return rawDoi
@@ -262,27 +305,16 @@ export async function searchArxiv(
   query: string,
   yearFrom?: number
 ): Promise<NormalizedPaper[]> {
-  let xmlText = '';
-  try {
-    const proxyRes = await fetch(`/api/arxiv?q=${encodeURIComponent(query)}&max_results=10`);
-    if (proxyRes.ok) {
-      xmlText = await proxyRes.text();
-    }
-  } catch {
-    // Fallback to direct arXiv HTTPS request if bridge is offline
+  const res = await crossPlatformFetch(
+    `/api/arxiv?q=${encodeURIComponent(query)}&max_results=10`,
+    `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(
+      query
+    )}&start=0&max_results=10&sortBy=relevance&sortOrder=descending`
+  );
+  if (!res.ok) {
+    throw new Error(`arXiv HTTP ${res.status}`);
   }
-
-  if (!xmlText) {
-    const directRes = await fetch(
-      `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(
-        query
-      )}&start=0&max_results=10&sortBy=relevance&sortOrder=descending`
-    );
-    if (!directRes.ok) {
-      throw new Error(`arXiv HTTP ${directRes.status}`);
-    }
-    xmlText = await directRes.text();
-  }
+  const xmlText = await res.text();
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'text/xml');
@@ -462,26 +494,15 @@ export async function searchZenodo(
   query: string,
   yearFrom?: number
 ): Promise<NormalizedPaper[]> {
-  let data: Record<string, any> | null = null;
-  try {
-    const proxyRes = await fetch(`/api/zenodo?q=${encodeURIComponent(query)}&size=8`);
-    if (proxyRes.ok) {
-      data = await proxyRes.json();
-    }
-  } catch {
-    // Fallback to direct Zenodo API call
+  const res = await crossPlatformFetch(
+    `/api/zenodo?q=${encodeURIComponent(query)}&size=8`,
+    `https://zenodo.org/api/records?q=${encodeURIComponent(query)}&size=8`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!res.ok) {
+    throw new Error(`Zenodo HTTP ${res.status}`);
   }
-
-  if (!data) {
-    const directRes = await fetch(
-      `https://zenodo.org/api/records?q=${encodeURIComponent(query)}&size=8`,
-      { headers: { Accept: 'application/json' } }
-    );
-    if (!directRes.ok) {
-      throw new Error(`Zenodo HTTP ${directRes.status}`);
-    }
-    data = await directRes.json();
-  }
+  const data = await res.json();
 
   const hits = Array.isArray(data?.hits?.hits) ? data.hits.hits : [];
   const mapped: NormalizedPaper[] = [];
@@ -631,19 +652,329 @@ export async function searchDataCite(
   return mapped;
 }
 
+export async function searchInspireHep(
+  query: string,
+  yearFrom?: number
+): Promise<NormalizedPaper[]> {
+  const url = `https://inspirehep.net/api/literature?q=${encodeURIComponent(
+    query
+  )}&size=8&sort=mostrecent`;
+
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    throw new Error(`INSPIRE-HEP HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const hits = Array.isArray(data?.hits?.hits) ? data.hits.hits : [];
+
+  const mapped: NormalizedPaper[] = [];
+  hits.forEach((hit: Record<string, any>, idx: number) => {
+    const meta = hit?.metadata || {};
+    const dateStr = typeof meta.earliest_date === 'string' ? meta.earliest_date : '';
+    const yearMatch = dateStr.match(/\d{4}/);
+    const year = yearMatch ? Number(yearMatch[0]) : null;
+    if (yearFrom && year && year < yearFrom) return;
+
+    const title =
+      Array.isArray(meta.titles) && meta.titles[0]?.title
+        ? String(meta.titles[0].title)
+        : 'Sem título';
+    const authors = Array.isArray(meta.authors)
+      ? meta.authors
+          .slice(0, 5)
+          .map((a: Record<string, any>) => a?.full_name || [a?.first_name, a?.last_name].filter(Boolean).join(' '))
+          .filter(Boolean)
+      : [];
+    const doiRaw = Array.isArray(meta.dois) && meta.dois[0]?.value ? String(meta.dois[0].value) : null;
+    const doi = cleanDoi(doiRaw);
+    const abstractText =
+      Array.isArray(meta.abstracts) && meta.abstracts[0]?.value
+        ? String(meta.abstracts[0].value)
+        : null;
+    const arxivId =
+      Array.isArray(meta.arxiv_eprints) && meta.arxiv_eprints[0]?.value
+        ? String(meta.arxiv_eprints[0].value)
+        : null;
+    const controlNumber = hit?.id || meta.control_number || idx;
+
+    mapped.push({
+      id: `inspire-${controlNumber}`,
+      title,
+      authors,
+      year,
+      venue:
+        (Array.isArray(meta.publication_info) && meta.publication_info[0]?.journal_title) ||
+        'INSPIRE-HEP (CERN)',
+      doi,
+      url: `https://inspirehep.net/literature/${controlNumber}`,
+      pdfUrl: arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : null,
+      isOpenAccess: true,
+      citationCount: typeof meta.citation_count === 'number' ? meta.citation_count : 0,
+      abstractText,
+      source: 'inspire',
+      sourceLabel: 'INSPIRE-HEP (CERN)',
+    });
+  });
+
+  return mapped;
+}
+
+export async function searchFigshare(
+  query: string,
+  yearFrom?: number
+): Promise<NormalizedPaper[]> {
+  const res = await fetch('https://api.figshare.com/v2/articles/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ search_for: query, page_size: 8 }),
+  });
+  if (!res.ok) {
+    throw new Error(`Figshare HTTP ${res.status}`);
+  }
+  const items = await res.json();
+  if (!Array.isArray(items)) return [];
+
+  const mapped: NormalizedPaper[] = [];
+  items.forEach((item: Record<string, any>, idx: number) => {
+    const pubDate = typeof item?.published_date === 'string' ? item.published_date : '';
+    const yearMatch = pubDate.match(/\d{4}/);
+    const year = yearMatch ? Number(yearMatch[0]) : null;
+    if (yearFrom && year && year < yearFrom) return;
+
+    const doi = cleanDoi(item?.doi);
+    const rawTitle = String(item?.title || 'Sem título').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+    mapped.push({
+      id: `figshare-${item?.id || idx}`,
+      title: rawTitle,
+      authors: [],
+      year,
+      venue: item?.defined_type_name ? `Figshare (${String(item.defined_type_name)})` : 'Figshare Repository',
+      doi,
+      url: String(item?.url_public_html || (doi ? `https://doi.org/${doi}` : 'https://figshare.com')),
+      pdfUrl: null,
+      isOpenAccess: true,
+      citationCount: 0,
+      abstractText: item?.resource_title ? `Recurso associado: ${String(item.resource_title)}` : null,
+      source: 'figshare',
+      sourceLabel: 'Figshare Data',
+      publicationType: item?.defined_type_name ? String(item.defined_type_name) : undefined,
+    });
+  });
+
+  return mapped;
+}
+
+export async function searchGbifLiterature(
+  query: string,
+  yearFrom?: number
+): Promise<NormalizedPaper[]> {
+  const url = `https://api.gbif.org/v1/literature/search?q=${encodeURIComponent(
+    query
+  )}&limit=8`;
+
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    throw new Error(`GBIF HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  const mapped: NormalizedPaper[] = [];
+  results.forEach((item: Record<string, any>, idx: number) => {
+    const year = typeof item?.year === 'number' ? item.year : null;
+    if (yearFrom && year && year < yearFrom) return;
+
+    const doi = cleanDoi(item?.identifiers?.doi);
+    const authors = Array.isArray(item?.authors)
+      ? item.authors
+          .slice(0, 5)
+          .map((a: Record<string, any>) =>
+            typeof a === 'string'
+              ? a
+              : [a?.firstName, a?.lastName].filter(Boolean).join(' ')
+          )
+          .filter(Boolean)
+      : [];
+    const websites = Array.isArray(item?.websites) ? item.websites : [];
+    const primaryUrl =
+      (websites[0] && String(websites[0])) ||
+      (doi ? `https://doi.org/${doi}` : `https://www.gbif.org/resource/search?contentType=literature&q=${encodeURIComponent(query)}`);
+
+    mapped.push({
+      id: `gbif-${item?.id || doi || idx}`,
+      title: String(item?.title || 'Sem título'),
+      authors,
+      year,
+      venue: String(item?.source || item?.publisher || 'GBIF Literature'),
+      doi,
+      url: primaryUrl,
+      pdfUrl: null,
+      isOpenAccess: Boolean(item?.openAccess),
+      citationCount: 0,
+      abstractText: item?.abstract ? String(item.abstract) : null,
+      source: 'gbif',
+      sourceLabel: 'GBIF Biodiversity',
+      publicationType: item?.literatureType ? String(item.literatureType) : undefined,
+    });
+  });
+
+  return mapped;
+}
+
+export async function searchOstiGov(
+  query: string,
+  yearFrom?: number
+): Promise<NormalizedPaper[]> {
+  const res = await crossPlatformFetch(
+    `/api/osti?q=${encodeURIComponent(query)}&rows=8`,
+    `https://www.osti.gov/api/v1/records?q=${encodeURIComponent(query)}&rows=8`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!res.ok) {
+    throw new Error(`OSTI.GOV HTTP ${res.status}`);
+  }
+  const items = await res.json();
+  if (!Array.isArray(items)) return [];
+
+  const mapped: NormalizedPaper[] = [];
+  items.forEach((item: Record<string, any>, idx: number) => {
+    const dateStr = String(item?.publication_date || item?.entry_date || '');
+    const yearMatch = dateStr.match(/\d{4}/);
+    const year = yearMatch ? Number(yearMatch[0]) : null;
+    if (yearFrom && year && year < yearFrom) return;
+
+    const doi = cleanDoi(item?.doi);
+    const authors = Array.isArray(item?.authors)
+      ? item.authors.slice(0, 5).map((a: unknown) => String(a)).filter(Boolean)
+      : [];
+    const ostiId = item?.osti_id || idx;
+    const links = Array.isArray(item?.links) ? item.links : [];
+    const fullTextLink = links.find((l: Record<string, any>) => l?.rel === 'fulltext')?.href || null;
+
+    mapped.push({
+      id: `osti-${ostiId}`,
+      title: String(item?.title || 'Sem título'),
+      authors,
+      year,
+      venue: String(item?.research_orgs?.[0] || item?.sponsor_orgs?.[0] || 'OSTI.GOV (DOE)'),
+      doi,
+      url: `https://www.osti.gov/biblio/${ostiId}`,
+      pdfUrl: fullTextLink,
+      isOpenAccess: true,
+      citationCount: 0,
+      abstractText: item?.description ? String(item.description) : null,
+      source: 'osti',
+      sourceLabel: 'OSTI.GOV (DOE)',
+      publicationType: item?.product_type ? String(item.product_type) : undefined,
+    });
+  });
+
+  return mapped;
+}
+
+export async function searchNasaNtrs(
+  query: string,
+  yearFrom?: number
+): Promise<NormalizedPaper[]> {
+  const res = await crossPlatformFetch(
+    `/api/ntrs?q=${encodeURIComponent(query)}&size=8`,
+    `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(query)}&page%5Bsize%5D=8`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!res.ok) {
+    throw new Error(`NASA NTRS HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  const mapped: NormalizedPaper[] = [];
+  results.forEach((item: Record<string, any>, idx: number) => {
+    const pubDate = String(item?.distributionDate || item?.publications?.[0]?.publicationDate || '');
+    const yearMatch = pubDate.match(/\d{4}/);
+    const year = yearMatch ? Number(yearMatch[0]) : null;
+    if (yearFrom && year && year < yearFrom) return;
+
+    const authors = Array.isArray(item?.authorAffiliations)
+      ? item.authorAffiliations
+          .slice(0, 5)
+          .map((a: Record<string, any>) => a?.meta?.author?.name)
+          .filter(Boolean)
+      : [];
+    const ntrsId = item?.id || idx;
+    const downloads = Array.isArray(item?.downloads) ? item.downloads : [];
+    const pdfDownload = downloads.find((d: Record<string, any>) => d?.links?.pdf)?.links?.pdf || null;
+    const doi = cleanDoi(item?.publications?.[0]?.doi);
+
+    mapped.push({
+      id: `ntrs-${ntrsId}`,
+      title: String(item?.title || 'Sem título'),
+      authors,
+      year,
+      venue: String(item?.center?.name || 'NASA Technical Reports Server'),
+      doi,
+      url: `https://ntrs.nasa.gov/citations/${ntrsId}`,
+      pdfUrl: pdfDownload ? `https://ntrs.nasa.gov${pdfDownload}` : null,
+      isOpenAccess: true,
+      citationCount: 0,
+      abstractText: item?.abstract ? String(item.abstract) : null,
+      source: 'ntrs',
+      sourceLabel: 'NASA NTRS',
+      publicationType: item?.stiType ? String(item.stiType) : undefined,
+    });
+  });
+
+  return mapped;
+}
+
 export function deduplicatePapers(papers: NormalizedPaper[]): NormalizedPaper[] {
   return deduplicatePapersAdvanced(papers).papers;
+}
+
+interface FederatedSearchResult {
+  papers: NormalizedPaper[];
+  statuses: SourceFetchStatus[];
+  deduplicationSummary: DeduplicationSummary;
+}
+
+const FEDERATED_CACHE_TTL_MS = 5 * 60 * 1000;
+const FEDERATED_CACHE_MAX = 30;
+const federatedSearchCache = new Map<string, { timestamp: number; result: FederatedSearchResult }>();
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label}: timeout (${Math.round(timeoutMs / 1000)}s)`));
+    }, timeoutMs);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
 }
 
 export async function runFederatedSearch(
   query: string,
   yearFrom?: number,
   onSourceUpdate?: (statuses: SourceFetchStatus[]) => void
-): Promise<{
-  papers: NormalizedPaper[];
-  statuses: SourceFetchStatus[];
-  deduplicationSummary: DeduplicationSummary;
-}> {
+): Promise<FederatedSearchResult> {
+  const cacheKey = `${query.trim().toLowerCase()}::${yearFrom ?? 'all'}`;
+  const cached = federatedSearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < FEDERATED_CACHE_TTL_MS) {
+    onSourceUpdate?.(cached.result.statuses);
+    return cached.result;
+  }
+
   const sources: Array<{
     id: ApiSourceId;
     label: string;
@@ -659,6 +990,11 @@ export async function runFederatedSearch(
     { id: 'zenodo', label: 'Zenodo (CERN)', fn: searchZenodo },
     { id: 'hal', label: 'HAL Science (CNRS)', fn: searchHalOpenScience },
     { id: 'datacite', label: 'DataCite Commons', fn: searchDataCite },
+    { id: 'inspire', label: 'INSPIRE-HEP (CERN)', fn: searchInspireHep },
+    { id: 'figshare', label: 'Figshare Data', fn: searchFigshare },
+    { id: 'gbif', label: 'GBIF Biodiversity', fn: searchGbifLiterature },
+    { id: 'osti', label: 'OSTI.GOV (DOE)', fn: searchOstiGov },
+    { id: 'ntrs', label: 'NASA NTRS', fn: searchNasaNtrs },
   ];
 
   const statuses: SourceFetchStatus[] = sources.map((s) => ({
@@ -676,7 +1012,7 @@ export async function runFederatedSearch(
     sources.map(async (src, idx) => {
       const t0 = performance.now();
       try {
-        const res = await src.fn(query, yearFrom);
+        const res = await withTimeout(src.fn(query, yearFrom), 12_000, src.label);
         const latencyMs = Math.round(performance.now() - t0);
         statuses[idx] = {
           source: src.id,
@@ -702,12 +1038,19 @@ export async function runFederatedSearch(
   );
 
   const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(allPapers);
-
-  return {
+  const finalResult: FederatedSearchResult = {
     papers: dedupedPapers,
     statuses,
     deduplicationSummary: summary,
   };
+
+  if (federatedSearchCache.size >= FEDERATED_CACHE_MAX) {
+    const oldestKey = federatedSearchCache.keys().next().value;
+    if (oldestKey) federatedSearchCache.delete(oldestKey);
+  }
+  federatedSearchCache.set(cacheKey, { timestamp: Date.now(), result: finalResult });
+
+  return finalResult;
 }
 
 /**

@@ -3,7 +3,10 @@
   "rewrites": [
     { "source": "/api/arxiv", "destination": "/api/arxiv.ts" },
     { "source": "/api/zenodo", "destination": "/api/zenodo.ts" },
+    { "source": "/api/osti", "destination": "/api/osti.ts" },
+    { "source": "/api/ntrs", "destination": "/api/ntrs.ts" },
     { "source": "/api/translate", "destination": "/api/translate.ts" },
+    { "source": "/api/feedback", "destination": "/api/feedback.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

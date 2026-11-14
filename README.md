@@ -6,7 +6,7 @@ Hub federado de metabusca científica, exploração bibliográfica e exportaçã
 
 ## 📌 Visão Geral da Arquitetura
 
-O sistema é construído sobre **React 18 + TypeScript + Vite + Tailwind CSS**, integrando consulta paralela assíncrona a 10 índices científicos abertos com formatação determinística de citações e abertura automatizada de links no navegador padrão com proteção anti-popups.
+O sistema é construído sobre **React 18 + TypeScript + Vite + Tailwind CSS**, integrando consulta paralela assíncrona a **15 índices científicos e tecnológicos abertos** com catálogo curado de **111 plataformas**, formatação determinística de citações e abertura automatizada de links no navegador padrão com proteção anti-popups.
 
 ```mermaid
 flowchart TD
@@ -24,9 +24,14 @@ flowchart TD
     Aggregator --> Zenodo[Zenodo / CERN API]
     Aggregator --> HAL[HAL Open Science CNRS]
     Aggregator --> DataCite[DataCite Commons API]
+    Aggregator --> Inspire[INSPIRE-HEP CERN API]
+    Aggregator --> Figshare[Figshare API v2]
+    Aggregator --> GBIF[GBIF Literature API]
+    Aggregator --> OSTI[OSTI.GOV DOE API]
+    Aggregator --> NTRS[NASA NTRS API]
 
     UI --> DesktopBridge{Runtime}
-    DesktopBridge -->|Desktop Standalone| TauriOpener[Tauri v2 Opener Plugin]
+    DesktopBridge -->|Desktop Standalone| TauriOpener[Tauri v2 Opener + HTTP Plugin]
     DesktopBridge -->|Web + Local Bridge| NodeBridge[server/launcher-bridge.mjs]
     TauriOpener --> OSBrowser[Navegador Padrão do SO]
     NodeBridge --> OSBrowser
@@ -81,6 +86,11 @@ Launchers de duplo clique:
 8. **Zenodo (CERN / OpenAIRE):** Datasets, artigos e pacotes de replicação científica.
 9. **HAL Open Science (CNRS):** Repositório acadêmico francês multidisciplinar.
 10. **DataCite:** DOIs de dados empíricos de pesquisa, relatórios técnicos e preprints.
+11. **INSPIRE-HEP (CERN / DESY / Fermilab / SLAC):** Literatura de física de altas energias, aceleradores e computação quântica.
+12. **Figshare:** Conjuntos de dados científicos, scripts de replicação e materiais suplementares.
+13. **GBIF (Global Biodiversity Information Facility):** Literatura científica revisada por pares sobre biodiversidade, ecologia e clima.
+14. **OSTI.GOV (U.S. Dept. of Energy):** Relatórios técnicos, softwares e pesquisas dos laboratórios nacionais de energia e supercomputação dos EUA.
+15. **NASA NTRS (Technical Reports Server):** Relatórios técnicos aeroespaciais, propulsão, materiais e engenharia de sistemas.
 
 ---
 

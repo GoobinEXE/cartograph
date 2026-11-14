@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PLATFORMS,
   THEMATIC_AREAS,
@@ -23,33 +23,45 @@ import {
 } from './services/academicAggregator';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
-import { BooleanBuilderDrawer } from './components/BooleanBuilderDrawer';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
-import { SavedLiteratureDrawer } from './components/SavedLiteratureDrawer';
-import { FeedbackView } from './components/FeedbackView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
 import { useI18n } from './i18n/context';
 import {
   Activity,
   ArrowUpRight,
+  Atom,
   Bot,
   Check,
   ChevronDown,
   Code,
+  Compass,
   Cpu,
   Gamepad2,
   Globe,
   HardDrive,
+  Landmark,
   LayoutGrid,
+  Leaf,
   List,
   Loader2,
   Moon,
   Palette,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Sun,
   X,
 } from 'lucide-react';
+
+const BooleanBuilderDrawer = lazy(() =>
+  import('./components/BooleanBuilderDrawer').then((m) => ({ default: m.BooleanBuilderDrawer }))
+);
+const SavedLiteratureDrawer = lazy(() =>
+  import('./components/SavedLiteratureDrawer').then((m) => ({ default: m.SavedLiteratureDrawer }))
+);
+const FeedbackView = lazy(() =>
+  import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView }))
+);
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
@@ -74,6 +86,16 @@ function renderAreaIcon(area: ThematicArea, className: string = 'w-3.5 h-3.5') {
       return <Code className={className} />;
     case 'hardware':
       return <HardDrive className={className} />;
+    case 'ciencias-exatas':
+      return <Atom className={className} />;
+    case 'biociencias':
+      return <Leaf className={className} />;
+    case 'geociencias':
+      return <Compass className={className} />;
+    case 'economia-politicas':
+      return <Landmark className={className} />;
+    case 'patentes-normas':
+      return <ShieldCheck className={className} />;
     case 'multidisciplinar':
     default:
       return <Globe className={className} />;
@@ -673,15 +695,17 @@ export default function AcademicCommandCenter() {
 
           {/* Optional Advanced Boolean Drawer */}
           {showBooleanDrawer && (
-            <BooleanBuilderDrawer
-              state={booleanState}
-              onChange={setBooleanState}
-              onApplyCompiledQuery={(compiled) => {
-                setQuery(compiled);
-                setStatusBanner(t('booleanAppliedBanner'));
-                setTimeout(() => setStatusBanner(null), 3500);
-              }}
-            />
+            <Suspense fallback={null}>
+              <BooleanBuilderDrawer
+                state={booleanState}
+                onChange={setBooleanState}
+                onApplyCompiledQuery={(compiled) => {
+                  setQuery(compiled);
+                  setStatusBanner(t('booleanAppliedBanner'));
+                  setTimeout(() => setStatusBanner(null), 3500);
+                }}
+              />
+            </Suspense>
           )}
 
           {/* Status Banner */}
@@ -1455,20 +1479,26 @@ export default function AcademicCommandCenter() {
 
         {/* TAB 3: SAVED LITERATURE REVIEW MATRIX */}
         {activeTab === 'saved' && (
-          <SavedLiteratureDrawer
-            items={savedPapers}
-            dedupSummary={dedupSummary}
-            sourceBreakdown={sourceBreakdown}
-            onUpdateNotes={handleUpdateNotes}
-            onUpdateRelevance={handleUpdateRelevance}
-            onUpdateScreening={handleUpdateScreening}
-            onRemoveItem={handleRemoveSaved}
-            onClearAll={() => setSavedPapers([])}
-          />
+          <Suspense fallback={null}>
+            <SavedLiteratureDrawer
+              items={savedPapers}
+              dedupSummary={dedupSummary}
+              sourceBreakdown={sourceBreakdown}
+              onUpdateNotes={handleUpdateNotes}
+              onUpdateRelevance={handleUpdateRelevance}
+              onUpdateScreening={handleUpdateScreening}
+              onRemoveItem={handleRemoveSaved}
+              onClearAll={() => setSavedPapers([])}
+            />
+          </Suspense>
         )}
 
         {/* TAB 4: USER FEEDBACK & COMMUNITY CONTRIBUTIONS */}
-        {activeTab === 'feedback' && <FeedbackView />}
+        {activeTab === 'feedback' && (
+          <Suspense fallback={null}>
+            <FeedbackView />
+          </Suspense>
+        )}
       </main>
 
       {/* Prism Institutional Footer */}

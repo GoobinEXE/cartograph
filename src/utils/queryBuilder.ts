@@ -16,6 +16,14 @@ const ACADEMIC_PT_EN_GLOSSARY: Array<[RegExp, string]> = [
   [/\beduca[cç][aã]o superior\b/gi, 'higher education'],
   [/\bdesenvolvimento sustent[aá]vel\b/gi, 'sustainable development'],
   [/\baten[cç][aã]o prim[aá]ria\b/gi, 'primary health care'],
+  [/\bpropriedade intelectual\b/gi, 'intellectual property'],
+  [/\bnormas? t[eé]cnicas?\b/gi, 'technical standards'],
+  [/\bciberseguran[cç]a\b/gi, 'cybersecurity'],
+  [/\bcomputa[cç][aã]o qu[aã]ntica\b/gi, 'quantum computing'],
+  [/\benergias? renov[aá]veis\b/gi, 'renewable energy'],
+  [/\bbiodiversidade\b/gi, 'biodiversity'],
+  [/\bexpress[aã]o g[eê]nica\b/gi, 'gene expression'],
+  [/\bci[eê]ncia dos materiais\b/gi, 'materials science'],
 ];
 
 export function compileBooleanQuery(state: BooleanQueryState): string {

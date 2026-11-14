@@ -4,7 +4,9 @@ export type PlatformCategory =
   | 'regional-latam'
   | 'ai-synthesis'
   | 'citation-graph'
-  | 'evidence-health';
+  | 'evidence-health'
+  | 'tech-patents'
+  | 'niche-science';
 
 export type AccessModel = 'gratuito' | 'aberto-institucional' | 'freemium' | 'pago';
 
@@ -16,6 +18,11 @@ export type ThematicArea =
   | 'games'
   | 'software'
   | 'hardware'
+  | 'ciencias-exatas'
+  | 'biociencias'
+  | 'geociencias'
+  | 'economia-politicas'
+  | 'patentes-normas'
   | 'multidisciplinar';
 
 export interface PlatformConfig {
@@ -44,7 +51,12 @@ export type ApiSourceId =
   | 'doaj'
   | 'zenodo'
   | 'hal'
-  | 'datacite';
+  | 'datacite'
+  | 'inspire'
+  | 'figshare'
+  | 'gbif'
+  | 'osti'
+  | 'ntrs';
 
 export interface NormalizedPaper {
   id: string;

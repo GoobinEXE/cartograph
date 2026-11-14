@@ -138,6 +138,10 @@ export interface Translations {
   catCitationGraphSub: string;
   catEvidenceHealth: string;
   catEvidenceHealthSub: string;
+  catTechPatents: string;
+  catTechPatentsSub: string;
+  catNicheScience: string;
+  catNicheScienceSub: string;
 
   accessGratuito: string;
   accessAbertoInst: string;
@@ -174,6 +178,16 @@ export interface Translations {
   presetSoftwareDesc: string;
   presetHardware: string;
   presetHardwareDesc: string;
+  presetTechPatents: string;
+  presetTechPatentsDesc: string;
+  presetAppliedLabs: string;
+  presetAppliedLabsDesc: string;
+  presetBioClimate: string;
+  presetBioClimateDesc: string;
+  presetGeoClimate: string;
+  presetGeoClimateDesc: string;
+  presetGenomicsMaterials: string;
+  presetGenomicsMaterialsDesc: string;
 
   thematicAreasTitle: string;
   areaAll: string;
@@ -184,6 +198,11 @@ export interface Translations {
   areaGames: string;
   areaSoftware: string;
   areaHardware: string;
+  areaCienciasExatas: string;
+  areaBiociencias: string;
+  areaGeociencias: string;
+  areaEconomiaPoliticas: string;
+  areaPatentesNormas: string;
   areaMultidisciplinar: string;
 }
 
@@ -330,6 +349,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     catCitationGraphSub: 'Mapeamento visual de relações bibliográficas entre estudos.',
     catEvidenceHealth: 'Saúde & Medicina',
     catEvidenceHealthSub: 'Literatura biomédica, revisões de saúde e ensaios clínicos.',
+    catTechPatents: 'Patentes, Normas & Engenharia',
+    catTechPatentsSub: 'Propriedade intelectual, RFCs, padrões técnicos, cibersegurança e P&D industrial.',
+    catNicheScience: 'Ciência Aplicada & Nichos',
+    catNicheScienceSub: 'Laboratórios nacionais, física, espaço, química, biodiversidade e dados empíricos.',
 
     accessGratuito: 'Acesso Aberto',
     accessAbertoInst: 'Acesso Institucional',
@@ -366,6 +389,16 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage e ACM SIGSOFT.',
     presetHardware: 'Hardware, Semicondutores & Arquitetura',
     presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips e arXiv Hardware Architecture.',
+    presetTechPatents: 'Patentes, Normas & Cibersegurança',
+    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFCs e NIST/NVD.',
+    presetAppliedLabs: 'Laboratórios, Física & Espaço',
+    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv e Zenodo.',
+    presetBioClimate: 'Química, Biodiversidade & Agro',
+    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare e Dryad.',
+    presetGeoClimate: 'Geociências, Clima & Materiais',
+    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS e OSTI.GOV.',
+    presetGenomicsMaterials: 'Genômica, Proteômica & Bioinformática',
+    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC e bioRxiv.',
 
     thematicAreasTitle: 'Área Temática',
     areaAll: 'Todas as Áreas',
@@ -376,6 +409,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaGames: 'Games & Jogos',
     areaSoftware: 'Desenvolvimento & Software',
     areaHardware: 'Hardware & Chips',
+    areaCienciasExatas: 'Física, Química & Espaço',
+    areaBiociencias: 'Biociências, Agro & Clima',
+    areaGeociencias: 'Geociências & Oceanografia',
+    areaEconomiaPoliticas: 'Economia & Políticas Públicas',
+    areaPatentesNormas: 'Patentes & Normas Técnicas',
     areaMultidisciplinar: 'Multidisciplinar',
   },
 
@@ -521,6 +559,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     catCitationGraphSub: 'Visual mapping of bibliographic connections between studies.',
     catEvidenceHealth: 'Health & Medicine',
     catEvidenceHealthSub: 'Biomedical literature, systematic reviews, and clinical trials.',
+    catTechPatents: 'Patents, Standards & Engineering',
+    catTechPatentsSub: 'Intellectual property, RFCs, technical standards, cybersecurity, and industrial R&D.',
+    catNicheScience: 'Applied Science & Niche Fields',
+    catNicheScienceSub: 'National labs, physics, aerospace, chemistry, biodiversity, and empirical data.',
 
     accessGratuito: 'Open Access',
     accessAbertoInst: 'Institutional Access',
@@ -557,6 +599,16 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage, and ACM SIGSOFT.',
     presetHardware: 'Hardware, Semiconductors & Architecture',
     presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips, and arXiv Hardware Architecture.',
+    presetTechPatents: 'Patents, Standards & Cybersecurity',
+    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFCs, and NIST/NVD.',
+    presetAppliedLabs: 'National Labs, Physics & Aerospace',
+    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv, and Zenodo.',
+    presetBioClimate: 'Chemistry, Biodiversity & Agri-Tech',
+    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare, and Dryad.',
+    presetGeoClimate: 'Geosciences, Climate & Materials',
+    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS, and OSTI.GOV.',
+    presetGenomicsMaterials: 'Genomics, Proteomics & Bioinformatics',
+    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC, and bioRxiv.',
 
     thematicAreasTitle: 'Thematic Field',
     areaAll: 'All Fields',
@@ -567,6 +619,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaGames: 'Games & Play Studies',
     areaSoftware: 'Development & Software',
     areaHardware: 'Hardware & Chips',
+    areaCienciasExatas: 'Physics, Chemistry & Space',
+    areaBiociencias: 'Biosciences, Agri & Climate',
+    areaGeociencias: 'Geosciences & Oceanography',
+    areaEconomiaPoliticas: 'Economics & Public Policy',
+    areaPatentesNormas: 'Patents & Tech Standards',
     areaMultidisciplinar: 'Multidisciplinary',
   },
 
@@ -712,6 +769,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     catCitationGraphSub: 'Mapeo visual de conexiones bibliográficas entre estudios.',
     catEvidenceHealth: 'Salud & Medicina',
     catEvidenceHealthSub: 'Literatura biomédica, revisiones de salud y ensayos clínicos.',
+    catTechPatents: 'Patentes, Normas & Ingeniería',
+    catTechPatentsSub: 'Propiedad intelectual, RFCs, estándares técnicos, ciberseguridad e I+D industrial.',
+    catNicheScience: 'Ciencia Aplicada & Nichos',
+    catNicheScienceSub: 'Laboratorios nacionales, física, espacio, química, biodiversidad y datos empíricos.',
 
     accessGratuito: 'Acceso Abierto',
     accessAbertoInst: 'Acceso Institucional',
@@ -748,6 +809,16 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage y ACM SIGSOFT.',
     presetHardware: 'Hardware, Semiconductores & Arquitectura',
     presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips y arXiv Hardware Architecture.',
+    presetTechPatents: 'Patentes, Normas & Ciberseguridad',
+    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFCs y NIST/NVD.',
+    presetAppliedLabs: 'Laboratorios, Física & Espacio',
+    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv y Zenodo.',
+    presetBioClimate: 'Química, Biodiversidad & Agro',
+    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare y Dryad.',
+    presetGeoClimate: 'Geociencias, Clima & Materiales',
+    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS y OSTI.GOV.',
+    presetGenomicsMaterials: 'Genómica, Proteómica & Bioinformática',
+    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC y bioRxiv.',
 
     thematicAreasTitle: 'Área Temática',
     areaAll: 'Todas las Áreas',
@@ -758,6 +829,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaGames: 'Juegos & Game Studies',
     areaSoftware: 'Desarrollo & Software',
     areaHardware: 'Hardware & Chips',
+    areaCienciasExatas: 'Física, Química & Espacio',
+    areaBiociencias: 'Biociencias, Agro & Clima',
+    areaGeociencias: 'Geociencias & Oceanografía',
+    areaEconomiaPoliticas: 'Economía & Políticas Públicas',
+    areaPatentesNormas: 'Patentes & Normas Técnicas',
     areaMultidisciplinar: 'Multidisciplinar',
   },
 
@@ -903,6 +979,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     catCitationGraphSub: 'Représentation visuelle des liens bibliographiques entre études.',
     catEvidenceHealth: 'Santé & Médecine',
     catEvidenceHealthSub: 'Littérature biomédicale, revues en santé et essais cliniques.',
+    catTechPatents: 'Brevets, Normes & Ingénierie',
+    catTechPatentsSub: 'Propriété intellectuelle, RFC, normes techniques, cybersécurité et R&D industrielle.',
+    catNicheScience: 'Science Appliquée & Niches',
+    catNicheScienceSub: 'Laboratoires nationaux, physique, espace, chimie, biodiversité et données empiriques.',
 
     accessGratuito: 'Accès Ouvert',
     accessAbertoInst: 'Accès Institutionnel',
@@ -939,6 +1019,16 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage et ACM SIGSOFT.',
     presetHardware: 'Matériel, Semi-conducteurs & Architecture',
     presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips et arXiv Hardware Architecture.',
+    presetTechPatents: 'Brevets, Normes & Cybersécurité',
+    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFC et NIST/NVD.',
+    presetAppliedLabs: 'Laboratoires, Physique & Espace',
+    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv et Zenodo.',
+    presetBioClimate: 'Chimie, Biodiversité & Agro',
+    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare et Dryad.',
+    presetGeoClimate: 'Géosciences, Climat & Matériaux',
+    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS et OSTI.GOV.',
+    presetGenomicsMaterials: 'Génomique, Protéomique & Bioinformatique',
+    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC et bioRxiv.',
 
     thematicAreasTitle: 'Domaine Thématique',
     areaAll: 'Tous les Domaines',
@@ -949,6 +1039,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaGames: 'Jeux & Ludologie',
     areaSoftware: 'Développement & Logiciel',
     areaHardware: 'Matériel & Puces',
+    areaCienciasExatas: 'Physique, Chimie & Espace',
+    areaBiociencias: 'Biosciences, Agro & Climat',
+    areaGeociencias: 'Géosciences & Océanographie',
+    areaEconomiaPoliticas: 'Économie & Politiques Publiques',
+    areaPatentesNormas: 'Brevets & Normes Techniques',
     areaMultidisciplinar: 'Multidisciplinaire',
   },
 };

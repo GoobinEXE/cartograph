@@ -24,6 +24,7 @@ export default async function handler(req: any, res: any) {
         Accept: 'application/json',
         'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub)',
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     const data = await response.json();

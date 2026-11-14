@@ -4,8 +4,19 @@ import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const BRIDGE_PORT = Number(process.env.BRIDGE_PORT || 4789);
+const BRIDGE_PORT = Number(process.env.PORT || process.env.BRIDGE_PORT || 4789);
+const BRIDGE_HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const args = new Set(process.argv.slice(2));
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
 
 /**
  * Opens a URL natively in the user's default browser across Windows, macOS, and Linux.
@@ -139,6 +150,7 @@ const server = http.createServer(async (req, res) => {
       )}&start=0&max_results=${maxResults}&sortBy=relevance&sortOrder=descending`;
       const response = await fetch(arxivUrl, {
         headers: { 'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub; mailto:research@cartograph.org)' },
+        signal: AbortSignal.timeout(10_000),
       });
       const xmlText = await response.text();
       res.writeHead(200, {
@@ -172,6 +184,7 @@ const server = http.createServer(async (req, res) => {
           Accept: 'application/json',
           'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub)',
         },
+        signal: AbortSignal.timeout(10_000),
       });
       const data = await response.json();
       sendJson(res, response.status, data);
@@ -179,6 +192,66 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 502, {
         ok: false,
         error: err instanceof Error ? err.message : 'Falha ao consultar Zenodo API',
+      });
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && reqUrl.pathname === '/api/osti') {
+    const query = (reqUrl.searchParams.get('q') || '').trim();
+    const rows = Math.min(Number(reqUrl.searchParams.get('rows') || 8), 20);
+    if (!query) {
+      sendJson(res, 400, { ok: false, error: 'Parâmetro q ausente' });
+      return;
+    }
+
+    try {
+      const ostiUrl = `https://www.osti.gov/api/v1/records?q=${encodeURIComponent(
+        query
+      )}&rows=${rows}`;
+      const response = await fetch(ostiUrl, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub)',
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const data = await response.json();
+      sendJson(res, response.status, data);
+    } catch (err) {
+      sendJson(res, 502, {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Falha ao consultar OSTI.GOV API',
+      });
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && reqUrl.pathname === '/api/ntrs') {
+    const query = (reqUrl.searchParams.get('q') || '').trim();
+    const size = Math.min(Number(reqUrl.searchParams.get('size') || 8), 20);
+    if (!query) {
+      sendJson(res, 400, { ok: false, error: 'Parâmetro q ausente' });
+      return;
+    }
+
+    try {
+      const ntrsUrl = `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(
+        query
+      )}&page%5Bsize%5D=${size}`;
+      const response = await fetch(ntrsUrl, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub)',
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const data = await response.json();
+      sendJson(res, response.status, data);
+    } catch (err) {
+      sendJson(res, 502, {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Falha ao consultar NASA NTRS API',
       });
     }
     return;
@@ -280,11 +353,29 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && !reqUrl.pathname.startsWith('/api/')) {
+    const distDir = path.resolve('dist');
+    if (fs.existsSync(distDir)) {
+      const safeRelPath = reqUrl.pathname === '/' ? 'index.html' : reqUrl.pathname.replace(/^\/+/, '');
+      let candidatePath = path.resolve(distDir, safeRelPath);
+      if (!candidatePath.startsWith(distDir) || !fs.existsSync(candidatePath) || fs.statSync(candidatePath).isDirectory()) {
+        candidatePath = path.resolve(distDir, 'index.html');
+      }
+      if (fs.existsSync(candidatePath)) {
+        const ext = path.extname(candidatePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        fs.createReadStream(candidatePath).pipe(res);
+        return;
+      }
+    }
+  }
+
   sendJson(res, 404, { ok: false, error: 'Rota não encontrada no Launcher Bridge.' });
 });
 
-server.listen(BRIDGE_PORT, '127.0.0.1', () => {
-  console.log(`[Cartograph Bridge] Servidor multiplataforma ativo em http://127.0.0.1:${BRIDGE_PORT} (${process.platform})`);
+server.listen(BRIDGE_PORT, BRIDGE_HOST, () => {
+  console.log(`[Cartograph Bridge] Servidor multiplataforma ativo em http://${BRIDGE_HOST}:${BRIDGE_PORT} (${process.platform})`);
 
   if (args.has('--with-vite')) {
     const isWin = process.platform === 'win32';
