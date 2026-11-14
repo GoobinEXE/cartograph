@@ -532,7 +532,7 @@ export default function AcademicCommandCenter() {
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
                   title="Cartograph — Desenvolvido pela Prism"
                 >
-                  <PrismMonogram className="h-5 w-auto" />
+                  <PrismMonogram className="h-7 w-auto" />
                   <div className="flex flex-col leading-none">
                     <span className="font-heading font-semibold text-[17px] tracking-tight">Cartograph</span>
                     <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wider mt-0.5">by Prism</span>
