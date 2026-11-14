@@ -33,12 +33,22 @@ export async function crossPlatformFetch(
   }
 
   try {
+    const cloudProxyRes = await fetch(`https://cartograph-hub.vercel.app${proxyUrl}`, init);
+    const contentType = cloudProxyRes.headers.get('content-type') || '';
+    if (cloudProxyRes.ok && !contentType.includes('text/html')) {
+      return cloudProxyRes;
+    }
+  } catch {
+    // Fallback to direct URL
+  }
+
+  try {
     const directRes = await fetch(directUrl, init);
     if (directRes.ok) {
       return directRes;
     }
   } catch {
-    // Fallback to public CORS relay when hosted on static GitHub Pages without /api/*
+    // Fallback to public CORS relay
   }
 
   return fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`);
