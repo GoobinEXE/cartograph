@@ -33,7 +33,7 @@ export async function crossPlatformFetch(
   }
 
   try {
-    const cloudProxyRes = await fetch(`https://cartograph-hub.vercel.app${proxyUrl}`, init);
+    const cloudProxyRes = await fetch(`https://cartographsearch.vercel.app${proxyUrl}`, init);
     const contentType = cloudProxyRes.headers.get('content-type') || '';
     if (cloudProxyRes.ok && !contentType.includes('text/html')) {
       return cloudProxyRes;
