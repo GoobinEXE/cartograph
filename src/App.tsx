@@ -27,6 +27,7 @@ import { parseAbstractMetadata } from './utils/abstractParser';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
 import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
+import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
 import { useI18n } from './i18n/context';
 import {
@@ -35,7 +36,16 @@ import {
   useSeoMeta,
   type AppTab,
 } from './utils/seo';
-import { initPrivacyFirstAnalytics, trackAcademicEvent } from './utils/analytics';
+import {
+  denyAnalyticsConsent,
+  getAnalyticsConsent,
+  grantAnalyticsConsent,
+  initPrivacyFirstAnalytics,
+  isGaConfigured,
+  trackAcademicEvent,
+} from './utils/analytics';
+import { CartographBackupPayload } from './utils/workspaceBackup';
+import { normalizeDoi } from './utils/deduplication';
 import {
   Activity,
   ArrowUpRight,
@@ -57,6 +67,7 @@ import {
   Moon,
   Palette,
   Search,
+  Share2,
   ShieldCheck,
   SlidersHorizontal,
   Sun,
@@ -150,11 +161,21 @@ export default function AcademicCommandCenter() {
   const [aboutSection, setAboutSection] = useState<AboutSectionId>(initialRoute.aboutSection);
   const [isNotFound, setIsNotFound] = useState<boolean>(initialRoute.isNotFound);
 
-  const syncBrowserHistory = (tab: AppTab, section: AboutSectionId) => {
+  const syncBrowserHistory = (
+    tab: AppTab,
+    section: AboutSectionId,
+    queryOverride?: string
+  ) => {
     try {
       const targetPath = buildCanonicalPath(tab, section);
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ tab, aboutSection: section }, '', targetPath);
+      const effectiveQuery = (queryOverride ?? query).trim();
+      const targetUrl =
+        tab === 'federated' && effectiveQuery
+          ? `${targetPath}?q=${encodeURIComponent(effectiveQuery)}`
+          : targetPath;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl !== targetUrl) {
+        window.history.pushState({ tab, aboutSection: section }, '', targetUrl);
       }
     } catch {
       // ignore in restricted environments
@@ -331,11 +352,18 @@ export default function AcademicCommandCenter() {
     osName: string;
   }>({ online: false, osName: 'Desktop' });
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const [webLaunchDrawerOpen, setWebLaunchDrawerOpen] = useState(false);
+  const [webLaunchTargets, setWebLaunchTargets] = useState<WebLaunchTarget[]>([]);
+  const [webLaunchLimited, setWebLaunchLimited] = useState(false);
+  const [analyticsConsentPrompt, setAnalyticsConsentPrompt] = useState<boolean>(
+    () => isGaConfigured() && getAnalyticsConsent() === null
+  );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
+  const didAutoSearchRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -527,6 +555,19 @@ export default function AcademicCommandCenter() {
     }
   };
 
+  const handleCopySearchShareUrl = async () => {
+    if (!isValidQuery) return;
+    try {
+      const shareUrl = `${window.location.origin}/federated?q=${encodeURIComponent(trimmedQuery)}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setStatusBanner('Link compartilhável da busca copiado para a área de transferência.');
+      setTimeout(() => setStatusBanner(null), 4000);
+    } catch {
+      setStatusBanner('Não foi possível copiar o link automaticamente.');
+      setTimeout(() => setStatusBanner(null), 3500);
+    }
+  };
+
   const handleRunFederatedSearch = async () => {
     if (!isValidQuery) return;
 
@@ -535,7 +576,9 @@ export default function AcademicCommandCenter() {
     searchAbortRef.current = controller;
     const requestId = ++searchRequestIdRef.current;
 
-    navigateToTab('federated');
+    setIsNotFound(false);
+    setActiveTab('federated');
+    syncBrowserHistory('federated', aboutSection, trimmedQuery);
     setIsSearchingApis(true);
     setFederatedPapers([]);
     setDedupSummary(null);
@@ -581,18 +624,45 @@ export default function AcademicCommandCenter() {
     }
   };
 
+  // Auto-trigger federated search once when loading a shared /federated?q=... URL
+  useEffect(() => {
+    if (
+      !didAutoSearchRef.current &&
+      initialRoute.tab === 'federated' &&
+      !initialRoute.isNotFound &&
+      trimmedQuery
+    ) {
+      didAutoSearchRef.current = true;
+      void handleRunFederatedSearch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLaunchSelectedPlatforms = async () => {
     if (!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs) return;
     setIsLaunchingTabs(true);
     try {
-      const urls = PLATFORMS.filter((p) => selectedPlatformIds.includes(p.id)).map((p) =>
-        p.buildUrl(encodedQuery, trimmedQuery, yearStartNum)
-      );
+      const targets: WebLaunchTarget[] = PLATFORMS.filter((p) =>
+        selectedPlatformIds.includes(p.id)
+      ).map((p) => ({
+        id: p.id,
+        name: p.name,
+        shortTag: p.shortTag,
+        url: p.buildUrl(encodedQuery, trimmedQuery, yearStartNum),
+      }));
+      const urls = targets.map((target) => target.url);
       const result = await launchUrlsCrossPlatform(urls);
       trackAcademicEvent('multi_tab_launch', {
         platforms_count: urls.length,
         used_native_bridge: result.usedNativeBridge,
       });
+
+      if (!result.usedNativeBridge && targets.length > 1) {
+        setWebLaunchTargets(targets);
+        setWebLaunchLimited(true);
+        setWebLaunchDrawerOpen(true);
+      }
+
       setStatusBanner(
         result.usedNativeBridge
           ? t('platformsOpenedBridge', {
@@ -601,7 +671,7 @@ export default function AcademicCommandCenter() {
             })
           : `${t('platformsOpenedBrowser', { count: result.launchedCount })}${
               urls.length > 1
-                ? ' • Dica: Autorize pop-ups no navegador para abrir múltiplas abas simultaneamente.'
+                ? ' • Painel de abertura assistida exibido para contornar bloqueio de pop-ups.'
                 : ''
             }`
       );
@@ -664,6 +734,94 @@ export default function AcademicCommandCenter() {
       return;
     }
     setSavedPapers((prev) => prev.filter((item) => item.groupId !== onlyGroupId));
+  };
+
+  const handleImportSavedPapers = (
+    imported: SavedPaperItem[],
+    targetGroupId?: string | null
+  ): { added: number; skippedDuplicates: number } => {
+    const existingIds = new Set(savedPapers.map((p) => p.id));
+    const existingDois = new Set(
+      savedPapers
+        .map((p) => normalizeDoi(p.doi))
+        .filter((d): d is string => Boolean(d))
+    );
+    const existingTitles = new Set(
+      savedPapers.map((p) => p.title.trim().toLowerCase())
+    );
+
+    const resolvedGroup =
+      targetGroupId !== undefined ? targetGroupId : activeSaveGroupId;
+
+    const toAdd: SavedPaperItem[] = [];
+    let skippedDuplicates = 0;
+
+    for (const candidate of imported) {
+      const normDoi = normalizeDoi(candidate.doi);
+      const normTitle = candidate.title.trim().toLowerCase();
+      if (
+        existingIds.has(candidate.id) ||
+        (normDoi && existingDois.has(normDoi)) ||
+        existingTitles.has(normTitle)
+      ) {
+        skippedDuplicates++;
+        continue;
+      }
+      existingIds.add(candidate.id);
+      if (normDoi) existingDois.add(normDoi);
+      existingTitles.add(normTitle);
+      toAdd.push({
+        ...candidate,
+        groupId: candidate.groupId ?? resolvedGroup ?? null,
+      });
+    }
+
+    if (toAdd.length > 0) {
+      setSavedPapers((prev) => [...toAdd, ...prev]);
+    }
+
+    return { added: toAdd.length, skippedDuplicates };
+  };
+
+  const handleRestoreWorkspaceBackup = (
+    payload: CartographBackupPayload,
+    mode: 'merge' | 'replace'
+  ): { papersAdded: number; groupsAdded: number } => {
+    const validPlatformSet = new Set(PLATFORMS.map((p) => p.id));
+    const validPlatforms = payload.selectedPlatformIds.filter((id) =>
+      validPlatformSet.has(id)
+    );
+
+    if (mode === 'replace') {
+      setLibraryGroups(payload.groups);
+      setSavedPapers(payload.savedPapers);
+      if (validPlatforms.length > 0) {
+        setSelectedPlatformIds(validPlatforms);
+      }
+      setActiveSaveGroupId(payload.activeSaveGroupId ?? null);
+      return {
+        papersAdded: payload.savedPapers.length,
+        groupsAdded: payload.groups.length,
+      };
+    }
+
+    const existingGroupIds = new Set(libraryGroups.map((g) => g.id));
+    const newGroups = payload.groups.filter((g) => !existingGroupIds.has(g.id));
+    if (newGroups.length > 0) {
+      setLibraryGroups((prev) => [...prev, ...newGroups]);
+    }
+
+    if (validPlatforms.length > 0) {
+      setSelectedPlatformIds((prev) =>
+        Array.from(new Set([...prev, ...validPlatforms]))
+      );
+    }
+
+    const paperRes = handleImportSavedPapers(payload.savedPapers, null);
+    return {
+      papersAdded: paperRes.added,
+      groupsAdded: newGroups.length,
+    };
   };
 
   const handleToggleSavePaper = (
@@ -828,6 +986,17 @@ export default function AcademicCommandCenter() {
                     title="Limpar busca"
                   >
                     <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {isValidQuery && (
+                  <button
+                    type="button"
+                    onClick={handleCopySearchShareUrl}
+                    className="p-1.5 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] mr-1 cursor-pointer"
+                    title="Copiar link compartilhável desta busca"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
                   </button>
                 )}
 
@@ -1733,6 +1902,7 @@ export default function AcademicCommandCenter() {
             <SavedLiteratureDrawer
               items={savedPapers}
               groups={libraryGroups}
+              selectedPlatformIds={selectedPlatformIds}
               activeSaveGroupId={activeSaveGroupId}
               onSelectActiveSaveGroup={setActiveSaveGroupId}
               onCreateGroup={handleCreateGroup}
@@ -1746,6 +1916,8 @@ export default function AcademicCommandCenter() {
               onUpdateScreening={handleUpdateScreening}
               onRemoveItem={handleRemoveSaved}
               onClearAll={handleClearLibrary}
+              onImportPapers={handleImportSavedPapers}
+              onRestoreBackup={handleRestoreWorkspaceBackup}
             />
           </Suspense>
         )}
@@ -1890,6 +2062,47 @@ export default function AcademicCommandCenter() {
           </div>
         </div>
       </footer>
+      <WebLaunchDrawer
+        isOpen={webLaunchDrawerOpen}
+        query={trimmedQuery}
+        targets={webLaunchTargets}
+        blockedOrBrowserLimited={webLaunchLimited}
+        onClose={() => setWebLaunchDrawerOpen(false)}
+      />
+
+      {analyticsConsentPrompt && (
+        <div
+          className="fixed bottom-4 right-4 z-40 max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
+          role="region"
+          aria-label="Preferência de telemetria anônima"
+        >
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            O Cartograph utiliza métricas agregadas opcionais (sem termos de busca ou dados pessoais) para aprimorar as fontes científicas.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                denyAnalyticsConsent();
+                setAnalyticsConsentPrompt(false);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+            >
+              Recusar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                grantAnalyticsConsent();
+                setAnalyticsConsentPrompt(false);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
+            >
+              Aceitar anônimo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   DeduplicationSummary,
   LibraryGroup,
@@ -17,6 +17,12 @@ import { PrismaFlowDiagram } from './PrismaFlowDiagram';
 import { parseAbstractMetadata } from '../utils/abstractParser';
 import { trackAcademicEvent } from '../utils/analytics';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
+import {
+  CartographBackupPayload,
+  exportWorkspaceBackup,
+  parseWorkspaceBackup,
+} from '../utils/workspaceBackup';
+import { parseImportedReferences } from '../utils/bibImporter';
 import { useI18n } from '../i18n/context';
 import {
   Check,
@@ -31,12 +37,14 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  HardDriveDownload,
   HelpCircle,
   Inbox,
   Layers,
   Microscope,
   Pin,
   Trash2,
+  Upload,
   Users,
   X,
   XCircle,
@@ -56,6 +64,7 @@ export type LibrarySlotView = 'all' | 'ungrouped' | string;
 interface SavedLiteratureDrawerProps {
   items: SavedPaperItem[];
   groups: LibraryGroup[];
+  selectedPlatformIds: string[];
   activeSaveGroupId: string | null;
   onSelectActiveSaveGroup: (groupId: string | null) => void;
   onCreateGroup: (name: string, color?: string) => LibraryGroup;
@@ -69,11 +78,20 @@ interface SavedLiteratureDrawerProps {
   onUpdateScreening: (id: string, status: ScreeningStatus, reason?: string) => void;
   onRemoveItem: (id: string) => void;
   onClearAll: (onlyGroupId?: string | 'ungrouped') => void;
+  onImportPapers: (
+    imported: SavedPaperItem[],
+    targetGroupId?: string | null
+  ) => { added: number; skippedDuplicates: number };
+  onRestoreBackup: (
+    payload: CartographBackupPayload,
+    mode: 'merge' | 'replace'
+  ) => { papersAdded: number; groupsAdded: number };
 }
 
 export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   items,
   groups,
+  selectedPlatformIds,
   activeSaveGroupId,
   onSelectActiveSaveGroup,
   onCreateGroup,
@@ -87,6 +105,8 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   onUpdateScreening,
   onRemoveItem,
   onClearAll,
+  onImportPapers,
+  onRestoreBackup,
 }) => {
   const { t } = useI18n();
   const [selectedSlotView, setSelectedSlotView] = useState<LibrarySlotView>('all');
@@ -94,6 +114,9 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   const [filterScreening, setFilterScreening] = useState<'all' | ScreeningStatus>('all');
   const [bulkCopied, setBulkCopied] = useState<string | null>(null);
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [restoreMode, setRestoreMode] = useState<'merge' | 'replace'>('merge');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // New group creation state
   const [newGroupName, setNewGroupName] = useState('');
@@ -250,6 +273,66 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
       format: 'bibtex',
       items_count: slotItems.length,
     });
+  };
+
+  const handleDownloadBackupJson = () => {
+    const json = exportWorkspaceBackup({
+      savedPapers: items,
+      groups,
+      selectedPlatformIds,
+      activeSaveGroupId,
+    });
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    triggerFileDownload(
+      `cartograph-backup-${dateStamp}.json`,
+      json,
+      'application/json;charset=utf-8;'
+    );
+    setImportFeedback('Backup JSON exportado com grupos, artigos e seleção de plataformas.');
+    setTimeout(() => setImportFeedback(null), 4000);
+  };
+
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      if (file.name.toLowerCase().endsWith('.json')) {
+        const parsed = parseWorkspaceBackup(content);
+        if (!parsed.ok) {
+          setImportFeedback(`Falha no backup JSON: ${parsed.error}`);
+          return;
+        }
+        const result = onRestoreBackup(parsed.payload, restoreMode);
+        setImportFeedback(
+          restoreMode === 'replace'
+            ? `Sessão restaurada: ${parsed.payload.savedPapers.length} artigos e ${parsed.payload.groups.length} grupos.`
+            : `Backup mesclado: +${result.papersAdded} artigos e +${result.groupsAdded} grupos.`
+        );
+        return;
+      }
+
+      const detected = parseImportedReferences(file.name, content);
+      if (detected.format === 'unknown' || detected.items.length === 0) {
+        setImportFeedback(
+          'Nenhuma referência válida encontrada. Use arquivos .bib (BibTeX), .ris ou backup .json.'
+        );
+        return;
+      }
+
+      const targetGroup =
+        selectedSlotView !== 'all' && selectedSlotView !== 'ungrouped'
+          ? selectedSlotView
+          : activeSaveGroupId;
+      const summary = onImportPapers(detected.items, targetGroup);
+      setImportFeedback(
+        `Importação ${detected.format.toUpperCase()}: +${summary.added} artigos adicionados (${summary.skippedDuplicates} duplicatas ignoradas).`
+      );
+    } catch {
+      setImportFeedback('Não foi possível ler o arquivo selecionado.');
+    }
   };
 
   const currentSlotTitle =
@@ -502,6 +585,66 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Backup & Importação (.bib / .ris / .json) */}
+        <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3">
+          <div className="text-[13px] font-semibold text-[var(--text-primary)]">
+            Backup & Importação Local
+          </div>
+          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+            Exporte toda a biblioteca em JSON ou importe arquivos <code>.bib</code>, <code>.ris</code> (Zotero/Mendeley) ou backups anteriores.
+          </p>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".bib,.ris,.json"
+            onChange={handleFileImport}
+            className="hidden"
+          />
+
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <label htmlFor="restore-mode-select" className="shrink-0">
+              Ao restaurar JSON:
+            </label>
+            <select
+              id="restore-mode-select"
+              value={restoreMode}
+              onChange={(e) => setRestoreMode(e.target.value as 'merge' | 'replace')}
+              className="flex-1 px-2 py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] cursor-pointer"
+            >
+              <option value="merge">Mesclar com atual</option>
+              <option value="replace">Substituir tudo</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-[var(--link-academic)]" />
+              <span>Importar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadBackupJson}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+              title="Exportar biblioteca, grupos e plataformas selecionadas em JSON"
+            >
+              <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)]" />
+              <span>Backup JSON</span>
+            </button>
+          </div>
+
+          {importFeedback && (
+            <div className="text-xs px-2.5 py-2 rounded-lg bg-[var(--accent-blue-tint)] text-[var(--link-academic)] leading-snug">
+              {importFeedback}
             </div>
           )}
         </div>

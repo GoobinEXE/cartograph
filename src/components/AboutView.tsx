@@ -641,7 +641,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
                   Toda a biblioteca de artigos salvos, grupos de pesquisa, notas de fichamento, classificações de prioridade, justificativas de exclusão PRISMA 2020, seleção de plataformas favoritas e preferências visuais (tema claro/escuro e idioma) são armazenadas exclusivamente no navegador do próprio dispositivo do usuário por meio da API nativa <code>window.localStorage</code>.
                 </p>
                 <p>
-                  O pesquisador detém controle total sobre esses registros, podendo exportá-los a qualquer momento em formato CSV ou BibTeX, ou excluí-los permanentemente por meio do botão de limpeza da biblioteca. Apenas os envios voluntários realizados na aba <em>Feedback & Sugestões</em> transmitem os dados preenchidos no formulário para análise de melhoria do catálogo.
+                  O pesquisador detém controle total sobre esses registros, podendo exportá-los em CSV, BibTeX ou Backup JSON completo, importar referências <code>.bib</code>/<code>.ris</code> ou excluí-los permanentemente pelo botão de limpeza da biblioteca. Apenas os envios voluntários realizados na aba <em>Feedback & Sugestões</em> transmitem os dados preenchidos no formulário para análise de melhoria do catálogo.
                 </p>
               </section>
 
@@ -663,6 +663,22 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 </p>
                 <p>
                   Os artigos médicos, biomédicos, farmacológicos, jurídicos ou de engenharia recuperados por meio das APIs e plataformas refletem unicamente as opiniões e resultados experimentais de seus respectivos autores. Nenhuma informação apresentada pelo Cartograph substitui parecer médico, diagnóstico clínico, prescrição terapêutica, consultoria jurídica ou laudo técnico homologado. É responsabilidade indelegável do pesquisador verificar o status de revisão por pares (<em>peer review</em> vs. <em>preprint</em>), a qualidade metodológica e a eventual retratação de qualquer estudo antes de adotá-lo em sua prática acadêmica ou profissional.
+                </p>
+              </section>
+
+              <section className="space-y-3 border-t border-[var(--divider)] pt-6">
+                <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
+                  5. Canal de Privacidade, LGPD e Contato Institucional
+                </h2>
+                <p>
+                  Para solicitações sobre privacidade (LGPD/GDPR), correção de URLs de portais, pedidos de remoção de indexação ou questões de segurança, o contato oficial da equipe mantenedora é{' '}
+                  <a
+                    href="mailto:contato@cartographsearch.com"
+                    className="text-[var(--link-academic)] underline font-medium"
+                  >
+                    contato@cartographsearch.com
+                  </a>
+                  .
                 </p>
               </section>
             </div>

@@ -18,6 +18,10 @@ export type AnalyticsEventName =
 
 export type AnalyticsEventParams = Record<string, string | number | boolean>;
 
+export const ANALYTICS_CONSENT_STORAGE_KEY = 'cartograph_analytics_consent_v1';
+
+export type AnalyticsConsentState = 'granted' | 'denied' | null;
+
 const GA_MEASUREMENT_ID: string =
   (
     (import.meta as unknown as { env?: Record<string, string | undefined> }).env
@@ -26,11 +30,21 @@ const GA_MEASUREMENT_ID: string =
 
 let gaInitialized = false;
 
-/**
- * Inicializa Google Analytics 4 (gtag.js) de forma assíncrona e em estrita
- * conformidade com LGPD/GDPR (Consent Mode v2, IP anonimizado, sem cookies publicitários).
- */
-export function initPrivacyFirstAnalytics(): void {
+export function isGaConfigured(): boolean {
+  return Boolean(GA_MEASUREMENT_ID);
+}
+
+export function getAnalyticsConsent(): AnalyticsConsentState {
+  if (typeof window === 'undefined') return null;
+  try {
+    const val = window.localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY);
+    return val === 'granted' || val === 'denied' ? val : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadGtagScript(): void {
   if (typeof window === 'undefined' || gaInitialized || !GA_MEASUREMENT_ID) {
     return;
   }
@@ -42,12 +56,11 @@ export function initPrivacyFirstAnalytics(): void {
   }
   window.gtag = window.gtag || gtag;
 
-  // Google Consent Mode v2 — nega armazenamento publicitário e rastreamento comportamental
   window.gtag('consent', 'default', {
     ad_storage: 'denied',
     ad_user_data: 'denied',
     ad_personalization: 'denied',
-    analytics_storage: 'denied',
+    analytics_storage: 'granted',
   });
 
   window.gtag('js', new Date());
@@ -64,6 +77,51 @@ export function initPrivacyFirstAnalytics(): void {
     GA_MEASUREMENT_ID
   )}`;
   document.head.appendChild(script);
+}
+
+export function grantAnalyticsConsent(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, 'granted');
+  } catch {
+    // ignore storage errors
+  }
+  if (GA_MEASUREMENT_ID) {
+    loadGtagScript();
+    window.gtag?.('consent', 'update', {
+      analytics_storage: 'granted',
+    });
+  }
+}
+
+export function denyAnalyticsConsent(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, 'denied');
+  } catch {
+    // ignore storage errors
+  }
+  if (typeof window.gtag === 'function') {
+    window.gtag('consent', 'update', {
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+      analytics_storage: 'denied',
+    });
+  }
+}
+
+/**
+ * Inicializa Google Analytics 4 (gtag.js) apenas quando VITE_GA_MEASUREMENT_ID
+ * estiver configurado e o usuário tiver concedido opt-in explícito (LGPD/GDPR).
+ */
+export function initPrivacyFirstAnalytics(): void {
+  if (typeof window === 'undefined' || !GA_MEASUREMENT_ID) {
+    return;
+  }
+  if (getAnalyticsConsent() === 'granted') {
+    loadGtagScript();
+  }
 }
 
 /**
