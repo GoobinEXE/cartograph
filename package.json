@@ -21,6 +21,7 @@
     "@tauri-apps/plugin-opener": "^2.7.3",
     "@tauri-apps/plugin-shell": "^2.6.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.0",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
