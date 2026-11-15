@@ -1,17 +1,17 @@
 # Graph Report - SUPER PESQUISADOR 2000  (2026-11-15)
 
 ## Corpus Check
-- 78 files · ~80,678 words
+- 77 files · ~80,672 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 13 file(s) not represented in the graph (top: .xml 3, (none) 2, .command 2)
+- Unclassified: 14 file(s) not represented in the graph (top: .xml 3, (none) 2, .command 2)
 
 ## Summary
-- 678 nodes · 1615 edges · 35 communities (29 shown, 6 thin omitted)
+- 677 nodes · 1614 edges · 34 communities (28 shown, 6 thin omitted)
 - Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 148 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `14425a3e`
+- Built from commit: `73001cdb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -23,16 +23,15 @@
 - Tauri Desktop Window Configuration
 - Architecture Docs & HTML Shell
 - TypeScript Compiler Configuration
-- Runtime & Tauri Dependencies
-- Build & Type DevDependencies
+- package.json
+- useI18n
 - Local Node Launcher Bridge
 - GitHub Pages Deploy Job
 - CI Release Action Inputs
 - CI Workflow Build Steps
-- NPM Workspace Scripts
+- seo.ts
 - Railway Deployment Configuration
-- Package Manifest Metadata
-- Vite & Tailwind Build Config
+- BooleanBuilderDrawer.tsx
 - PRISM Brand & OG Assets
 - Tauri Desktop Release Job
 - CI Workflow Branch Triggers
@@ -81,15 +80,15 @@
 - **Cartograph Deterministic Metasearch & PRISMA Pipeline** — agents_boolean_query_engine, agents_federated_aggregator, agents_platform_catalog, agents_deterministic_pro_pipeline [EXTRACTED 1.00]
 - **Cartograph Public Web Entry, SEO & Fallback Surface** — index_spa_entry, index_schema_org_graph, public_404_error_page, public_robots_crawler_policy [INFERRED 0.85]
 
-## Communities (35 total, 6 thin omitted)
+## Communities (34 total, 6 thin omitted)
 
 ### Community 0 - "AccessSettingsModal.tsx"
-Cohesion: 0.11
-Nodes (28): AccessSettingsModal(), AccessSettingsModalProps, ModalTab, API_SOURCE_AUTHORITY_WEIGHTS, API_SOURCE_REGISTRY, ApiSourceMetadata, BYOK_PROVIDER_MAP, BYOK_PROVIDERS (+20 more)
+Cohesion: 0.14
+Nodes (24): AccessSettingsModal(), AccessSettingsModalProps, ModalTab, API_SOURCE_AUTHORITY_WEIGHTS, API_SOURCE_REGISTRY, ApiSourceMetadata, BYOK_PROVIDER_MAP, BYOK_PROVIDERS (+16 more)
 
 ### Community 1 - "Federated Results & PRISMA Views"
 Cohesion: 0.07
-Nodes (62): lucide-react, react, AboutView(), AboutViewProps, FEDERATED_APIS_LIST, FederatedApiDoc, FederatedResultsPanel(), FederatedResultsPanelProps (+54 more)
+Nodes (65): FederatedResultsPanel(), FederatedResultsPanelProps, FederatedSidebarSectionKey, PrismaFlowDiagram(), PrismaFlowDiagramProps, GROUP_COLORS, LibrarySlotView, SavedLiteratureDrawer() (+57 more)
 
 ### Community 2 - "Tauri Multi-Platform App Icons"
 Cohesion: 0.07
@@ -97,7 +96,7 @@ Nodes (56): Tauri App Icon 128x128@2x (256x256 PNG), Tauri App Icon 128x128 PNG,
 
 ### Community 3 - "academicAggregator.ts"
 Cohesion: 0.09
-Nodes (67): sourceMatchesScope(), BYOK_ONLY_SOURCES, diagnoseSourceError(), federatedSearchCache, PROXY_SOURCES, reconstructOpenAlexAbstract(), runFederatedSearch(), runWithSourceAbortAndTimeout() (+59 more)
+Nodes (68): sourceMatchesScope(), BYOK_ONLY_SOURCES, diagnoseSourceError(), federatedSearchCache, FederatedSearchProgress, PROXY_SOURCES, reconstructOpenAlexAbstract(), runFederatedSearch() (+60 more)
 
 ### Community 4 - "Tauri Desktop Window Configuration"
 Cohesion: 0.10
@@ -111,13 +110,13 @@ Nodes (16): Boolean Query Builder & PT-EN Technical Dictionary, Cartograph (Scie
 Cohesion: 0.11
 Nodes (17): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+9 more)
 
-### Community 7 - "Runtime & Tauri Dependencies"
-Cohesion: 0.13
-Nodes (15): dependencies, lucide-react@^0.469.0, react@^18.3.1, @tauri-apps/api@^2.12.4, @tauri-apps/plugin-http@^2.9.0, @tauri-apps/plugin-opener@^2.7.3, @tauri-apps/plugin-shell@^2.6.0, @vercel/analytics@^2.0.1 (+7 more)
+### Community 7 - "package.json"
+Cohesion: 0.05
+Nodes (50): dependencies, lucide-react@^0.469.0, react@^18.3.1, react-dom@^18.3.1, @tauri-apps/api@^2.12.4, @tauri-apps/plugin-http@^2.9.0, @tauri-apps/plugin-opener@^2.7.3, @tauri-apps/plugin-shell@^2.6.0 (+42 more)
 
-### Community 8 - "Build & Type DevDependencies"
-Cohesion: 0.15
-Nodes (13): devDependencies, tailwindcss@^4.0.6, @tauri-apps/cli@^2.12.4, @types/node@^22.10.2, @types/react@^18.3.18, @types/react-dom@^18.3.5, typescript@~5.6.2, tailwindcss (+5 more)
+### Community 8 - "useI18n"
+Cohesion: 0.21
+Nodes (15): lucide-react, AboutView(), AboutViewProps, FEDERATED_APIS_LIST, FederatedApiDoc, FeedbackView(), FeedbackViewProps, NOT_FOUND_COPY (+7 more)
 
 ### Community 9 - "Local Node Launcher Bridge"
 Cohesion: 0.12
@@ -135,21 +134,17 @@ Nodes (11): with, args, cache, node-version, path, prerelease, releaseBody, rele
 Cohesion: 0.29
 Nodes (10): steps, steps, GITHUB_TOKEN, env, id, if, name, run (+2 more)
 
-### Community 13 - "NPM Workspace Scripts"
-Cohesion: 0.18
-Nodes (11): scripts, bridge, build, desktop, desktop:build, dev, preview, start (+3 more)
+### Community 13 - "seo.ts"
+Cohesion: 0.16
+Nodes (14): AboutSectionId, LanguageCode, ABOUT_SECTIONS_BY_PATH, AppTab, buildCanonicalPath(), CANONICAL_ORIGIN, CANONICAL_PATH_BY_ABOUT_SECTION, HTML_LANG_MAP (+6 more)
 
 ### Community 14 - "Railway Deployment Configuration"
 Cohesion: 0.22
 Nodes (8): build, buildCommand, builder, deploy, restartPolicyMaxRetries, restartPolicyType, startCommand, $schema
 
-### Community 15 - "Package Manifest Metadata"
-Cohesion: 0.25
-Nodes (7): react-dom@^18.3.1, description, name, private, type, version, react-dom
-
-### Community 16 - "Vite & Tailwind Build Config"
-Cohesion: 0.25
-Nodes (6): @tailwindcss/vite@^4.0.6, vite@^6.0.5, @vitejs/plugin-react@^4.3.4, @tailwindcss/vite, vite, @vitejs/plugin-react
+### Community 15 - "BooleanBuilderDrawer.tsx"
+Cohesion: 0.31
+Nodes (7): BooleanBuilderDrawer(), BooleanBuilderDrawerProps, BooleanQueryState, ACADEMIC_PT_EN_GLOSSARY, compileBooleanQuery(), extractGlossaryEnglishEquivalents(), translateAcademicQueryPtToEn()
 
 ### Community 17 - "PRISM Brand & OG Assets"
 Cohesion: 0.32
@@ -184,40 +179,40 @@ Cohesion: 0.16
 Nodes (34): buildFreeUpstreamUrl(), FreeProxyProvider, handler(), VALID_PROVIDERS, handler(), buildByokUpstreamSpec(), ByokUpstreamId, handler() (+26 more)
 
 ### Community 25 - "relevanceRanker.ts"
-Cohesion: 0.18
-Nodes (21): RankedPaperResult, extractGlossaryEnglishEquivalents(), buildFrequencyMaps(), clamp(), computeConsensusMetrics(), computeImpactRecencyMetrics(), computeLexicalMetrics(), computePaperRelevance() (+13 more)
+Cohesion: 0.19
+Nodes (20): RankedPaperResult, buildFrequencyMaps(), clamp(), computeConsensusMetrics(), computeImpactRecencyMetrics(), computeLexicalMetrics(), computePaperRelevance(), computeQualityAccessScore() (+12 more)
 
 ### Community 26 - "App.tsx"
-Cohesion: 0.06
-Nodes (52): AboutView, AcademicCommandCenter(), AccessSettingsModal, BooleanBuilderDrawer, FeedbackView, renderAreaIcon(), SavedLiteratureDrawer, SidebarSectionKey (+44 more)
+Cohesion: 0.12
+Nodes (29): AboutView, AcademicCommandCenter(), AccessSettingsModal, BooleanBuilderDrawer, FeedbackView, renderAreaIcon(), SavedLiteratureDrawer, SidebarSectionKey (+21 more)
 
 ### Community 27 - "context.tsx"
-Cohesion: 0.11
-Nodes (20): ErrorBoundary, ErrorBoundaryState, getLocalizedPlatformInfo(), PLATFORM_TRANSLATIONS_EN, PlatformEnTranslation, AVAILABLE_LANGUAGES, detectBrowserLanguage(), detectSystemLanguage() (+12 more)
+Cohesion: 0.12
+Nodes (17): @vercel/analytics@^2.0.1, react, @vercel/analytics, ErrorBoundary, ErrorBoundaryState, WebLaunchDrawerProps, WebLaunchTarget, AVAILABLE_LANGUAGES (+9 more)
 
 ### Community 36 - "deduplication.ts"
-Cohesion: 0.13
-Nodes (25): deduplicatePapers(), ExtractedPaperMetadata, detectStudyDesign(), extractSampleSize(), parseAbstractMetadata(), SAMPLE_SIZE_REGEXES, SECTION_PATTERNS, STUDY_DESIGN_PATTERNS (+17 more)
+Cohesion: 0.19
+Nodes (18): deduplicatePapers(), cleanBibValue(), makeImportedId(), parseBibFields(), parseBibtexEntries(), parseImportedReferences(), parseRisEntries(), deduplicatePapersAdvanced() (+10 more)
 
 ## Knowledge Gaps
 - **21 isolated node(s):** `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)`, `Tauri App Icon 128x128@2x (256x256 PNG)`, `Tauri App Icon 128x128 PNG` (+16 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 212 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 211 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `Federated Results & PRISMA Views` to `AccessSettingsModal.tsx`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`, `App.tsx`, `context.tsx`?**
+- **Why does `react` connect `context.tsx` to `AccessSettingsModal.tsx`, `Federated Results & PRISMA Views`, `package.json`, `useI18n`, `seo.ts`, `BooleanBuilderDrawer.tsx`, `App.tsx`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Are the 55 inferred relationships involving `Cartograph Master App Icon (512x512 PNG)` (e.g. with `Tauri App Icon 128x128@2x (256x256 PNG)` and `Tauri App Icon 128x128 PNG`) actually correct?**
   _`Cartograph Master App Icon (512x512 PNG)` has 55 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)` to the rest of the system?**
   _21 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `AccessSettingsModal.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.10931174089068826 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `Federated Results & PRISMA Views` to `AccessSettingsModal.tsx`, `App.tsx`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`?**
+  _Cohesion score 0.135632183908046 - nodes in this community are weakly interconnected._
+- **Why does `lucide-react` connect `useI18n` to `AccessSettingsModal.tsx`, `Federated Results & PRISMA Views`, `package.json`, `BooleanBuilderDrawer.tsx`, `App.tsx`, `context.tsx`?**
   _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **Are the 14 inferred relationships involving `runFederatedSearch()` (e.g. with `searchArxiv()` and `searchCrossref()`) actually correct?**
   _`runFederatedSearch()` has 14 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Federated Results & PRISMA Views` be split into smaller, more focused modules?**
-  _Cohesion score 0.0728395061728395 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06945863125638406 - nodes in this community are weakly interconnected._
