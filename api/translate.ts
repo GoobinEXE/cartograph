@@ -7,7 +7,7 @@ import {
   type MinimalResponse,
   setEdgeCacheHeaders,
   validateSearchParams,
-} from './_security';
+} from './_security.js';
 
 const ALLOWED_LANGS = new Set(['pt', 'en', 'es', 'fr']);
 

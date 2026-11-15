@@ -4,7 +4,7 @@ import {
   enforceRateLimit,
   type MinimalRequest,
   type MinimalResponse,
-} from './_security';
+} from './_security.js';
 
 const ALLOWED_TYPES = new Set(['suggestion', 'correction', 'feature', 'general']);
 const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

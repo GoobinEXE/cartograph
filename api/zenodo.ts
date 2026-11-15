@@ -6,7 +6,7 @@ import {
   type MinimalResponse,
   setEdgeCacheHeaders,
   validateSearchParams,
-} from './_security';
+} from './_security.js';
 
 export default async function handler(req: MinimalRequest, res: MinimalResponse) {
   if (applyCorsHeaders(req, res, 'GET, OPTIONS')) return;
