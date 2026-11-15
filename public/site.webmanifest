@@ -1,0 +1,25 @@
+{
+  "name": "Cartograph — Hub de Metabusca Científica · Prism",
+  "short_name": "Cartograph",
+  "description": "Hub de metabusca científica, tecnológica e acadêmica com 15 APIs abertas federadas, 111 plataformas curadas, deduplicação multicritério e fluxo PRISMA 2020.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090D16",
+  "theme_color": "#01ABE8",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

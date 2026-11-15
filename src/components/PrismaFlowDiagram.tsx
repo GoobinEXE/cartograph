@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Prisma2020Counts } from '../types/academic';
 import { generatePrismaMethodologyText } from '../utils/prismaFlow';
 import { triggerFileDownload } from '../utils/citationExporter';
+import { trackAcademicEvent } from '../utils/analytics';
 import { Check, Copy, Download, FileText } from 'lucide-react';
 
 interface PrismaFlowDiagramProps {
@@ -29,6 +30,10 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
       svgString,
       'image/svg+xml;charset=utf-8;'
     );
+    trackAcademicEvent('citation_export', {
+      format: 'prisma_svg',
+      items_count: counts.includedStudies,
+    });
   };
 
   const sourceEntries = Object.entries(counts.bySource).filter(([_, c]) => c > 0);

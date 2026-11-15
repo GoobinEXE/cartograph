@@ -138,14 +138,14 @@ ${item.message}`;
           <div>
             <div className="inline-flex items-center gap-2 mb-2">
               <PrismMonogram className="h-4 w-auto" />
-              <span className="text-xs uppercase font-mono tracking-wider text-[var(--text-muted)]">
+              <span className="text-xs font-medium text-[var(--text-muted)]">
                 Prism Open Science
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-heading font-semibold text-[var(--text-primary)] tracking-tight">
               {t('feedbackTitle')}
             </h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-1.5 max-w-2xl leading-relaxed">
+            <p className="text-[15px] text-[var(--text-secondary)] mt-1.5 max-w-2xl leading-relaxed">
               {t('feedbackSubtitle')}
             </p>
           </div>
@@ -173,7 +173,7 @@ ${item.message}`;
       <form onSubmit={handleSubmit} className="bg-[var(--bg-secondary)] rounded-2xl p-6 sm:p-8 space-y-6">
         {/* Type Selector Pills */}
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-primary)] mb-2.5">
+          <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-2.5">
             {t('feedbackTypeLabel')}
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -185,7 +185,7 @@ ${item.message}`;
                   key={ft.id}
                   type="button"
                   onClick={() => setType(ft.id)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer text-left ${
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
                     isSelected
                       ? 'bg-[var(--link-academic)] text-white shadow-xs'
                       : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-canvas)] hover:text-[var(--text-primary)]'
@@ -201,7 +201,7 @@ ${item.message}`;
 
         {/* Rating Row */}
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-primary)] mb-2">
+          <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-2">
             {t('feedbackRatingLabel')}
           </label>
           <div className="flex items-center gap-1.5">
@@ -225,7 +225,7 @@ ${item.message}`;
                 </button>
               );
             })}
-            <span className="ml-2 text-xs text-[var(--text-muted)] font-mono">
+            <span className="ml-2 text-[13px] text-[var(--text-muted)] font-medium">
               {rating}/5
             </span>
           </div>
@@ -233,7 +233,7 @@ ${item.message}`;
 
         {/* Subject */}
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+          <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-1.5">
             {t('feedbackSubjectLabel')} <span className="text-rose-500">*</span>
           </label>
           <input
@@ -248,7 +248,7 @@ ${item.message}`;
 
         {/* Message */}
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+          <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-1.5">
             {t('feedbackMessageLabel')} <span className="text-rose-500">*</span>
           </label>
           <textarea
@@ -264,7 +264,7 @@ ${item.message}`;
         {/* Optional Metadata Row (Institution, Related URL, Email) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1">
               {t('feedbackInstitutionLabel')}
             </label>
             <input
@@ -272,12 +272,12 @@ ${item.message}`;
               value={institution}
               onChange={(e) => setInstitution(e.target.value)}
               placeholder={t('feedbackInstitutionPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1">
               {t('feedbackUrlLabel')}
             </label>
             <input
@@ -285,12 +285,12 @@ ${item.message}`;
               value={relatedUrl}
               onChange={(e) => setRelatedUrl(e.target.value)}
               placeholder={t('feedbackUrlPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1">
               {t('feedbackEmailLabel')}
             </label>
             <input
@@ -298,20 +298,20 @@ ${item.message}`;
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
               placeholder={t('feedbackEmailPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
         </div>
 
         {/* Action Button */}
         <div className="pt-2 flex items-center justify-between gap-4">
-          <span className="text-xs text-[var(--text-muted)]">
+          <span className="text-[13px] text-[var(--text-muted)]">
             Seus comentários ajudam a aprimorar o catálogo e a precisão do Cartograph.
           </span>
           <button
             type="submit"
             disabled={!subject.trim() || !message.trim() || isSubmitting}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold transition-opacity shrink-0 cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold transition-opacity shrink-0 cursor-pointer ${
               subject.trim() && message.trim() && !isSubmitting
                 ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90'
                 : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] cursor-not-allowed opacity-60'
@@ -330,7 +330,7 @@ ${item.message}`;
         </h3>
 
         {history.length === 0 ? (
-          <div className="bg-[var(--bg-secondary)] rounded-2xl p-8 text-center text-xs text-[var(--text-muted)]">
+          <div className="bg-[var(--bg-secondary)] rounded-2xl p-8 text-center text-[13px] text-[var(--text-muted)]">
             {t('feedbackHistoryEmpty')}
           </div>
         ) : (
@@ -343,17 +343,17 @@ ${item.message}`;
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] uppercase font-mono px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-medium">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-medium">
                         {item.type}
                       </span>
                       <span className="text-xs text-[var(--text-muted)]">
                         {new Date(item.createdAt).toLocaleDateString()}
                       </span>
-                      <span className="text-xs text-amber-400 font-mono">
+                      <span className="text-xs text-amber-400">
                         {'★'.repeat(item.rating)}
                       </span>
                     </div>
-                    <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                    <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">
                       {item.subject}
                     </h4>
                   </div>
@@ -384,7 +384,7 @@ ${item.message}`;
                   </div>
                 </div>
 
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                <p className="text-[13.5px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                   {item.message}
                 </p>
 

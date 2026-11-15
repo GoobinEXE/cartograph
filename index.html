@@ -3,18 +3,156 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 3. Meta Title & Meta Description -->
+    <title>Cartograph — Hub de Metabusca Científica &amp; Revisão de Literatura · Prism</title>
     <meta
       name="description"
-      content="Cartograph — Hub de metabusca científica, tecnológica e acadêmica com 15 APIs abertas federadas, 111 plataformas curadas e fluxo PRISMA 2020."
+      content="Metabuscador científico e acadêmico com 15 APIs abertas em tempo real, catálogo curado de 111 plataformas, construtor booleano e triagem sistemática PRISMA 2020."
     />
-    <title>Cartograph — Metabusca Científica · Prism</title>
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta
+      name="keywords"
+      content="metabuscador científico, revisão sistemática, PRISMA 2020, OpenAlex, Semantic Scholar, PubMed, arXiv, Periódicos CAPES, ABNT NBR 6023, APA 7, BibTeX, pesquisa acadêmica, Cartograph, Prism"
+    />
+    <meta name="author" content="Prism (Prism Labs)" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="theme-color" content="#090D16" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)" />
+
+    <!-- 4. URL Canônica & Alternativas Multilíngues (hreflang) -->
+    <link rel="canonical" href="https://cartographsearch.com/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://cartographsearch.com/?lang=pt" />
+    <link rel="alternate" hreflang="en" href="https://cartographsearch.com/?lang=en" />
+    <link rel="alternate" hreflang="es" href="https://cartographsearch.com/?lang=es" />
+    <link rel="alternate" hreflang="fr" href="https://cartographsearch.com/?lang=fr" />
+    <link rel="alternate" hreflang="x-default" href="https://cartographsearch.com/" />
+
+    <!-- 5. Open Graph & Twitter Cards (1200x630) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cartograph · Prism" />
+    <meta
+      property="og:title"
+      content="Cartograph — Hub de Metabusca Científica &amp; Revisão de Literatura · Prism"
+    />
+    <meta
+      property="og:description"
+      content="Metabuscador científico e acadêmico com 15 APIs abertas em tempo real, catálogo curado de 111 plataformas, construtor booleano e triagem sistemática PRISMA 2020."
+    />
+    <meta property="og:url" content="https://cartographsearch.com/" />
+    <meta property="og:image" content="https://cartographsearch.com/og-image.png" />
+    <meta property="og:image:secure_url" content="https://cartographsearch.com/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Cartograph · Prism — Hub de Metabusca Científica com 15 APIs Abertas, 111 Plataformas e Fluxo PRISMA 2020"
+    />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:locale:alternate" content="fr_FR" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Cartograph — Hub de Metabusca Científica &amp; Revisão de Literatura · Prism"
+    />
+    <meta
+      name="twitter:description"
+      content="Consulte simultaneamente 15 APIs científicas abertas e 111 plataformas acadêmicas com deduplicação determinística e fluxo PRISMA 2020."
+    />
+    <meta name="twitter:image" content="https://cartographsearch.com/og-image.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Cartograph · Prism — Hub de Metabusca Científica com 15 APIs Abertas, 111 Plataformas e Fluxo PRISMA 2020"
+    />
+
+    <!-- 6. Ícones Vetoriais & Manifesto Web -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/app-icon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Fontes Tipográficas -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- 7. Dados Estruturados Schema.org (JSON-LD @graph) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://cartographsearch.com/#organization",
+            "name": "Prism",
+            "alternateName": "Prism Labs",
+            "url": "https://cartographsearch.com/prism",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://cartographsearch.com/app-icon.svg",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://cartographsearch.com/#website",
+            "url": "https://cartographsearch.com/",
+            "name": "Cartograph",
+            "alternateName": "Cartograph — Scientific Metasearch Hub",
+            "description": "Hub de metabusca científica, tecnológica e acadêmica com 15 APIs abertas federadas, 111 plataformas curadas e fluxo PRISMA 2020.",
+            "publisher": {
+              "@id": "https://cartographsearch.com/#organization"
+            },
+            "inLanguage": ["pt-BR", "en", "es", "fr"],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://cartographsearch.com/?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://cartographsearch.com/#application",
+            "name": "Cartograph",
+            "applicationCategory": "ReferenceApplication",
+            "applicationSubCategory": "Scientific Metasearch & Systematic Review Hub",
+            "operatingSystem": "Web, Windows, macOS, Linux",
+            "softwareVersion": "2.4.0",
+            "url": "https://cartographsearch.com/",
+            "image": "https://cartographsearch.com/og-image.png",
+            "isAccessibleForFree": true,
+            "license": "https://cartographsearch.com/copyright",
+            "author": {
+              "@id": "https://cartographsearch.com/#organization"
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "featureList": [
+              "Busca federada em paralelo em 15 APIs científicas abertas (OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV, NASA NTRS)",
+              "Catálogo curado de 111 plataformas científicas e 20 perfis de lançamento temático",
+              "Deduplicação determinística multicritério por DOI, PMID, arXiv e similaridade textual Jaro-Winkler",
+              "Fluxo de revisão sistemática PRISMA 2020 com exportação de diagrama vetorial SVG",
+              "Exportação bibliográfica determinística em ABNT NBR 6023:2018, APA 7ª Edição, BibTeX, RIS e Matriz CSV"
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

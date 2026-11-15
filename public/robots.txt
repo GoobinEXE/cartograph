@@ -1,0 +1,7 @@
+# Cartograph — Scientific Metasearch Hub (https://cartographsearch.com)
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://cartographsearch.com/sitemap.xml
+Host: https://cartographsearch.com

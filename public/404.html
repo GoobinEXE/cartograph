@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>404 — Coordenada Não Encontrada · Cartograph · Prism</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      :root {
+        --bg: #090d16;
+        --surface: #0f172a;
+        --border: #1e293b;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #01abe8;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .spectral-bar {
+        display: flex;
+        height: 4px;
+        width: 100%;
+      }
+      .spectral-bar div {
+        flex: 1;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      .card {
+        max-width: 580px;
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 2.5rem;
+      }
+      .code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+        margin-bottom: 0.75rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        line-height: 1.25;
+        margin-bottom: 0.75rem;
+      }
+      p {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin-bottom: 1.75rem;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.65rem 1.25rem;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: opacity 0.15s;
+      }
+      a.btn-primary {
+        background: var(--accent);
+        color: #090d16;
+      }
+      a.btn-secondary {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      a.btn:hover {
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spectral-bar" aria-hidden="true">
+      <div style="background: #01abe8"></div>
+      <div style="background: #aeb932"></div>
+      <div style="background: #f4e412"></div>
+      <div style="background: #e97635"></div>
+      <div style="background: #da0082"></div>
+    </div>
+    <main>
+      <section class="card" aria-labelledby="err-title">
+        <div class="code">HTTP 404 · ROTA INEXISTENTE</div>
+        <h1 id="err-title">Coordenada cartográfica não localizada</h1>
+        <p>
+          O endereço solicitado não corresponde a uma rota ativa no Cartograph. Retorne ao diretório de 111 plataformas científicas ou inicie uma busca federada nas 15 APIs abertas.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="/">Abrir Diretório de Plataformas</a>
+          <a class="btn btn-secondary" href="/federated">Metabuscador de 15 APIs</a>
+          <a class="btn btn-secondary" href="/about">Sobre o Cartograph</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

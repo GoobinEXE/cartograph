@@ -72,6 +72,8 @@ export interface NormalizedPaper {
   abstractText: string | null;
   source: ApiSourceId;
   sourceLabel: string;
+  /** All API sources that returned this record when merged during deduplication */
+  sources?: ApiSourceId[];
   publicationType?: string;
 }
 
@@ -82,6 +84,8 @@ export interface SourceFetchStatus {
   count: number;
   latencyMs?: number;
   errorMessage?: string;
+  errorDetail?: string;
+  rawError?: string;
 }
 
 export interface BooleanQueryState {
@@ -114,6 +118,14 @@ export interface ExtractedPaperMetadata {
   hasStructuredAbstract: boolean;
 }
 
+export interface LibraryGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  createdAt: string;
+}
+
 export interface SavedPaperItem extends NormalizedPaper {
   savedAt: string;
   researcherNotes: string;
@@ -121,6 +133,7 @@ export interface SavedPaperItem extends NormalizedPaper {
   screeningStatus?: ScreeningStatus;
   exclusionReason?: string;
   extractedMetadata?: ExtractedPaperMetadata;
+  groupId?: string | null;
 }
 
 export interface Prisma2020Counts {

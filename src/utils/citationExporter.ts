@@ -88,8 +88,12 @@ function escapeCsvCell(value: string | number | null | undefined): string {
   return `"${escaped}"`;
 }
 
-export function exportSavedPapersCsv(items: SavedPaperItem[]): string {
+export function exportSavedPapersCsv(
+  items: SavedPaperItem[],
+  groupNameMap?: Record<string, string>
+): string {
   const headers = [
+    'Grupo_Slot',
     'Titulo',
     'Autores',
     'Ano',
@@ -123,8 +127,13 @@ export function exportSavedPapersCsv(items: SavedPaperItem[]): string {
         : item.screeningStatus === 'excluded'
         ? 'EXCLUIDO'
         : 'PENDENTE';
+    const groupLabel =
+      item.groupId && groupNameMap?.[item.groupId]
+        ? groupNameMap[item.groupId]
+        : 'Sem Grupo (Geral)';
 
     return [
+      escapeCsvCell(groupLabel),
       escapeCsvCell(item.title),
       escapeCsvCell(item.authors.join('; ')),
       escapeCsvCell(item.year ?? ''),

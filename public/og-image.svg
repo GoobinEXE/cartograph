@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#090D16" />
+      <stop offset="60%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#131D36" />
+    </linearGradient>
+    <radialGradient id="glowCyan" cx="85%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#01ABE8" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#01ABE8" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glowMagenta" cx="15%" cy="85%" r="45%">
+      <stop offset="0%" stop-color="#DA0082" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#DA0082" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)" />
+  <rect width="1200" height="630" fill="url(#glowCyan)" />
+  <rect width="1200" height="630" fill="url(#glowMagenta)" />
+
+  <!-- Top Spectral Bar (Prism 5 Canonical Bands) -->
+  <g>
+    <rect x="0" y="0" width="240" height="8" fill="#01ABE8" />
+    <rect x="240" y="0" width="240" height="8" fill="#AEB932" />
+    <rect x="480" y="0" width="240" height="8" fill="#F4E412" />
+    <rect x="720" y="0" width="240" height="8" fill="#E97635" />
+    <rect x="960" y="0" width="240" height="8" fill="#DA0082" />
+  </g>
+
+  <!-- Subtle Technical Grid Lines -->
+  <g stroke="#1E293B" stroke-width="1" opacity="0.55">
+    <line x1="80" y1="0" x2="80" y2="630" />
+    <line x1="1120" y1="0" x2="1120" y2="630" />
+    <line x1="0" y1="96" x2="1200" y2="96" />
+    <line x1="0" y1="534" x2="1200" y2="534" />
+  </g>
+
+  <!-- Brand Header Pill -->
+  <g transform="translate(80, 126)">
+    <rect x="0" y="0" width="372" height="38" rx="19" fill="#1E293B" stroke="#334155" stroke-width="1" />
+    <circle cx="22" cy="19" r="5" fill="#01ABE8" />
+    <text x="38" y="24" fill="#94A3B8" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="14" font-weight="600" letter-spacing="1.2">
+      PRISM ECOSYSTEM · CARTOGRAPH v2.4
+    </text>
+  </g>
+
+  <!-- Main Title & Subtitle -->
+  <g transform="translate(80, 232)">
+    <text x="0" y="0" fill="#F8FAFC" font-family="Plus Jakarta Sans, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="68" font-weight="700" letter-spacing="-1.5">
+      Cartograph
+    </text>
+    <text x="0" y="58" fill="#38BDF8" font-family="Plus Jakarta Sans, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="32" font-weight="600" letter-spacing="-0.4">
+      Hub de Metabusca Científica &amp; Revisão de Literatura
+    </text>
+    <text x="0" y="110" fill="#94A3B8" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="400">
+      Busca federada em tempo real, deduplicação determinística e triagem sistemática
+    </text>
+    <text x="0" y="140" fill="#94A3B8" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="400">
+      PRISMA 2020 com exportação ABNT, APA 7, BibTeX e CSV.
+    </text>
+  </g>
+
+  <!-- Feature Metric Badges -->
+  <g transform="translate(80, 428)">
+    <!-- Badge 1 -->
+    <rect x="0" y="0" width="236" height="62" rx="12" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <text x="20" y="27" fill="#01ABE8" font-family="JetBrains Mono, monospace, sans-serif" font-size="20" font-weight="700">
+      15 APIs Abertas
+    </text>
+    <text x="20" y="48" fill="#64748B" font-family="Inter, sans-serif" font-size="13" font-weight="500">
+      OpenAlex · PubMed · arXiv · CERN
+    </text>
+
+    <!-- Badge 2 -->
+    <rect x="254" y="0" width="246" height="62" rx="12" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <text x="274" y="27" fill="#AEB932" font-family="JetBrains Mono, monospace, sans-serif" font-size="20" font-weight="700">
+      111 Plataformas
+    </text>
+    <text x="274" y="48" fill="#64748B" font-family="Inter, sans-serif" font-size="13" font-weight="500">
+      20 Presets Temáticos Curados
+    </text>
+
+    <!-- Badge 3 -->
+    <rect x="518" y="0" width="238" height="62" rx="12" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <text x="538" y="27" fill="#E97635" font-family="JetBrains Mono, monospace, sans-serif" font-size="20" font-weight="700">
+      PRISMA 2020
+    </text>
+    <text x="538" y="48" fill="#64748B" font-family="Inter, sans-serif" font-size="13" font-weight="500">
+      Triagem &amp; Diagrama Vetorial
+    </text>
+  </g>
+
+  <!-- Right Side Official Cartograph Monogram Illustration -->
+  <g transform="translate(805, 130) scale(0.72)">
+    <!-- 5 Faixas Espectrais Prism -->
+    <path d="M 327.52 101.00 L 484 101.00 L 484 157.60 L 391.65 157.60 A 155 155 0 0 0 327.52 101.00 Z" fill="#01ABE8" />
+    <path d="M 391.27 157.00 L 484 157.00 L 484 213.60 L 413.56 213.60 A 155 155 0 0 0 391.27 157.00 Z" fill="#AEB932" />
+    <path d="M 413.45 213.00 L 484 213.00 L 484 269.60 L 413.34 269.60 A 155 155 0 0 0 413.45 213.00 Z" fill="#F4E412" />
+    <path d="M 413.45 269.00 L 484 269.00 L 484 325.60 L 390.88 325.60 A 155 155 0 0 0 413.45 269.00 Z" fill="#E97635" />
+    <path d="M 391.27 325.00 L 484 325.00 L 484 381.00 L 327.52 381.00 A 155 155 0 0 0 391.27 325.00 Z" fill="#DA0082" />
+
+    <!-- Lupa Unificada -->
+    <path
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M 146.96 323.92 A 141 141 0 1 1 178.08 355.04 L 95.54 437.58 A 22 22 0 0 1 64.42 406.46 Z M 156.00 241.00 A 105 105 0 1 0 366.00 241.00 A 105 105 0 1 0 156.00 241.00 Z"
+      fill="#F8FAFC"
+    />
+
+    <!-- Agulha Cartográfica -->
+    <path
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M 323.23 178.77 L 284.33 264.33 L 198.77 303.23 L 237.67 217.67 Z M 242.59 234.61 L 221.93 280.07 L 267.39 259.41 Z"
+      fill="#F8FAFC"
+    />
+  </g>
+
+  <!-- Footer Domain Bar -->
+  <text x="80" y="582" fill="#64748B" font-family="JetBrains Mono, monospace, sans-serif" font-size="16" font-weight="500">
+    https://cartographsearch.com
+  </text>
+  <text x="1120" y="582" text-anchor="end" fill="#64748B" font-family="JetBrains Mono, monospace, sans-serif" font-size="15" font-weight="500">
+    Engenharia Determinística · Local-First · Open Science
+  </text>
+</svg>

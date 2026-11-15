@@ -1,8 +1,13 @@
 import React from 'react';
 
-export const PrismMonogram: React.FC<{ className?: string; size?: number }> = ({
+export const PrismMonogram: React.FC<{
+  className?: string;
+  size?: number;
+  title?: string;
+}> = ({
   className = 'h-6 w-auto shrink-0',
   size,
+  title = 'Logo Cartograph — Lupa Cartográfica e Espectro Prism',
 }) => {
   return (
     <svg
@@ -11,9 +16,10 @@ export const PrismMonogram: React.FC<{ className?: string; size?: number }> = ({
       fill="none"
       className={className}
       style={size ? { height: size, width: (size * 432) / 348 } : undefined}
-      aria-label="Logo Cartograph"
+      aria-label={title}
       role="img"
     >
+      <title>{title}</title>
       {/* 5 Faixas Espectrais Prism (recortadas em arco exato) */}
       <path
         d="M 327.52 101.00 L 484 101.00 L 484 157.60 L 391.65 157.60 A 155 155 0 0 0 327.52 101.00 Z"
@@ -55,9 +61,14 @@ export const PrismMonogram: React.FC<{ className?: string; size?: number }> = ({
   );
 };
 
-export const PrismPMonogram: React.FC<{ className?: string; size?: number }> = ({
+export const PrismPMonogram: React.FC<{
+  className?: string;
+  size?: number;
+  title?: string;
+}> = ({
   className = 'h-5 w-auto shrink-0',
   size,
+  title = 'Logo Prism — Monograma Institucional P',
 }) => {
   return (
     <svg
@@ -66,9 +77,10 @@ export const PrismPMonogram: React.FC<{ className?: string; size?: number }> = (
       fill="none"
       className={className}
       style={size ? { height: size, width: (size * 492.4) / 409.16 } : undefined}
-      aria-label="Logo Prism"
+      aria-label={title}
       role="img"
     >
+      <title>{title}</title>
       {/* Glifo P adaptável ao tema claro/escuro */}
       <path
         d="M205.31,0H.08s-.08,409.15-.08,409.15h89.18v-141.59h116.52s79.7-81.74,79.7-81.74l.04-104.52L205.31,0ZM167.94,183.93h-78.76v-102h78.37l27.19,27.22v44.8l-26.81,29.99Z"
@@ -111,4 +123,3 @@ export const PrismSpectralBar: React.FC<{ className?: string }> = ({
     </div>
   );
 };
-

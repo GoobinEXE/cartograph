@@ -1,4 +1,5 @@
 export type SupportedLanguage = 'pt' | 'en' | 'es' | 'fr';
+export type LanguageCode = SupportedLanguage;
 
 export interface Translations {
   appName: string;

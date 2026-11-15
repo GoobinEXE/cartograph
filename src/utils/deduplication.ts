@@ -1,4 +1,4 @@
-import { DeduplicationSummary, NormalizedPaper } from '../types/academic';
+import { ApiSourceId, DeduplicationSummary, NormalizedPaper } from '../types/academic';
 
 /**
  * Normalizes a DOI string to a standard lowercase prefix-free representation.
@@ -117,6 +117,17 @@ export function jaroWinklerSimilarity(s1: string, s2: string): number {
   return jaro + prefix * 0.1 * (1 - jaro);
 }
 
+function mergeSourceIds(primary: NormalizedPaper, secondary: NormalizedPaper): ApiSourceId[] {
+  return Array.from(
+    new Set<ApiSourceId>([
+      primary.source,
+      ...(primary.sources ?? []),
+      secondary.source,
+      ...(secondary.sources ?? []),
+    ])
+  );
+}
+
 /**
  * Merges two duplicate paper records preserving the richest data from both.
  */
@@ -135,12 +146,19 @@ function mergePaperRecords(primary: NormalizedPaper, secondary: NormalizedPaper)
       primary.authors.length >= secondary.authors.length ? primary.authors : secondary.authors,
     venue: primary.venue !== 'Periódico Científico' ? primary.venue : secondary.venue,
     year: primary.year || secondary.year,
+    sources: mergeSourceIds(primary, secondary),
   };
+}
+
+interface IndexedRecord {
+  paper: NormalizedPaper;
+  firstIdx: number;
 }
 
 /**
  * Multi-criteria deterministic deduplication engine for academic records.
- * Runs in O(n) for exact keys and targeted O(k^2) bucket comparison for fuzzy titles.
+ * Preserves first-seen insertion order so incremental/streaming arrivals enrich in-place
+ * without reordering already rendered results.
  */
 export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
   papers: NormalizedPaper[];
@@ -149,7 +167,10 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
   const originalCount = papers.length;
   if (originalCount <= 1) {
     return {
-      papers: [...papers],
+      papers: papers.map((p) => ({
+        ...p,
+        sources: p.sources?.length ? p.sources : [p.source],
+      })),
       summary: {
         originalCount,
         uniqueCount: originalCount,
@@ -165,68 +186,78 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
   let mergedByPmidOrArxiv = 0;
   let mergedByFuzzyTitle = 0;
 
-  // Step 1: Group by exact Canonical DOI
-  const doiMap = new Map<string, NormalizedPaper>();
-  const nonDoiPapers: NormalizedPaper[] = [];
+  // Step 1: Group by exact Canonical DOI while retaining earliest arrival index
+  const doiMap = new Map<string, IndexedRecord>();
+  const nonDoiPapers: IndexedRecord[] = [];
 
-  for (const paper of papers) {
+  papers.forEach((rawPaper, idx) => {
+    const paper: NormalizedPaper = {
+      ...rawPaper,
+      sources: rawPaper.sources?.length ? rawPaper.sources : [rawPaper.source],
+    };
     const cleanDoi = normalizeDoi(paper.doi);
     if (cleanDoi) {
       const existing = doiMap.get(cleanDoi);
       if (existing) {
-        doiMap.set(cleanDoi, mergePaperRecords(existing, paper));
+        existing.paper = mergePaperRecords(existing.paper, paper);
         mergedByDoi++;
       } else {
-        doiMap.set(cleanDoi, { ...paper, doi: cleanDoi });
+        doiMap.set(cleanDoi, { paper: { ...paper, doi: cleanDoi }, firstIdx: idx });
       }
     } else {
-      nonDoiPapers.push(paper);
+      nonDoiPapers.push({ paper, firstIdx: idx });
     }
-  }
+  });
 
-  // Intermediate list after DOI dedup
-  const phase1List: NormalizedPaper[] = [...Array.from(doiMap.values()), ...nonDoiPapers];
+  // Intermediate list after DOI dedup, restored to arrival order
+  const phase1List: IndexedRecord[] = [
+    ...Array.from(doiMap.values()),
+    ...nonDoiPapers,
+  ].sort((a, b) => a.firstIdx - b.firstIdx);
 
   // Step 2: Group by secondary exact persistent IDs (arXiv ID or PMID)
-  const idMap = new Map<string, NormalizedPaper>();
-  const remainingPapers: NormalizedPaper[] = [];
+  const idMap = new Map<string, IndexedRecord>();
+  const remainingPapers: IndexedRecord[] = [];
 
-  for (const paper of phase1List) {
-    const arxivId = extractArxivId(paper.url) || extractArxivId(paper.id);
-    const pmid = extractPmid(paper.url) || extractPmid(paper.id);
+  for (const item of phase1List) {
+    const arxivId = extractArxivId(item.paper.url) || extractArxivId(item.paper.id);
+    const pmid = extractPmid(item.paper.url) || extractPmid(item.paper.id);
     const persistentKey = arxivId ? `arxiv:${arxivId}` : pmid ? `pmid:${pmid}` : null;
 
     if (persistentKey) {
       const existing = idMap.get(persistentKey);
       if (existing) {
-        idMap.set(persistentKey, mergePaperRecords(existing, paper));
+        existing.paper = mergePaperRecords(existing.paper, item.paper);
         mergedByPmidOrArxiv++;
       } else {
-        idMap.set(persistentKey, paper);
+        idMap.set(persistentKey, item);
       }
     } else {
-      remainingPapers.push(paper);
+      remainingPapers.push(item);
     }
   }
 
-  // Intermediate list after persistent ID dedup
-  const candidates: NormalizedPaper[] = [...Array.from(idMap.values()), ...remainingPapers];
+  // Intermediate list after persistent ID dedup, restored to arrival order
+  const candidates: IndexedRecord[] = [
+    ...Array.from(idMap.values()),
+    ...remainingPapers,
+  ].sort((a, b) => a.firstIdx - b.firstIdx);
 
-  // Step 3: Fuzzy title + First Author + Year matching
+  // Step 3: Fuzzy title + First Author + Year matching (preserving earliest index order)
   const finalUniqueList: NormalizedPaper[] = [];
   const processedIndices = new Set<number>();
 
   for (let i = 0; i < candidates.length; i++) {
     if (processedIndices.has(i)) continue;
 
-    let current = candidates[i];
+    let current = candidates[i].paper;
     const currentNormTitle = normalizeTitleForComparison(current.title);
     const currentAuthor = getFirstAuthorSurname(current.authors);
 
     for (let j = i + 1; j < candidates.length; j++) {
       if (processedIndices.has(j)) continue;
 
-      const compare = candidates[j];
+      const compare = candidates[j].paper;
       const compareNormTitle = normalizeTitleForComparison(compare.title);
 
       // Fast preliminary length check: if length difference > 35%, skip

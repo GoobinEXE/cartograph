@@ -10,6 +10,7 @@ import {
 import {
   BooleanQueryState,
   DeduplicationSummary,
+  LibraryGroup,
   NormalizedPaper,
   PlatformCategory,
   SavedPaperItem,
@@ -24,8 +25,17 @@ import {
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
+import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './components/PrismLogo';
+import type { AboutSectionId } from './components/AboutView';
 import { useI18n } from './i18n/context';
+import {
+  buildCanonicalPath,
+  parsePathnameToRoute,
+  useSeoMeta,
+  type AppTab,
+} from './utils/seo';
+import { initPrivacyFirstAnalytics, trackAcademicEvent } from './utils/analytics';
 import {
   Activity,
   ArrowUpRight,
@@ -67,6 +77,8 @@ const AboutView = lazy(() =>
 );
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
+const STORAGE_KEY_GROUPS = 'cartograph_library_groups_v1';
+const STORAGE_KEY_ACTIVE_GROUP = 'cartograph_active_save_group_v1';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
 const STORAGE_KEY_THEME = 'cartograph_theme_v1';
 const STORAGE_KEY_SIDEBAR_DRAWERS = 'cartograph_sidebar_drawers_v2';
@@ -118,8 +130,59 @@ export default function AcademicCommandCenter() {
     return 'light';
   });
 
-  const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'platforms' | 'federated' | 'saved' | 'feedback' | 'about'>('platforms');
+  const initialRoute = useMemo(
+    () =>
+      typeof window !== 'undefined'
+        ? parsePathnameToRoute(window.location.pathname)
+        : { tab: 'platforms' as AppTab, aboutSection: 'cartograph' as AboutSectionId, isNotFound: false, canonicalPath: '/' },
+    []
+  );
+
+  const [query, setQuery] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('q')?.trim() || '';
+    } catch {
+      return '';
+    }
+  });
+  const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.tab);
+  const [aboutSection, setAboutSection] = useState<AboutSectionId>(initialRoute.aboutSection);
+  const [isNotFound, setIsNotFound] = useState<boolean>(initialRoute.isNotFound);
+
+  const syncBrowserHistory = (tab: AppTab, section: AboutSectionId) => {
+    try {
+      const targetPath = buildCanonicalPath(tab, section);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ tab, aboutSection: section }, '', targetPath);
+      }
+    } catch {
+      // ignore in restricted environments
+    }
+  };
+
+  const navigateToTab = (tab: AppTab) => {
+    setIsNotFound(false);
+    setActiveTab(tab);
+    syncBrowserHistory(tab, aboutSection);
+    trackAcademicEvent('navigation_view', { view: tab });
+  };
+
+  const navigateToAboutSection = (section: AboutSectionId) => {
+    setIsNotFound(false);
+    setAboutSection(section);
+    setActiveTab('about');
+    syncBrowserHistory('about', section);
+    trackAcademicEvent('navigation_view', { view: `about_${section}` });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useSeoMeta({
+    activeTab,
+    aboutSection,
+    language,
+    isNotFound,
+  });
   const [activeCategory, setActiveCategory] = useState<'all' | PlatformCategory>('all');
   const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -234,6 +297,29 @@ export default function AcademicCommandCenter() {
     return [];
   });
 
+  const [libraryGroups, setLibraryGroups] = useState<LibraryGroup[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore storage error
+    }
+    return [];
+  });
+
+  const [activeSaveGroupId, setActiveSaveGroupId] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_GROUP);
+      if (raw) return raw;
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
   const [federatedPapers, setFederatedPapers] = useState<NormalizedPaper[]>([]);
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
   const [dedupSummary, setDedupSummary] = useState<DeduplicationSummary | null>(null);
@@ -248,6 +334,14 @@ export default function AcademicCommandCenter() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -265,6 +359,26 @@ export default function AcademicCommandCenter() {
       // ignore quota error
     }
   }, [savedPapers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(libraryGroups));
+    } catch {
+      // ignore quota error
+    }
+  }, [libraryGroups]);
+
+  useEffect(() => {
+    try {
+      if (activeSaveGroupId) {
+        localStorage.setItem(STORAGE_KEY_ACTIVE_GROUP, activeSaveGroupId);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_GROUP);
+      }
+    } catch {
+      // ignore quota error
+    }
+  }, [activeSaveGroupId]);
 
   useEffect(() => {
     try {
@@ -297,6 +411,31 @@ export default function AcademicCommandCenter() {
       mounted = false;
     };
   }, []);
+
+  // Initialize privacy-first GA4 (if configured) and browser history popstate listener
+  useEffect(() => {
+    initPrivacyFirstAnalytics();
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const langParam = params.get('lang')?.toLowerCase();
+      if (langParam === 'pt' || langParam === 'en' || langParam === 'es' || langParam === 'fr') {
+        setLanguage(langParam);
+      }
+    } catch {
+      // ignore
+    }
+
+    const onPopState = () => {
+      const parsed = parsePathnameToRoute(window.location.pathname);
+      setIsNotFound(parsed.isNotFound);
+      setActiveTab(parsed.tab);
+      setAboutSection(parsed.aboutSection);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [setLanguage]);
 
   // Global keyboard shortcut: Cmd/Ctrl + K focuses the search input
   useEffect(() => {
@@ -347,6 +486,10 @@ export default function AcademicCommandCenter() {
   };
 
   const handleTogglePreset = (presetId: string, presetPlatformIds: string[]) => {
+    trackAcademicEvent('preset_selected', {
+      preset_id: presetId,
+      platforms_count: presetPlatformIds.length,
+    });
     setSelectedPlatformIds((prev) => {
       const isFullyActive = presetPlatformIds.every((id) => prev.includes(id));
 
@@ -385,20 +528,56 @@ export default function AcademicCommandCenter() {
   };
 
   const handleRunFederatedSearch = async () => {
-    if (!isValidQuery || isSearchingApis) return;
-    setActiveTab('federated');
+    if (!isValidQuery) return;
+
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    const requestId = ++searchRequestIdRef.current;
+
+    navigateToTab('federated');
     setIsSearchingApis(true);
+    setFederatedPapers([]);
+    setDedupSummary(null);
+    setSourceStatuses([]);
+
     try {
       const { papers, statuses, deduplicationSummary } = await runFederatedSearch(
         trimmedQuery,
         yearStartNum,
-        (liveStatuses) => setSourceStatuses(liveStatuses)
+        {
+          signal: controller.signal,
+          onProgress: (progress) => {
+            if (requestId !== searchRequestIdRef.current || controller.signal.aborted) {
+              return;
+            }
+            setFederatedPapers(progress.papers);
+            setSourceStatuses(progress.statuses);
+            setDedupSummary(progress.deduplicationSummary);
+          },
+        }
       );
+
+      if (requestId !== searchRequestIdRef.current || controller.signal.aborted) {
+        return;
+      }
+
       setFederatedPapers(papers);
       setSourceStatuses(statuses);
       setDedupSummary(deduplicationSummary);
+      trackAcademicEvent('federated_search', {
+        query_length: trimmedQuery.length,
+        has_year_filter: Boolean(yearStartNum),
+        results_count: papers.length,
+      });
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError' && requestId === searchRequestIdRef.current) {
+        // Fallback safety: individual source errors are reflected via statuses
+      }
     } finally {
-      setIsSearchingApis(false);
+      if (requestId === searchRequestIdRef.current) {
+        setIsSearchingApis(false);
+      }
     }
   };
 
@@ -410,6 +589,10 @@ export default function AcademicCommandCenter() {
         p.buildUrl(encodedQuery, trimmedQuery, yearStartNum)
       );
       const result = await launchUrlsCrossPlatform(urls);
+      trackAcademicEvent('multi_tab_launch', {
+        platforms_count: urls.length,
+        used_native_bridge: result.usedNativeBridge,
+      });
       setStatusBanner(
         result.usedNativeBridge
           ? t('platformsOpenedBridge', {
@@ -433,17 +616,75 @@ export default function AcademicCommandCenter() {
     await Promise.all([handleRunFederatedSearch(), handleLaunchSelectedPlatforms()]);
   };
 
-  const handleToggleSavePaper = (paper: NormalizedPaper) => {
+  const handleCreateGroup = (name: string, color: string = '#01ABE8'): LibraryGroup => {
+    const newGroup: LibraryGroup = {
+      id: `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: name.trim(),
+      color,
+      createdAt: new Date().toISOString(),
+    };
+    setLibraryGroups((prev) => [...prev, newGroup]);
+    trackAcademicEvent('library_group_action', { action: 'create' });
+    return newGroup;
+  };
+
+  const handleRenameGroup = (groupId: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setLibraryGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g))
+    );
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    setLibraryGroups((prev) => prev.filter((g) => g.id !== groupId));
+    // Move papers of this deleted group back to "Sem grupo" (null) so no research is lost
+    setSavedPapers((prev) =>
+      prev.map((item) => (item.groupId === groupId ? { ...item, groupId: null } : item))
+    );
+    setActiveSaveGroupId((prev) => (prev === groupId ? null : prev));
+  };
+
+  const handleAssignPaperGroup = (paperId: string, groupId: string | null) => {
+    setSavedPapers((prev) =>
+      prev.map((item) => (item.id === paperId ? { ...item, groupId } : item))
+    );
+  };
+
+  const handleClearLibrary = (onlyGroupId?: string | 'ungrouped') => {
+    if (!onlyGroupId) {
+      setSavedPapers([]);
+      return;
+    }
+    if (onlyGroupId === 'ungrouped') {
+      const validGroupIds = new Set(libraryGroups.map((g) => g.id));
+      setSavedPapers((prev) =>
+        prev.filter((item) => item.groupId && validGroupIds.has(item.groupId))
+      );
+      return;
+    }
+    setSavedPapers((prev) => prev.filter((item) => item.groupId !== onlyGroupId));
+  };
+
+  const handleToggleSavePaper = (
+    paper: NormalizedPaper,
+    targetGroupId?: string | null
+  ) => {
     setSavedPapers((prev) => {
       const exists = prev.some((item) => item.id === paper.id);
       if (exists) {
         return prev.filter((item) => item.id !== paper.id);
       }
+      trackAcademicEvent('paper_saved', {
+        source_api: paper.source,
+      });
       const extractedMetadata = parseAbstractMetadata(
         paper.title,
         paper.abstractText,
         paper.publicationType
       );
+      const resolvedGroupId =
+        targetGroupId !== undefined ? targetGroupId : activeSaveGroupId;
       const newItem: SavedPaperItem = {
         ...paper,
         savedAt: new Date().toISOString(),
@@ -451,6 +692,7 @@ export default function AcademicCommandCenter() {
         relevanceTag: 'alta',
         screeningStatus: 'unscreened',
         extractedMetadata,
+        groupId: resolvedGroupId ?? null,
       };
       return [newItem, ...prev];
     });
@@ -525,20 +767,20 @@ export default function AcademicCommandCenter() {
               {/* Brand Wordmark with Prism Monogram */}
               <div className="flex items-center justify-between">
                 <a
-                  href="#top"
+                  href="/"
                   onClick={(e) => {
                     e.preventDefault();
-                    setActiveTab('platforms');
+                    navigateToTab('platforms');
                     setActiveCategory('all');
                     setSelectedArea('all');
                   }}
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
                   title="Cartograph — Desenvolvido pela Prism"
                 >
-                  <PrismMonogram className="h-7 w-auto" />
+                  <PrismMonogram className="h-[30px] w-auto" />
                   <div className="flex flex-col leading-none">
-                    <span className="font-heading font-semibold text-[17px] tracking-tight">Cartograph</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wider mt-0.5">by Prism</span>
+                    <span className="font-heading font-semibold text-[18px] tracking-tight">Cartograph</span>
+                    <span className="text-[11.5px] text-[var(--text-muted)] font-medium mt-0.5">{t('appTagline')}</span>
                   </div>
                 </a>
 
@@ -554,9 +796,9 @@ export default function AcademicCommandCenter() {
                 </div>
               </div>
 
-              {/* Borderless Search Pill (Google Scholar / Consensus Style) */}
-              <div className="flex-1 max-w-2xl flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 transition-all">
-                <Search className="w-4 h-4 text-[var(--text-muted)] shrink-0 mr-2.5" />
+              {/* Borderless Search Pill (Balanced Search Engine Scale) */}
+              <div className="flex-1 max-w-[720px] flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 transition-all">
+                <Search className="w-[18px] h-[18px] text-[var(--text-muted)] shrink-0 mr-2.5" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -575,7 +817,7 @@ export default function AcademicCommandCenter() {
                     }
                   }}
                   placeholder={t('searchPlaceholder')}
-                  className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+                  className="w-full bg-transparent text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
                 />
 
                 {query && (
@@ -593,7 +835,7 @@ export default function AcademicCommandCenter() {
                   type="button"
                   onClick={handleTranslatePtToEn}
                   disabled={!isValidQuery || isTranslating}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors mr-1 ${
+                  className={`px-2.5 py-1 rounded-full text-[13px] font-medium transition-colors mr-1 ${
                     isValidQuery
                       ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
                       : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
@@ -613,14 +855,14 @@ export default function AcademicCommandCenter() {
                   }`}
                   title={t('booleanBuilderBtn')}
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <SlidersHorizontal className="w-4 h-4" />
                 </button>
 
                 <button
                   type="button"
                   onClick={handleRunFederatedSearch}
-                  disabled={!isValidQuery || isSearchingApis}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-opacity shrink-0 ${
+                  disabled={!isValidQuery}
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-opacity shrink-0 ${
                     isValidQuery
                       ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer'
                       : 'bg-[var(--bg-hover)] text-[var(--text-muted)] cursor-not-allowed'
@@ -638,7 +880,7 @@ export default function AcademicCommandCenter() {
                 type="button"
                 onClick={handleLaunchSelectedPlatforms}
                 disabled={!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
                   isValidQuery && selectedPlatformIds.length > 0
                     ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] hover:opacity-85 cursor-pointer'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed'
@@ -663,10 +905,10 @@ export default function AcademicCommandCenter() {
                   <button
                     type="button"
                     onClick={() => setShowLangMenu((v) => !v)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer uppercase"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer uppercase"
                   >
                     <span>{language}</span>
-                    <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />
+                    <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                   </button>
 
                   {showLangMenu && (
@@ -679,14 +921,14 @@ export default function AcademicCommandCenter() {
                             setLanguage(langOpt.code);
                             setShowLangMenu(false);
                           }}
-                          className={`w-full flex items-center justify-between px-3.5 py-1.5 text-xs transition-colors cursor-pointer text-left ${
+                          className={`w-full flex items-center justify-between px-3.5 py-1.5 text-[13px] transition-colors cursor-pointer text-left ${
                             language === langOpt.code
                               ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-semibold'
                               : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
                           }`}
                         >
                           <span>{langOpt.nativeLabel}</span>
-                          {language === langOpt.code && <Check className="w-3 h-3" />}
+                          {language === langOpt.code && <Check className="w-3.5 h-3.5" />}
                         </button>
                       ))}
                     </div>
@@ -713,7 +955,7 @@ export default function AcademicCommandCenter() {
 
           {/* Status Banner */}
           {statusBanner && (
-            <div className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent-blue-tint)] text-xs text-[var(--link-academic)] flex items-center justify-between">
+            <div className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent-blue-tint)] text-[13px] text-[var(--link-academic)] flex items-center justify-between">
               <span>{statusBanner}</span>
               <button
                 type="button"
@@ -729,9 +971,9 @@ export default function AcademicCommandCenter() {
           <nav className="flex items-center gap-6 mt-3 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setActiveTab('platforms')}
-              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'platforms'
+              onClick={() => navigateToTab('platforms')}
+              className={`pb-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                !isNotFound && activeTab === 'platforms'
                   ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
@@ -741,9 +983,9 @@ export default function AcademicCommandCenter() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('federated')}
-              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'federated'
+              onClick={() => navigateToTab('federated')}
+              className={`pb-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                !isNotFound && activeTab === 'federated'
                   ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
@@ -753,38 +995,14 @@ export default function AcademicCommandCenter() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('saved')}
-              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'saved'
+              onClick={() => navigateToTab('saved')}
+              className={`pb-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                !isNotFound && activeTab === 'saved'
                   ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               {t('tabSaved', { count: savedPapers.length })}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('feedback')}
-              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'feedback'
-                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
-                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {t('tabFeedback')}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('about')}
-              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'about'
-                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
-                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {t('tabAbout')}
             </button>
           </nav>
         </div>
@@ -792,9 +1010,20 @@ export default function AcademicCommandCenter() {
 
       {/* Main Content Workspace */}
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {/* TAB 1: PLATFORMS DIRECTORY */}
-        {activeTab === 'platforms' && (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[290px_1fr] gap-6 xl:gap-8 items-start">
+        {isNotFound ? (
+          <NotFoundView
+            invalidPath={typeof window !== 'undefined' ? window.location.pathname : ''}
+            onNavigateTab={(tab) => {
+              navigateToTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onFocusSearch={() => searchInputRef.current?.focus()}
+          />
+        ) : (
+          <>
+            {/* TAB 1: PLATFORMS DIRECTORY */}
+            {activeTab === 'platforms' && (
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-6 xl:gap-8 items-start">
             {/* Left Sidebar — Scroll Individual com Gavetas Retráteis / Expansíveis */}
             <aside
               className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
@@ -802,14 +1031,14 @@ export default function AcademicCommandCenter() {
             >
               {/* Header com Ação Rápida de Expandir / Recolher Todas */}
               <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
                   <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                   <span>Filtros & Navegação</span>
                 </div>
                 <button
                   type="button"
                   onClick={toggleAllSidebarDrawers}
-                  className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
+                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
                   title={allDrawersOpen ? 'Recolher todas as gavetas' : 'Expandir todas as gavetas'}
                 >
                   {allDrawersOpen ? 'Recolher tudo' : 'Expandir tudo'}
@@ -832,11 +1061,11 @@ export default function AcademicCommandCenter() {
                   className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       {t('thematicAreasTitle')}
                     </span>
                     {selectedArea !== 'all' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
                         {localizedThematicAreas[selectedArea]?.label || selectedArea}
                       </span>
                     )}
@@ -849,7 +1078,7 @@ export default function AcademicCommandCenter() {
                           e.stopPropagation();
                           setSelectedArea('all');
                         }}
-                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
                         Limpar
                       </button>
@@ -863,7 +1092,7 @@ export default function AcademicCommandCenter() {
                 </div>
 
                 {sidebarDrawers.areas && (
-                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
                     <button
                       type="button"
                       onClick={() => setSelectedArea('all')}
@@ -922,11 +1151,11 @@ export default function AcademicCommandCenter() {
                   className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       Modelo de Acesso
                     </span>
                     {accessFilter !== 'all' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
                         {accessFilter === 'gratuito'
                           ? 'Gratuito'
                           : accessFilter === 'pago'
@@ -945,7 +1174,7 @@ export default function AcademicCommandCenter() {
                           e.stopPropagation();
                           setAccessFilter('all');
                         }}
-                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
                         Limpar
                       </button>
@@ -959,7 +1188,7 @@ export default function AcademicCommandCenter() {
                 </div>
 
                 {sidebarDrawers.access && (
-                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
                     <button
                       type="button"
                       onClick={() => setAccessFilter('all')}
@@ -1052,11 +1281,11 @@ export default function AcademicCommandCenter() {
                   className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
                       Seleção Rápida
                     </span>
                     <span
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums shrink-0 ${
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 ${
                         selectedPlatformIds.length > 0
                           ? 'bg-[var(--link-academic)]/15 text-[var(--link-academic)]'
                           : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
@@ -1074,25 +1303,25 @@ export default function AcademicCommandCenter() {
                 </div>
 
                 {sidebarDrawers.presets && (
-                  <div className="space-y-1 text-[13px] pt-1.5">
+                  <div className="space-y-1 text-[13.5px] pt-1.5">
                     {/* Sub-barra de Ações da Gaveta */}
-                    <div className="flex items-center justify-between px-2 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
-                      <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                    <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
+                      <span className="text-xs text-[var(--text-muted)] font-medium">
                         {selectedPlatformIds.length} de {PLATFORMS.length} ativas
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
-                          className="text-[11px] font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
+                          className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
                         >
                           Todas
                         </button>
-                        <span className="text-[var(--divider)] text-[10px]">·</span>
+                        <span className="text-[var(--divider)] text-xs">·</span>
                         <button
                           type="button"
                           onClick={() => setSelectedPlatformIds([])}
-                          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                          className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                         >
                           Limpar
                         </button>
@@ -1127,7 +1356,7 @@ export default function AcademicCommandCenter() {
                                 if (el) el.indeterminate = isPartiallyActive;
                               }}
                               readOnly
-                              className="rounded accent-[var(--link-academic)] pointer-events-none"
+                              className="w-3.5 h-3.5 rounded accent-[var(--link-academic)] pointer-events-none"
                             />
                             <span className="truncate">{preset.name}</span>
                           </div>
@@ -1157,11 +1386,11 @@ export default function AcademicCommandCenter() {
                   className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       Tipo de Plataforma
                     </span>
                     {activeCategory !== 'all' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
                         {localizedCategoryMeta[activeCategory]?.label.split('&')[0].trim() || activeCategory}
                       </span>
                     )}
@@ -1174,7 +1403,7 @@ export default function AcademicCommandCenter() {
                           e.stopPropagation();
                           setActiveCategory('all');
                         }}
-                        className="text-[11px] text-[var(--link-academic)] hover:underline cursor-pointer"
+                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
                         Limpar
                       </button>
@@ -1188,7 +1417,7 @@ export default function AcademicCommandCenter() {
                 </div>
 
                 {sidebarDrawers.categories && (
-                  <div className="space-y-0.5 text-[13px] pt-1.5">
+                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
                     <button
                       type="button"
                       onClick={() => setActiveCategory('all')}
@@ -1233,7 +1462,7 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setSelectedArea('all')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     selectedArea === 'all'
                       ? 'bg-[var(--link-academic)] text-white'
                       : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
@@ -1241,7 +1470,7 @@ export default function AcademicCommandCenter() {
                 >
                   <Globe className="w-3.5 h-3.5" />
                   <span>{t('areaAll')}</span>
-                  <span className="opacity-70 text-[11px]">({PLATFORMS.length})</span>
+                  <span className="opacity-75 text-[11.5px]">({PLATFORMS.length})</span>
                 </button>
                 {THEMATIC_AREAS.map((areaKey) => {
                   const meta = localizedThematicAreas[areaKey];
@@ -1252,7 +1481,7 @@ export default function AcademicCommandCenter() {
                       key={areaKey}
                       type="button"
                       onClick={() => setSelectedArea(areaKey)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                         isActive
                           ? 'bg-[var(--link-academic)] text-white'
                           : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
@@ -1260,7 +1489,7 @@ export default function AcademicCommandCenter() {
                     >
                       {renderAreaIcon(areaKey, 'w-3.5 h-3.5')}
                       <span>{meta.label}</span>
-                      <span className="opacity-70 text-[11px]">({count})</span>
+                      <span className="opacity-75 text-[11.5px]">({count})</span>
                     </button>
                   );
                 })}
@@ -1269,7 +1498,7 @@ export default function AcademicCommandCenter() {
               {/* Directory Header */}
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
-                  <h1 className="font-heading text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <h1 className="text-xl font-semibold text-[var(--text-primary)] flex items-center gap-2">
                     {selectedArea !== 'all' && renderAreaIcon(selectedArea, 'w-4 h-4 text-[var(--link-academic)]')}
                     <span>
                       {selectedArea !== 'all'
@@ -1277,7 +1506,7 @@ export default function AcademicCommandCenter() {
                         : activeCategoryHeading.title}
                     </span>
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  <p className="text-[13px] text-[var(--text-muted)] mt-0.5">
                     {visiblePlatforms.length} portais correspondentes · {selectedPlatformIds.length} marcados para abertura simultânea
                   </p>
                 </div>
@@ -1294,7 +1523,7 @@ export default function AcademicCommandCenter() {
                     }`}
                     title="Visualização em blocos"
                   >
-                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <LayoutGrid className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
@@ -1306,7 +1535,7 @@ export default function AcademicCommandCenter() {
                     }`}
                     title="Visualização em lista acadêmica"
                   >
-                    <List className="w-3.5 h-3.5" />
+                    <List className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1347,19 +1576,19 @@ export default function AcademicCommandCenter() {
                                   href={targetUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-[15px] font-semibold text-[var(--link-academic)] hover:underline inline-flex items-center gap-1 leading-snug"
+                                  className="text-base font-semibold text-[var(--link-academic)] hover:underline inline-flex items-center gap-1 leading-snug"
                                 >
                                   <span>{platform.name}</span>
                                   <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </a>
-                                <div className="text-xs text-[var(--meta-green)] truncate">
+                                <div className="text-[13px] text-[var(--meta-green)] truncate">
                                   {platform.shortTag} · {accessBadge.label.split('/')[0].trim()}
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mt-2 mb-2.5">
+                          <p className="text-sm text-[var(--text-secondary)] leading-relaxed mt-2 mb-2.5">
                             {platform.description}
                           </p>
 
@@ -1375,16 +1604,16 @@ export default function AcademicCommandCenter() {
                                     e.stopPropagation();
                                     setSelectedArea(area);
                                   }}
-                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
                                 >
-                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-70')}
+                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-75')}
                                   <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
                                 </button>
                               ))}
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)] pt-1">
+                        <div className="flex items-center justify-between gap-2 text-[13px] text-[var(--text-muted)] pt-1">
                           <span className="truncate">{platform.coverageNote}</span>
                           <a
                             href={targetUrl}
@@ -1423,7 +1652,7 @@ export default function AcademicCommandCenter() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline justify-between gap-4">
-                            <h3 className="text-[16px] font-semibold leading-snug">
+                            <h3 className="text-lg font-semibold leading-snug">
                               <a
                                 href={targetUrl}
                                 target="_blank"
@@ -1437,17 +1666,17 @@ export default function AcademicCommandCenter() {
                               href={targetUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs font-medium text-[var(--link-academic)] hover:underline shrink-0"
+                              className="text-[13px] font-medium text-[var(--link-academic)] hover:underline shrink-0"
                             >
                               {isValidQuery ? 'Pesquisar ↗' : 'Abrir portal ↗'}
                             </a>
                           </div>
 
-                          <div className="text-[13px] text-[var(--meta-green)] mt-0.5 mb-1">
+                          <div className="text-[13.5px] text-[var(--meta-green)] mt-0.5 mb-1">
                             {platform.shortTag} - {platform.coverageNote} - {accessBadge.label}
                           </div>
 
-                          <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
+                          <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
                             {platform.description}
                           </p>
 
@@ -1463,9 +1692,9 @@ export default function AcademicCommandCenter() {
                                     e.stopPropagation();
                                     setSelectedArea(area);
                                   }}
-                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
                                 >
-                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-70')}
+                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-75')}
                                   <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
                                 </button>
                               ))}
@@ -1487,6 +1716,12 @@ export default function AcademicCommandCenter() {
             statuses={sourceStatuses}
             isSearching={isSearchingApis}
             savedIds={savedIdsSet}
+            savedPapers={savedPapers}
+            groups={libraryGroups}
+            activeSaveGroupId={activeSaveGroupId}
+            onSelectActiveSaveGroup={setActiveSaveGroupId}
+            onCreateGroup={handleCreateGroup}
+            onAssignPaperGroup={handleAssignPaperGroup}
             onToggleSave={handleToggleSavePaper}
             deduplicationSummary={dedupSummary}
           />
@@ -1497,13 +1732,20 @@ export default function AcademicCommandCenter() {
           <Suspense fallback={null}>
             <SavedLiteratureDrawer
               items={savedPapers}
+              groups={libraryGroups}
+              activeSaveGroupId={activeSaveGroupId}
+              onSelectActiveSaveGroup={setActiveSaveGroupId}
+              onCreateGroup={handleCreateGroup}
+              onRenameGroup={handleRenameGroup}
+              onDeleteGroup={handleDeleteGroup}
+              onAssignPaperGroup={handleAssignPaperGroup}
               dedupSummary={dedupSummary}
               sourceBreakdown={sourceBreakdown}
               onUpdateNotes={handleUpdateNotes}
               onUpdateRelevance={handleUpdateRelevance}
               onUpdateScreening={handleUpdateScreening}
               onRemoveItem={handleRemoveSaved}
-              onClearAll={() => setSavedPapers([])}
+              onClearAll={handleClearLibrary}
             />
           </Suspense>
         )}
@@ -1519,18 +1761,22 @@ export default function AcademicCommandCenter() {
         {activeTab === 'about' && (
           <Suspense fallback={null}>
             <AboutView
+              activeSection={aboutSection}
+              onSelectSection={navigateToAboutSection}
               onNavigateTab={(tab) => {
-                setActiveTab(tab);
+                navigateToTab(tab);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             />
           </Suspense>
         )}
+          </>
+        )}
       </main>
 
       {/* Prism Institutional Footer */}
-      <footer className="mt-20 border-t border-[var(--divider)] pt-6 pb-12 text-xs text-[var(--text-muted)]">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <footer className="mt-20 border-t border-[var(--divider)] pt-7 pb-12 text-[13px] text-[var(--text-muted)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <PrismSpectralBar className="h-[2px] w-full opacity-80" />
 
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
@@ -1538,19 +1784,16 @@ export default function AcademicCommandCenter() {
             <div className="flex flex-wrap items-center gap-4">
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('platforms');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => navigateToAboutSection('cartograph')}
                 className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
-                title="Cartograph — Hub de Metabusca Científica"
+                title="Sobre o Cartograph — Arquitetura e Metodologia"
               >
                 <PrismMonogram className="h-5 w-auto shrink-0" />
                 <div className="leading-tight">
-                  <div className="text-[13px] font-heading font-semibold text-[var(--text-primary)]">
+                  <div className="text-[15px] font-heading font-semibold text-[var(--text-primary)]">
                     Cartograph
                   </div>
-                  <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">
                     Metabusca Científica
                   </div>
                 </div>
@@ -1560,120 +1803,119 @@ export default function AcademicCommandCenter() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('about');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => navigateToAboutSection('prism')}
                 className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
-                title="Prism — Engenharia de Software & Ciência Aberta"
+                title="Sobre a Prism — Engenharia de Software & Ciência Aberta"
               >
-                <PrismPMonogram className="h-4 w-auto shrink-0" />
+                <PrismPMonogram className="h-[18px] w-auto shrink-0" />
                 <div className="leading-tight">
-                  <div className="text-[13px] font-heading font-semibold text-[var(--text-primary)]">
+                  <div className="text-[15px] font-heading font-semibold text-[var(--text-primary)]">
                     Prism
                   </div>
-                  <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">
                     Desenvolvido pela Prism Labs
                   </div>
                 </div>
               </button>
             </div>
 
-            {/* Footer Navigation & Institutional Links */}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]">
+            {/* Direct Non-Redundant Institutional & Legal Navigation */}
+            <nav
+              className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]"
+              aria-label="Links institucionais e legais do rodapé"
+            >
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('platforms');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+                onClick={() => navigateToAboutSection('cartograph')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'cartograph'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
               >
-                {PLATFORMS.length} Plataformas
+                Sobre o Cartograph
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('federated');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+                onClick={() => navigateToAboutSection('prism')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'prism'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
+              >
+                Sobre a Prism
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToAboutSection('apis')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'apis'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
               >
                 15 APIs Abertas
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('saved');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+                onClick={() => navigateToAboutSection('citation')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'citation'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
               >
-                Fluxo PRISMA 2020
+                Como Citar
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab('feedback');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
-              >
-                {t('tabFeedback')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('about');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
-              >
-                {t('tabAbout')}
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom Legal & Copyright Row */}
-          <div className="pt-4 border-t border-[var(--divider)]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
-            <div>
-              <span>© {new Date().getFullYear()} </span>
-              <strong className="font-medium text-[var(--text-secondary)]">Prism</strong>
-              <span> · Cartograph v2.4. Todos os direitos reservados. Arquitetura determinística Local-First (LGPD / GDPR).</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('about');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
+                onClick={() => navigateToAboutSection('copyright')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'copyright'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
               >
                 Direitos Autorais & Licenças
               </button>
-              <span>·</span>
+              <button
+                type="button"
+                onClick={() => navigateToAboutSection('privacy')}
+                className={`transition-colors cursor-pointer ${
+                  activeTab === 'about' && aboutSection === 'privacy'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
+              >
+                Privacidade (LGPD) & Termos
+              </button>
               <button
                 type="button"
                 onClick={() => {
-                  setActiveTab('about');
+                  navigateToTab('feedback');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
+                className={`transition-colors cursor-pointer ${
+                  !isNotFound && activeTab === 'feedback'
+                    ? 'font-semibold text-[var(--link-academic)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
+                }`}
               >
-                Privacidade & Termos de Uso
+                {t('tabFeedback')}
               </button>
-              <span>·</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('about');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
-              >
-                Como Citar (ABNT / APA / BibTeX)
-              </button>
+            </nav>
+          </div>
+
+          {/* Bottom Copyright Notice */}
+          <div className="pt-4 border-t border-[var(--divider)]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[13px] text-[var(--text-muted)]">
+            <div>
+              <span>©&nbsp;{new Date().getFullYear()} </span>
+              <strong className="font-medium text-[var(--text-secondary)]">Prism</strong>
+              <span> · Cartograph v2.4. Todos os direitos reservados.</span>
+            </div>
+            <div>
+              Engenharia determinística · Local-First · PRISMA 2020
             </div>
           </div>
         </div>

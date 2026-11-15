@@ -22,15 +22,31 @@ export async function crossPlatformFetch(
     }
   }
 
+  const checkAborted = () => {
+    if (init?.signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+  };
+
+  checkAborted();
+
+  let lastHttpStatus: number | null = null;
+  let lastNetworkError: string | null = null;
+
   try {
     const proxyRes = await fetch(proxyUrl, init);
     const contentType = proxyRes.headers.get('content-type') || '';
     if (proxyRes.ok && !contentType.includes('text/html')) {
       return proxyRes;
     }
-  } catch {
-    // Fallback to direct URL
+    if (!proxyRes.ok) lastHttpStatus = proxyRes.status;
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    lastNetworkError = err instanceof Error ? err.message : String(err);
+    // Fallback to cloud proxy / direct URL
   }
+
+  checkAborted();
 
   try {
     const cloudProxyRes = await fetch(`https://cartographsearch.vercel.app${proxyUrl}`, init);
@@ -38,20 +54,46 @@ export async function crossPlatformFetch(
     if (cloudProxyRes.ok && !contentType.includes('text/html')) {
       return cloudProxyRes;
     }
-  } catch {
+    if (!cloudProxyRes.ok) lastHttpStatus = cloudProxyRes.status;
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    lastNetworkError = err instanceof Error ? err.message : String(err);
     // Fallback to direct URL
   }
+
+  checkAborted();
 
   try {
     const directRes = await fetch(directUrl, init);
     if (directRes.ok) {
       return directRes;
     }
-  } catch {
+    lastHttpStatus = directRes.status;
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    lastNetworkError = err instanceof Error ? err.message : String(err);
     // Fallback to public CORS relay
   }
 
-  return fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`);
+  checkAborted();
+
+  try {
+    const relayRes = await fetch(
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`,
+      { signal: init?.signal }
+    );
+    if (!relayRes.ok && lastHttpStatus) {
+      throw new Error(`HTTP ${lastHttpStatus} (relay fallback HTTP ${relayRes.status})`);
+    }
+    return relayRes;
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (lastHttpStatus) {
+      throw new Error(`HTTP ${lastHttpStatus} (${msg})`);
+    }
+    throw new Error(lastNetworkError || msg);
+  }
 }
 
 function cleanDoi(rawDoi?: string | null): string | null {
@@ -81,7 +123,8 @@ function reconstructOpenAlexAbstract(
 
 export async function searchOpenAlex(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const filterParts = [`default.search:${encodeURIComponent(query)}`];
   if (yearFrom && yearFrom > 1900) {
@@ -93,6 +136,7 @@ export async function searchOpenAlex(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`OpenAlex HTTP ${res.status}`);
@@ -141,7 +185,8 @@ export async function searchOpenAlex(
 
 export async function searchSemanticScholar(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const yearParam = yearFrom && yearFrom > 1900 ? `&year=${yearFrom}-` : '';
   const fields =
@@ -150,7 +195,7 @@ export async function searchSemanticScholar(
     query
   )}&limit=10&fields=${fields}${yearParam}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Semantic Scholar HTTP ${res.status}`);
   }
@@ -187,7 +232,8 @@ export async function searchSemanticScholar(
 
 export async function searchCrossref(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const filterParam =
     yearFrom && yearFrom > 1900 ? `&filter=from-pub-date:${yearFrom}-01-01` : '';
@@ -195,7 +241,7 @@ export async function searchCrossref(
     query
   )}&rows=10${filterParam}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Crossref HTTP ${res.status}`);
   }
@@ -260,7 +306,8 @@ export async function searchCrossref(
 
 export async function searchEuropePmc(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const fullQuery =
     yearFrom && yearFrom > 1900 ? `${query} AND (FIRST_PDATE:[${yearFrom}-01-01 TO 2030-12-31])` : query;
@@ -268,7 +315,7 @@ export async function searchEuropePmc(
     fullQuery
   )}&format=json&pageSize=10&resultType=core`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Europe PMC HTTP ${res.status}`);
   }
@@ -313,13 +360,15 @@ export async function searchEuropePmc(
 
 export async function searchArxiv(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await crossPlatformFetch(
     `/api/arxiv?q=${encodeURIComponent(query)}&max_results=10`,
     `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(
       query
-    )}&start=0&max_results=10&sortBy=relevance&sortOrder=descending`
+    )}&start=0&max_results=10&sortBy=relevance&sortOrder=descending`,
+    { signal }
   );
   if (!res.ok) {
     throw new Error(`arXiv HTTP ${res.status}`);
@@ -378,7 +427,8 @@ export async function searchArxiv(
 
 export async function searchPubMedEntrez(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const term =
     yearFrom && yearFrom > 1900 ? `${query} AND ${yearFrom}:2030[dp]` : query;
@@ -386,7 +436,7 @@ export async function searchPubMedEntrez(
     term
   )}&retmode=json&retmax=8&sort=relevance`;
 
-  const searchRes = await fetch(searchUrl);
+  const searchRes = await fetch(searchUrl, { signal });
   if (!searchRes.ok) {
     throw new Error(`PubMed Entrez HTTP ${searchRes.status}`);
   }
@@ -399,7 +449,7 @@ export async function searchPubMedEntrez(
   const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${idList.join(
     ','
   )}&retmode=json`;
-  const summaryRes = await fetch(summaryUrl);
+  const summaryRes = await fetch(summaryUrl, { signal });
   if (!summaryRes.ok) {
     throw new Error(`PubMed Summary HTTP ${summaryRes.status}`);
   }
@@ -446,7 +496,8 @@ export async function searchPubMedEntrez(
 
 export async function searchDoaj(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const url = `https://doaj.org/api/search/articles/${encodeURIComponent(
     query
@@ -454,6 +505,7 @@ export async function searchDoaj(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`DOAJ HTTP ${res.status}`);
@@ -502,12 +554,13 @@ export async function searchDoaj(
 
 export async function searchZenodo(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await crossPlatformFetch(
     `/api/zenodo?q=${encodeURIComponent(query)}&size=8`,
     `https://zenodo.org/api/records?q=${encodeURIComponent(query)}&size=8`,
-    { headers: { Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' }, signal }
   );
   if (!res.ok) {
     throw new Error(`Zenodo HTTP ${res.status}`);
@@ -560,7 +613,8 @@ export async function searchZenodo(
 
 export async function searchHalOpenScience(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const fqParam =
     yearFrom && yearFrom > 1900 ? `&fq=producedDateY_i:[${yearFrom}%20TO%202030]` : '';
@@ -568,7 +622,7 @@ export async function searchHalOpenScience(
     query
   )}${fqParam}&wt=json&rows=8&fl=docid,title_s,authFullName_s,producedDateY_i,journalTitle_s,doiId_s,uri_s,fileMain_s,abstract_s,openAccess_bool`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`HAL HTTP ${res.status}`);
   }
@@ -605,7 +659,8 @@ export async function searchHalOpenScience(
 
 export async function searchDataCite(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const url = `https://api.datacite.org/dois?query=${encodeURIComponent(
     query
@@ -613,6 +668,7 @@ export async function searchDataCite(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/vnd.api+json' },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`DataCite HTTP ${res.status}`);
@@ -664,7 +720,8 @@ export async function searchDataCite(
 
 export async function searchInspireHep(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const url = `https://inspirehep.net/api/literature?q=${encodeURIComponent(
     query
@@ -672,6 +729,7 @@ export async function searchInspireHep(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`INSPIRE-HEP HTTP ${res.status}`);
@@ -733,12 +791,14 @@ export async function searchInspireHep(
 
 export async function searchFigshare(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await fetch('https://api.figshare.com/v2/articles/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ search_for: query, page_size: 8 }),
+    signal,
   });
   if (!res.ok) {
     throw new Error(`Figshare HTTP ${res.status}`);
@@ -779,7 +839,8 @@ export async function searchFigshare(
 
 export async function searchGbifLiterature(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const url = `https://api.gbif.org/v1/literature/search?q=${encodeURIComponent(
     query
@@ -787,6 +848,7 @@ export async function searchGbifLiterature(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`GBIF HTTP ${res.status}`);
@@ -838,12 +900,13 @@ export async function searchGbifLiterature(
 
 export async function searchOstiGov(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await crossPlatformFetch(
     `/api/osti?q=${encodeURIComponent(query)}&rows=8`,
     `https://www.osti.gov/api/v1/records?q=${encodeURIComponent(query)}&rows=8`,
-    { headers: { Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' }, signal }
   );
   if (!res.ok) {
     throw new Error(`OSTI.GOV HTTP ${res.status}`);
@@ -889,12 +952,13 @@ export async function searchOstiGov(
 
 export async function searchNasaNtrs(
   query: string,
-  yearFrom?: number
+  yearFrom?: number,
+  signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await crossPlatformFetch(
     `/api/ntrs?q=${encodeURIComponent(query)}&size=8`,
     `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(query)}&page%5Bsize%5D=8`,
-    { headers: { Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' }, signal }
   );
   if (!res.ok) {
     throw new Error(`NASA NTRS HTTP ${res.status}`);
@@ -945,28 +1009,184 @@ export function deduplicatePapers(papers: NormalizedPaper[]): NormalizedPaper[] 
   return deduplicatePapersAdvanced(papers).papers;
 }
 
-interface FederatedSearchResult {
+export interface FederatedSearchResult {
   papers: NormalizedPaper[];
   statuses: SourceFetchStatus[];
   deduplicationSummary: DeduplicationSummary;
 }
 
+export interface FederatedSearchProgress extends FederatedSearchResult {
+  completedCount: number;
+  totalCount: number;
+}
+
+export interface RunFederatedSearchOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: FederatedSearchProgress) => void;
+}
+
 const FEDERATED_CACHE_TTL_MS = 5 * 60 * 1000;
 const FEDERATED_CACHE_MAX = 30;
+const SOURCE_TIMEOUT_MS = 12_000;
+const STREAM_COALESCE_MS = 60;
 const federatedSearchCache = new Map<string, { timestamp: number; result: FederatedSearchResult }>();
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+const PROXY_SOURCES = new Set<ApiSourceId>(['arxiv', 'zenodo', 'osti', 'ntrs']);
+
+function diagnoseSourceError(
+  sourceId: ApiSourceId,
+  label: string,
+  err: unknown,
+): { errorMessage: string; errorDetail: string; rawError: string } {
+  const rawError = err instanceof Error ? err.message : String(err || 'Erro desconhecido');
+  const normalized = rawError.toLowerCase();
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return {
+      errorMessage: 'Conexão com a internet indisponível no dispositivo.',
+      errorDetail: 'Restabeleça o acesso à rede e execute a pesquisa novamente.',
+      rawError,
+    };
+  }
+
+  if (normalized.includes('timeout') || normalized.includes('12s')) {
+    return {
+      errorMessage: `${label} excedeu o tempo limite de resposta para esta consulta.`,
+      errorDetail: 'O volume de termos pesquisados ou a lentidão momentânea da base impediu o retorno dos registros. Reduza o número de palavras-chave ou repita a operação em instantes.',
+      rawError,
+    };
+  }
+
+  const httpMatch = rawError.match(/\bHTTP\s+(\d{3})\b/i);
+  if (httpMatch) {
+    const status = Number(httpMatch[1]);
+    if (status === 429) {
+      return {
+        errorMessage: `${label} atingiu o limite temporário de consultas consecutivas.`,
+        errorDetail: 'O provedor restringe o volume de pesquisas enviadas em sequência. Aguarde aproximadamente 1 minuto antes de realizar uma nova consulta nesta fonte.',
+        rawError,
+      };
+    }
+    if (status === 400 || status === 422) {
+      return {
+        errorMessage: `${label} recusou os termos ou filtros informados nesta pesquisa.`,
+        errorDetail: 'Operadores lógicos (AND, OR, NOT), aspas, símbolos especiais ou filtros de ano podem ser incompatíveis com esta base. Utilize apenas palavras-chave diretas.',
+        rawError,
+      };
+    }
+    if (status === 401 || status === 403) {
+      return {
+        errorMessage: `O acesso automatizado ao ${label} encontra-se restrito pelo portal de origem.`,
+        errorDetail: 'Selecione outra base disponível ou acesse o portal diretamente pela aba "Bases & Portais".',
+        rawError,
+      };
+    }
+    if (status === 404) {
+      return {
+        errorMessage: `O serviço de pesquisa do ${label} encontra-se indisponível no endereço configurado.`,
+        errorDetail: PROXY_SOURCES.has(sourceId)
+          ? 'O serviço intermediário de acesso a esta base está inativo no momento. Utilize as demais fontes enquanto a conexão é restabelecida.'
+          : 'A base pode estar em manutenção ou com o serviço de busca temporariamente desativado.',
+        rawError,
+      };
+    }
+    if (status >= 500) {
+      return {
+        errorMessage: `${label} apresentou instabilidade interna ao processar a solicitação.`,
+        errorDetail: 'A falha ocorreu no sistema do provedor da base científica. Aguarde alguns minutos antes de repetir a consulta.',
+        rawError,
+      };
+    }
+  }
+
+  const isNetworkOrCors =
+    normalized.includes('load failed') ||
+    normalized.includes('failed to fetch') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('network request failed') ||
+    normalized.includes('err_failed');
+
+  if (isNetworkOrCors) {
+    if (sourceId === 'semanticscholar') {
+      return {
+        errorMessage: 'O Semantic Scholar atingiu o limite de consultas públicas ou restringiu temporariamente o acesso.',
+        errorDetail: 'Sob alta demanda, o Semantic Scholar interrompe novas pesquisas por alguns instantes sem retornar detalhes ao navegador. Aguarde aproximadamente 1 minuto para consultar esta base novamente ou utilize as demais fontes.',
+        rawError,
+      };
+    }
+
+    if (PROXY_SOURCES.has(sourceId)) {
+      return {
+        errorMessage: `Não foi possível estabelecer conexão com o ${label}.`,
+        errorDetail: 'O serviço intermediário necessário para consultar esta base está indisponível ou bloqueado no momento. Repita a operação mais tarde ou selecione outra fonte.',
+        rawError,
+      };
+    }
+
+    return {
+      errorMessage: `A comunicação com o ${label} foi bloqueada ou interrompida durante a consulta.`,
+      errorDetail: 'A restrição pode decorrer de limite temporário do portal de origem ou de bloqueios externos no navegador, como VPN, antivírus ou bloqueadores de conteúdo. Repita a pesquisa em instantes.',
+      rawError,
+    };
+  }
+
+  if (
+    normalized.includes('json') ||
+    normalized.includes('unexpected token') ||
+    normalized.includes('syntaxerror') ||
+    normalized.includes('xml') ||
+    normalized.includes('domparser') ||
+    normalized.includes('html')
+  ) {
+    return {
+      errorMessage: `${label} retornou uma página de aviso ou manutenção em vez dos registros bibliográficos.`,
+      errorDetail: 'O portal pode estar passando por atualização programada. Repita a consulta mais tarde.',
+      rawError,
+    };
+  }
+
+  return {
+    errorMessage: `Não foi possível concluir a pesquisa em ${label}.`,
+    errorDetail: 'Repita a operação em alguns instantes ou retorne para "Todas as fontes" para visualizar os resultados das demais bases.',
+    rawError,
+  };
+}
+
+function runWithSourceAbortAndTimeout<T>(
+  runner: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  label: string,
+  parentSignal?: AbortSignal
+): Promise<T> {
+  if (parentSignal?.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  }
+
+  const controller = new AbortController();
+
   return new Promise<T>((resolve, reject) => {
+    const onParentAbort = () => {
+      clearTimeout(timer);
+      controller.abort();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+
     const timer = setTimeout(() => {
+      controller.abort();
       reject(new Error(`${label}: timeout (${Math.round(timeoutMs / 1000)}s)`));
     }, timeoutMs);
-    promise.then(
+
+    parentSignal?.addEventListener('abort', onParentAbort, { once: true });
+
+    runner(controller.signal).then(
       (val) => {
         clearTimeout(timer);
+        parentSignal?.removeEventListener('abort', onParentAbort);
         resolve(val);
       },
       (err) => {
         clearTimeout(timer);
+        parentSignal?.removeEventListener('abort', onParentAbort);
         reject(err);
       }
     );
@@ -976,19 +1196,33 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
 export async function runFederatedSearch(
   query: string,
   yearFrom?: number,
-  onSourceUpdate?: (statuses: SourceFetchStatus[]) => void
+  optionsOrCallback?: RunFederatedSearchOptions | ((statuses: SourceFetchStatus[]) => void)
 ): Promise<FederatedSearchResult> {
+  const options: RunFederatedSearchOptions =
+    typeof optionsOrCallback === 'function'
+      ? { onProgress: (p) => optionsOrCallback(p.statuses) }
+      : optionsOrCallback ?? {};
+  const { signal, onProgress } = options;
+
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   const cacheKey = `${query.trim().toLowerCase()}::${yearFrom ?? 'all'}`;
   const cached = federatedSearchCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < FEDERATED_CACHE_TTL_MS) {
-    onSourceUpdate?.(cached.result.statuses);
+    onProgress?.({
+      ...cached.result,
+      completedCount: cached.result.statuses.length,
+      totalCount: cached.result.statuses.length,
+    });
     return cached.result;
   }
 
   const sources: Array<{
     id: ApiSourceId;
     label: string;
-    fn: (q: string, y?: number) => Promise<NormalizedPaper[]>;
+    fn: (q: string, y?: number, sig?: AbortSignal) => Promise<NormalizedPaper[]>;
   }> = [
     { id: 'openalex', label: 'OpenAlex', fn: searchOpenAlex },
     { id: 'semanticscholar', label: 'Semantic Scholar', fn: searchSemanticScholar },
@@ -1014,38 +1248,111 @@ export async function runFederatedSearch(
     count: 0,
   }));
 
-  onSourceUpdate?.([...statuses]);
-
   const allPapers: NormalizedPaper[] = [];
+  let completedCount = 0;
+  let hasEmittedFirstArticles = false;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
-  await Promise.allSettled(
-    sources.map(async (src, idx) => {
-      const t0 = performance.now();
-      try {
-        const res = await withTimeout(src.fn(query, yearFrom), 12_000, src.label);
-        const latencyMs = Math.round(performance.now() - t0);
-        statuses[idx] = {
-          source: src.id,
-          label: src.label,
-          status: 'success',
-          count: res.length,
-          latencyMs,
-        };
-        allPapers.push(...res);
-      } catch (err) {
-        const latencyMs = Math.round(performance.now() - t0);
-        statuses[idx] = {
-          source: src.id,
-          label: src.label,
-          status: 'error',
-          count: 0,
-          latencyMs,
-          errorMessage: err instanceof Error ? err.message : 'Indisponível',
-        };
-      }
-      onSourceUpdate?.([...statuses]);
-    })
-  );
+  const emitProgressSnapshot = () => {
+    if (signal?.aborted || !onProgress) return;
+    const { papers, summary } = deduplicatePapersAdvanced(allPapers);
+    onProgress({
+      papers,
+      statuses: [...statuses],
+      deduplicationSummary: summary,
+      completedCount,
+      totalCount: sources.length,
+    });
+  };
+
+  // Emit initial loading state for all 15 sources immediately
+  emitProgressSnapshot();
+
+  const onAbortCleanup = () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+  };
+  signal?.addEventListener('abort', onAbortCleanup, { once: true });
+
+  try {
+    await Promise.allSettled(
+      sources.map(async (src, idx) => {
+        const t0 = performance.now();
+        let addedPapers = false;
+        try {
+          const res = await runWithSourceAbortAndTimeout(
+            (srcSignal) => src.fn(query, yearFrom, srcSignal),
+            SOURCE_TIMEOUT_MS,
+            src.label,
+            signal
+          );
+          if (signal?.aborted) return;
+          const latencyMs = Math.round(performance.now() - t0);
+          statuses[idx] = {
+            source: src.id,
+            label: src.label,
+            status: 'success',
+            count: res.length,
+            latencyMs,
+          };
+          if (res.length > 0) {
+            allPapers.push(...res);
+            addedPapers = true;
+          }
+        } catch (err) {
+          if (signal?.aborted || (err as Error)?.name === 'AbortError') return;
+          const latencyMs = Math.round(performance.now() - t0);
+          const diagnostic = diagnoseSourceError(src.id, src.label, err);
+          statuses[idx] = {
+            source: src.id,
+            label: src.label,
+            status: 'error',
+            count: 0,
+            latencyMs,
+            errorMessage: diagnostic.errorMessage,
+            errorDetail: diagnostic.errorDetail,
+            rawError: diagnostic.rawError,
+          };
+        }
+
+        if (signal?.aborted) return;
+        completedCount += 1;
+
+        const isFinal = completedCount === sources.length;
+        const shouldFlushImmediately =
+          isFinal || (addedPapers && !hasEmittedFirstArticles);
+
+        if (addedPapers) {
+          hasEmittedFirstArticles = true;
+        }
+
+        if (shouldFlushImmediately) {
+          if (flushTimer) {
+            clearTimeout(flushTimer);
+            flushTimer = null;
+          }
+          emitProgressSnapshot();
+        } else if (!flushTimer && onProgress) {
+          flushTimer = setTimeout(() => {
+            flushTimer = null;
+            emitProgressSnapshot();
+          }, STREAM_COALESCE_MS);
+        }
+      })
+    );
+  } finally {
+    signal?.removeEventListener('abort', onAbortCleanup);
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
 
   const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(allPapers);
   const finalResult: FederatedSearchResult = {
