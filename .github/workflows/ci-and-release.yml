@@ -31,6 +31,9 @@ jobs:
       - name: Run TypeScript strict typecheck
         run: npx tsc --noEmit
 
+      - name: Run deterministic unit tests
+        run: npm test
+
       - name: Build production web bundle
         run: npm run build
 

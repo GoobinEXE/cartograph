@@ -39,9 +39,12 @@ export default async function handler(req: MinimalRequest, res: MinimalResponse)
   const to = ALLOWED_LANGS.has(toRaw) ? toRaw : 'en';
 
   try {
+    const emailParam = process.env.MYMEMORY_EMAIL?.trim()
+      ? `&de=${encodeURIComponent(process.env.MYMEMORY_EMAIL.trim())}`
+      : '';
     const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
       params.query
-    )}&langpair=${from}|${to}`;
+    )}&langpair=${from}|${to}${emailParam}`;
 
     const response = await fetch(apiUrl, {
       headers: { 'User-Agent': CARTOGRAPH_USER_AGENT },

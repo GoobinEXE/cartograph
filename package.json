@@ -1,6 +1,6 @@
 {
   "name": "cartograph",
-  "version": "2.1.0",
+  "version": "2.4.0",
   "private": true,
   "description": "Cartograph — Scientific Metasearch & Literature Discovery Hub (Cross-Platform Windows, Linux, macOS)",
   "type": "module",
@@ -10,6 +10,7 @@
     "vite": "vite --port 5173",
     "bridge": "node server/launcher-bridge.mjs",
     "build": "tsc -b && vite build",
+    "test": "node scripts/run-tests.mjs",
     "preview": "vite preview --port 4173",
     "tauri": "tauri",
     "desktop": "tauri dev",

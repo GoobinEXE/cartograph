@@ -88,32 +88,22 @@ export async function translateAcademicQueryPtToEn(queryText: string): Promise<s
   const trimmed = queryText.trim();
   if (!trimmed) return '';
 
-  // Try local bridge first, then fallback to direct API or glossary
+  // Try backend /api/translate first, then fall back to deterministic PT-EN glossary
   try {
     const res = await fetch(`/api/translate?q=${encodeURIComponent(trimmed)}&from=pt&to=en`);
     if (res.ok) {
       const data = await res.json();
-      if (data?.translated && typeof data.translated === 'string') {
-        return data.translated;
+      if (
+        data?.ok &&
+        typeof data?.translated === 'string' &&
+        data.translated.trim() &&
+        data.translated.trim().toLowerCase() !== trimmed.toLowerCase()
+      ) {
+        return data.translated.trim();
       }
     }
   } catch {
-    // Fallback to direct MyMemory CORS request
-  }
-
-  try {
-    const directRes = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=pt|en`
-    );
-    if (directRes.ok) {
-      const data = await directRes.json();
-      const candidate = data?.responseData?.translatedText;
-      if (candidate && typeof candidate === 'string') {
-        return candidate;
-      }
-    }
-  } catch {
-    // Offline glossary fallback
+    // Offline or quota-limited glossary fallback
   }
 
   let fallback = trimmed;
