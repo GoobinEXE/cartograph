@@ -88,15 +88,15 @@
     { "source": "/api/ntrs", "destination": "/api/ntrs.ts" },
     { "source": "/api/translate", "destination": "/api/translate.ts" },
     { "source": "/api/feedback", "destination": "/api/feedback.ts" },
-    { "source": "/federated", "destination": "/index.html" },
-    { "source": "/saved", "destination": "/index.html" },
-    { "source": "/feedback", "destination": "/index.html" },
-    { "source": "/about", "destination": "/index.html" },
-    { "source": "/about/:section", "destination": "/index.html" },
-    { "source": "/prism", "destination": "/index.html" },
-    { "source": "/apis", "destination": "/index.html" },
-    { "source": "/citation", "destination": "/index.html" },
-    { "source": "/copyright", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/index.html" }
+    { "source": "/federated", "destination": "/" },
+    { "source": "/saved", "destination": "/" },
+    { "source": "/feedback", "destination": "/" },
+    { "source": "/about", "destination": "/" },
+    { "source": "/about/:section", "destination": "/" },
+    { "source": "/prism", "destination": "/" },
+    { "source": "/apis", "destination": "/" },
+    { "source": "/citation", "destination": "/" },
+    { "source": "/copyright", "destination": "/" },
+    { "source": "/privacy", "destination": "/" }
   ]
 }
