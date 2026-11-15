@@ -1,93 +1,31 @@
-import { ApiSourceId, DeduplicationSummary, NormalizedPaper, SourceFetchStatus } from '../types/academic';
+import {
+  ApiSourceId,
+  ByokCredentialEntry,
+  DeduplicationSummary,
+  NormalizedPaper,
+  SearchScopeId,
+  SourceFetchStatus,
+  UserAccessConfig,
+} from '../types/academic';
 import { deduplicatePapersAdvanced } from '../utils/deduplication';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { SupportedLanguage } from '../i18n/translations';
+import { sourceMatchesScope } from '../data/apiSources';
+import { buildByokCacheSignature, getActiveByokEntry } from '../utils/accessConfig';
+import { cleanDoi, crossPlatformFetch, fetchViaByokProxy, isTauriRuntime } from './httpClient';
+import {
+  FREE_EXTENSION_SOURCE_RUNNERS,
+  searchCore,
+  searchFedInPrintByok,
+  searchGovInfoByok,
+  searchIeeeXploreByok,
+  searchLensByok,
+  searchScienceDirectByok,
+  searchScopusByok,
+  searchSpringerByok,
+} from './sourceAdapters';
 
-export function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  );
-}
-
-export async function crossPlatformFetch(
-  proxyUrl: string,
-  directUrl: string,
-  init?: RequestInit
-): Promise<Response> {
-  if (isTauriRuntime()) {
-    try {
-      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-      return await tauriFetch(directUrl, init);
-    } catch {
-      // Fallback to standard fetch if plugin fails to load
-    }
-  }
-
-  const checkAborted = () => {
-    if (init?.signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-  };
-
-  checkAborted();
-
-  let lastHttpStatus: number | null = null;
-  let lastNetworkError: string | null = null;
-
-  try {
-    const proxyRes = await fetch(proxyUrl, init);
-    const contentType = proxyRes.headers.get('content-type') || '';
-    if (proxyRes.ok && !contentType.includes('text/html')) {
-      return proxyRes;
-    }
-    if (!proxyRes.ok) lastHttpStatus = proxyRes.status;
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
-    lastNetworkError = err instanceof Error ? err.message : String(err);
-    // Fallback to cloud proxy / direct URL
-  }
-
-  checkAborted();
-
-  try {
-    const cloudProxyRes = await fetch(`https://cartographsearch.vercel.app${proxyUrl}`, init);
-    const contentType = cloudProxyRes.headers.get('content-type') || '';
-    if (cloudProxyRes.ok && !contentType.includes('text/html')) {
-      return cloudProxyRes;
-    }
-    if (!cloudProxyRes.ok) lastHttpStatus = cloudProxyRes.status;
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
-    lastNetworkError = err instanceof Error ? err.message : String(err);
-    // Fallback to direct URL
-  }
-
-  checkAborted();
-
-  try {
-    const directRes = await fetch(directUrl, init);
-    if (directRes.ok) {
-      return directRes;
-    }
-    lastHttpStatus = directRes.status;
-    throw new Error(`HTTP ${directRes.status}`);
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
-    const msg = err instanceof Error ? err.message : String(err);
-    if (lastHttpStatus) {
-      throw new Error(`HTTP ${lastHttpStatus} (${msg})`);
-    }
-    throw new Error(lastNetworkError || msg);
-  }
-}
-
-function cleanDoi(rawDoi?: string | null): string | null {
-  if (!rawDoi) return null;
-  return rawDoi
-    .trim()
-    .replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
-    .toLowerCase();
-}
+export { crossPlatformFetch, isTauriRuntime };
 
 function reconstructOpenAlexAbstract(
   invertedIndex?: Record<string, number[]> | null
@@ -171,18 +109,24 @@ export async function searchOpenAlex(
 export async function searchSemanticScholar(
   query: string,
   yearFrom?: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  byokEntry?: ByokCredentialEntry | null
 ): Promise<NormalizedPaper[]> {
-  const yearParam = yearFrom && yearFrom > 1900 ? `&year=${yearFrom}-` : '';
-  const fields =
-    'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,abstract,url';
-  const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(
-    query
-  )}&limit=10&fields=${fields}${yearParam}`;
+  let res: Response;
+  if (byokEntry) {
+    res = await fetchViaByokProxy('semanticscholar', query, 10, byokEntry, yearFrom, signal);
+  } else {
+    const yearParam = yearFrom && yearFrom > 1900 ? `&year=${yearFrom}-` : '';
+    const fields =
+      'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,abstract,url';
+    const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(
+      query
+    )}&limit=10&fields=${fields}${yearParam}`;
 
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Semantic Scholar HTTP ${res.status}`);
+    res = await fetch(url, { signal });
+    if (!res.ok) {
+      throw new Error(`Semantic Scholar HTTP ${res.status}`);
+    }
   }
   const data = await res.json();
   const list = Array.isArray(data?.data) ? data.data : [];
@@ -1007,6 +951,9 @@ export interface FederatedSearchProgress extends FederatedSearchResult {
 
 export interface RunFederatedSearchOptions {
   signal?: AbortSignal;
+  language?: SupportedLanguage;
+  scope?: SearchScopeId;
+  accessConfig?: UserAccessConfig;
   onProgress?: (progress: FederatedSearchProgress) => void;
 }
 
@@ -1016,28 +963,65 @@ const SOURCE_TIMEOUT_MS = 12_000;
 const STREAM_COALESCE_MS = 60;
 const federatedSearchCache = new Map<string, { timestamp: number; result: FederatedSearchResult }>();
 
-const PROXY_SOURCES = new Set<ApiSourceId>(['arxiv', 'zenodo', 'osti', 'ntrs']);
+const PROXY_SOURCES = new Set<ApiSourceId>([
+  'arxiv',
+  'zenodo',
+  'osti',
+  'ntrs',
+  'eric',
+  'oasisbr',
+  'worldbank_okr',
+  'ipea',
+  'undl',
+  'scopus',
+  'sciencedirect',
+  'ieeexplore',
+  'springer',
+  'lens',
+  'fedinprint',
+  'govinfo',
+]);
+
+const BYOK_ONLY_SOURCES = new Set<ApiSourceId>([
+  'scopus',
+  'sciencedirect',
+  'ieeexplore',
+  'springer',
+  'lens',
+  'fedinprint',
+  'govinfo',
+]);
 
 function diagnoseSourceError(
   sourceId: ApiSourceId,
   label: string,
   err: unknown,
+  language: SupportedLanguage = 'pt'
 ): { errorMessage: string; errorDetail: string; rawError: string } {
-  const rawError = err instanceof Error ? err.message : String(err || 'Erro desconhecido');
+  const isEn = language === 'en';
+  const rawError = err instanceof Error ? err.message : String(err || (isEn ? 'Unknown error' : 'Erro desconhecido'));
   const normalized = rawError.toLowerCase();
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return {
-      errorMessage: 'Conexão com a internet indisponível no dispositivo.',
-      errorDetail: 'Restabeleça o acesso à rede e execute a pesquisa novamente.',
+      errorMessage: isEn
+        ? 'Internet connection unavailable on this device.'
+        : 'Conexão com a internet indisponível no dispositivo.',
+      errorDetail: isEn
+        ? 'Restore network access and run the search again.'
+        : 'Restabeleça o acesso à rede e execute a pesquisa novamente.',
       rawError,
     };
   }
 
   if (normalized.includes('timeout') || normalized.includes('12s')) {
     return {
-      errorMessage: `${label} excedeu o tempo limite de resposta para esta consulta.`,
-      errorDetail: 'O volume de termos pesquisados ou a lentidão momentânea da base impediu o retorno dos registros. Reduza o número de palavras-chave ou repita a operação em instantes.',
+      errorMessage: isEn
+        ? `${label} exceeded the response timeout for this query.`
+        : `${label} excedeu o tempo limite de resposta para esta consulta.`,
+      errorDetail: isEn
+        ? 'Query complexity or temporary repository slowness prevented records from returning. Reduce the number of keywords or retry in a few moments.'
+        : 'O volume de termos pesquisados ou a lentidão momentânea da base impediu o retorno dos registros. Reduza o número de palavras-chave ou repita a operação em instantes.',
       rawError,
     };
   }
@@ -1047,38 +1031,71 @@ function diagnoseSourceError(
     const status = Number(httpMatch[1]);
     if (status === 429) {
       return {
-        errorMessage: `${label} atingiu o limite temporário de consultas consecutivas.`,
-        errorDetail: 'O provedor restringe o volume de pesquisas enviadas em sequência. Aguarde aproximadamente 1 minuto antes de realizar uma nova consulta nesta fonte.',
+        errorMessage: isEn
+          ? `${label} reached its temporary rate limit for consecutive queries.`
+          : `${label} atingiu o limite temporário de consultas consecutivas.`,
+        errorDetail: isEn
+          ? 'The provider restricts consecutive request volume. Wait about 1 minute before querying this source again.'
+          : 'O provedor restringe o volume de pesquisas enviadas em sequência. Aguarde aproximadamente 1 minuto antes de realizar uma nova consulta nesta fonte.',
         rawError,
       };
     }
     if (status === 400 || status === 422) {
       return {
-        errorMessage: `${label} recusou os termos ou filtros informados nesta pesquisa.`,
-        errorDetail: 'Operadores lógicos (AND, OR, NOT), aspas, símbolos especiais ou filtros de ano podem ser incompatíveis com esta base. Utilize apenas palavras-chave diretas.',
+        errorMessage: isEn
+          ? `${label} rejected the query terms or filters provided.`
+          : `${label} recusou os termos ou filtros informados nesta pesquisa.`,
+        errorDetail: isEn
+          ? 'Boolean operators (AND, OR, NOT), quotes, special symbols, or year filters may not be supported by this source. Try direct keywords.'
+          : 'Operadores lógicos (AND, OR, NOT), aspas, símbolos especiais ou filtros de ano podem ser incompatíveis com esta base. Utilize apenas palavras-chave diretas.',
         rawError,
       };
     }
     if (status === 401 || status === 403) {
+      if (BYOK_ONLY_SOURCES.has(sourceId) || sourceId === 'semanticscholar' || sourceId === 'core') {
+        return {
+          errorMessage: isEn
+            ? `${label} rejected the configured API key or institutional token.`
+            : `${label} recusou a chave de API ou token institucional configurado.`,
+          errorDetail: isEn
+            ? 'Review your key and optional InstToken in Institutional Access & API Keys settings.'
+            : 'Verifique sua chave e o InstToken opcional nas configurações de Acesso Institucional & Chaves de API.',
+          rawError,
+        };
+      }
       return {
-        errorMessage: `O acesso automatizado ao ${label} encontra-se restrito pelo portal de origem.`,
-        errorDetail: 'Selecione outra base disponível ou acesse o portal diretamente pela aba "Bases & Portais".',
+        errorMessage: isEn
+          ? `Automated access to ${label} is restricted by the origin portal.`
+          : `O acesso automatizado ao ${label} encontra-se restrito pelo portal de origem.`,
+        errorDetail: isEn
+          ? 'Select another available source or open the portal directly in the "Platforms & Portals" tab.'
+          : 'Selecione outra base disponível ou acesse o portal diretamente pela aba "Bases & Portais".',
         rawError,
       };
     }
     if (status === 404) {
       return {
-        errorMessage: `O serviço de pesquisa do ${label} encontra-se indisponível no endereço configurado.`,
+        errorMessage: isEn
+          ? `The ${label} search service is unavailable at the configured endpoint.`
+          : `O serviço de pesquisa do ${label} encontra-se indisponível no endereço configurado.`,
         errorDetail: PROXY_SOURCES.has(sourceId)
-          ? 'O serviço intermediário de acesso a esta base está inativo no momento. Utilize as demais fontes enquanto a conexão é restabelecida.'
-          : 'A base pode estar em manutenção ou com o serviço de busca temporariamente desativado.',
+          ? (isEn
+              ? 'The proxy service for this source is currently inactive. Use the remaining sources while connectivity is restored.'
+              : 'O serviço intermediário de acesso a esta base está inativo no momento. Utilize as demais fontes enquanto a conexão é restabelecida.')
+          : (isEn
+              ? 'The repository may be undergoing maintenance or its search endpoint may be temporarily disabled.'
+              : 'A base pode estar em manutenção ou com o serviço de busca temporariamente desativado.'),
         rawError,
       };
     }
     if (status >= 500) {
       return {
-        errorMessage: `${label} apresentou instabilidade interna ao processar a solicitação.`,
-        errorDetail: 'A falha ocorreu no sistema do provedor da base científica. Aguarde alguns minutos antes de repetir a consulta.',
+        errorMessage: isEn
+          ? `${label} experienced an internal error while processing the request.`
+          : `${label} apresentou instabilidade interna ao processar a solicitação.`,
+        errorDetail: isEn
+          ? 'The failure occurred on the scientific database provider side. Wait a few minutes before retrying.'
+          : 'A falha ocorreu no sistema do provedor da base científica. Aguarde alguns minutos antes de repetir a consulta.',
         rawError,
       };
     }
@@ -1094,23 +1111,35 @@ function diagnoseSourceError(
   if (isNetworkOrCors) {
     if (sourceId === 'semanticscholar') {
       return {
-        errorMessage: 'O Semantic Scholar atingiu o limite de consultas públicas ou restringiu temporariamente o acesso.',
-        errorDetail: 'Sob alta demanda, o Semantic Scholar interrompe novas pesquisas por alguns instantes sem retornar detalhes ao navegador. Aguarde aproximadamente 1 minuto para consultar esta base novamente ou utilize as demais fontes.',
+        errorMessage: isEn
+          ? 'Semantic Scholar reached its public request limit or temporarily restricted access.'
+          : 'O Semantic Scholar atingiu o limite de consultas públicas ou restringiu temporariamente o acesso.',
+        errorDetail: isEn
+          ? 'Under high load, Semantic Scholar throttles requests briefly without returning CORS details to the browser. Wait about 1 minute to retry or use the other sources.'
+          : 'Sob alta demanda, o Semantic Scholar interrompe novas pesquisas por alguns instantes sem retornar detalhes ao navegador. Aguarde aproximadamente 1 minuto para consultar esta base novamente ou utilize as demais fontes.',
         rawError,
       };
     }
 
     if (PROXY_SOURCES.has(sourceId)) {
       return {
-        errorMessage: `Não foi possível estabelecer conexão com o ${label}.`,
-        errorDetail: 'O serviço intermediário necessário para consultar esta base está indisponível ou bloqueado no momento. Repita a operação mais tarde ou selecione outra fonte.',
+        errorMessage: isEn
+          ? `Could not connect to ${label}.`
+          : `Não foi possível estabelecer conexão com o ${label}.`,
+        errorDetail: isEn
+          ? 'The proxy service required for this source is unavailable or blocked right now. Retry later or select another source.'
+          : 'O serviço intermediário necessário para consultar esta base está indisponível ou bloqueado no momento. Repita a operação mais tarde ou selecione outra fonte.',
         rawError,
       };
     }
 
     return {
-      errorMessage: `A comunicação com o ${label} foi bloqueada ou interrompida durante a consulta.`,
-      errorDetail: 'A restrição pode decorrer de limite temporário do portal de origem ou de bloqueios externos no navegador, como VPN, antivírus ou bloqueadores de conteúdo. Repita a pesquisa em instantes.',
+      errorMessage: isEn
+        ? `Communication with ${label} was blocked or interrupted during the query.`
+        : `A comunicação com o ${label} foi bloqueada ou interrompida durante a consulta.`,
+      errorDetail: isEn
+        ? 'This may be caused by temporary origin rate limits or browser extensions/network tools such as VPNs, antivirus shields, or content blockers. Retry shortly.'
+        : 'A restrição pode decorrer de limite temporário do portal de origem ou de bloqueios externos no navegador, como VPN, antivírus ou bloqueadores de conteúdo. Repita a pesquisa em instantes.',
       rawError,
     };
   }
@@ -1124,15 +1153,23 @@ function diagnoseSourceError(
     normalized.includes('html')
   ) {
     return {
-      errorMessage: `${label} retornou uma página de aviso ou manutenção em vez dos registros bibliográficos.`,
-      errorDetail: 'O portal pode estar passando por atualização programada. Repita a consulta mais tarde.',
+      errorMessage: isEn
+        ? `${label} returned a notice or maintenance page instead of bibliographic records.`
+        : `${label} retornou uma página de aviso ou manutenção em vez dos registros bibliográficos.`,
+      errorDetail: isEn
+        ? 'The portal may be undergoing scheduled updates. Try querying again later.'
+        : 'O portal pode estar passando por atualização programada. Repita a consulta mais tarde.',
       rawError,
     };
   }
 
   return {
-    errorMessage: `Não foi possível concluir a pesquisa em ${label}.`,
-    errorDetail: 'Repita a operação em alguns instantes ou retorne para "Todas as fontes" para visualizar os resultados das demais bases.',
+    errorMessage: isEn
+      ? `Could not complete the search in ${label}.`
+      : `Não foi possível concluir a pesquisa em ${label}.`,
+    errorDetail: isEn
+      ? 'Retry in a few moments or switch back to "All sources" to view results from the remaining databases.'
+      : 'Repita a operação em alguns instantes ou retorne para "Todas as fontes" para visualizar os resultados das demais bases.',
     rawError,
   };
 }
@@ -1187,13 +1224,14 @@ export async function runFederatedSearch(
     typeof optionsOrCallback === 'function'
       ? { onProgress: (p) => optionsOrCallback(p.statuses) }
       : optionsOrCallback ?? {};
-  const { signal, onProgress } = options;
+  const { signal, language = 'pt', scope = 'all', accessConfig, onProgress } = options;
 
   if (signal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  const cacheKey = `${query.trim().toLowerCase()}::${yearFrom ?? 'all'}`;
+  const byokSig = buildByokCacheSignature(accessConfig);
+  const cacheKey = `${query.trim().toLowerCase()}::${yearFrom ?? 'all'}::${language}::${scope}::${byokSig}`;
   const cached = federatedSearchCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < FEDERATED_CACHE_TTL_MS) {
     onProgress?.({
@@ -1204,13 +1242,20 @@ export async function runFederatedSearch(
     return cached.result;
   }
 
-  const sources: Array<{
+  const s2Key = getActiveByokEntry(accessConfig, 'semanticscholar');
+  const coreKey = getActiveByokEntry(accessConfig, 'core');
+
+  const allFreeSources: Array<{
     id: ApiSourceId;
     label: string;
     fn: (q: string, y?: number, sig?: AbortSignal) => Promise<NormalizedPaper[]>;
   }> = [
     { id: 'openalex', label: 'OpenAlex', fn: searchOpenAlex },
-    { id: 'semanticscholar', label: 'Semantic Scholar', fn: searchSemanticScholar },
+    {
+      id: 'semanticscholar',
+      label: s2Key ? 'Semantic Scholar (Key)' : 'Semantic Scholar',
+      fn: (q, y, sig) => searchSemanticScholar(q, y, sig, s2Key),
+    },
     { id: 'pubmed', label: 'PubMed (NIH)', fn: searchPubMedEntrez },
     { id: 'europepmc', label: 'Europe PMC', fn: searchEuropePmc },
     { id: 'arxiv', label: 'arXiv (Cornell)', fn: searchArxiv },
@@ -1224,7 +1269,83 @@ export async function runFederatedSearch(
     { id: 'gbif', label: 'GBIF Biodiversity', fn: searchGbifLiterature },
     { id: 'osti', label: 'OSTI.GOV (DOE)', fn: searchOstiGov },
     { id: 'ntrs', label: 'NASA NTRS', fn: searchNasaNtrs },
+    ...FREE_EXTENSION_SOURCE_RUNNERS.map((runner) =>
+      runner.id === 'core'
+        ? {
+            id: 'core' as ApiSourceId,
+            label: coreKey ? 'CORE.ac.uk (Key)' : 'CORE.ac.uk',
+            fn: (q: string, y?: number, sig?: AbortSignal) => searchCore(q, y, sig, coreKey),
+          }
+        : runner
+    ),
   ];
+
+  const byokSources: Array<{
+    id: ApiSourceId;
+    label: string;
+    fn: (q: string, y?: number, sig?: AbortSignal) => Promise<NormalizedPaper[]>;
+  }> = [];
+
+  const scopusKey = getActiveByokEntry(accessConfig, 'scopus');
+  if (scopusKey) {
+    byokSources.push({
+      id: 'scopus',
+      label: 'Scopus (Elsevier)',
+      fn: (q, y, sig) => searchScopusByok(q, scopusKey, y, sig),
+    });
+  }
+  const sdKey = getActiveByokEntry(accessConfig, 'sciencedirect');
+  if (sdKey) {
+    byokSources.push({
+      id: 'sciencedirect',
+      label: 'ScienceDirect (Elsevier)',
+      fn: (q, y, sig) => searchScienceDirectByok(q, sdKey, y, sig),
+    });
+  }
+  const ieeeKey = getActiveByokEntry(accessConfig, 'ieeexplore');
+  if (ieeeKey) {
+    byokSources.push({
+      id: 'ieeexplore',
+      label: 'IEEE Xplore',
+      fn: (q, y, sig) => searchIeeeXploreByok(q, ieeeKey, y, sig),
+    });
+  }
+  const springerKey = getActiveByokEntry(accessConfig, 'springer');
+  if (springerKey) {
+    byokSources.push({
+      id: 'springer',
+      label: 'Springer Nature',
+      fn: (q, y, sig) => searchSpringerByok(q, springerKey, y, sig),
+    });
+  }
+  const lensKey = getActiveByokEntry(accessConfig, 'lens');
+  if (lensKey) {
+    byokSources.push({
+      id: 'lens',
+      label: 'The Lens.org',
+      fn: (q, y, sig) => searchLensByok(q, lensKey, y, sig),
+    });
+  }
+  const fedKey = getActiveByokEntry(accessConfig, 'fedinprint');
+  if (fedKey) {
+    byokSources.push({
+      id: 'fedinprint',
+      label: 'Fed in Print (FED)',
+      fn: (q, y, sig) => searchFedInPrintByok(q, fedKey, y, sig),
+    });
+  }
+  const govKey = getActiveByokEntry(accessConfig, 'govinfo');
+  if (govKey) {
+    byokSources.push({
+      id: 'govinfo',
+      label: 'Congress.gov / GovInfo',
+      fn: (q, y, sig) => searchGovInfoByok(q, govKey, y, sig),
+    });
+  }
+
+  const sources = [...allFreeSources, ...byokSources].filter((s) =>
+    sourceMatchesScope(s.id, scope)
+  );
 
   const statuses: SourceFetchStatus[] = sources.map((s) => ({
     source: s.id,
@@ -1283,13 +1404,21 @@ export async function runFederatedSearch(
             latencyMs,
           };
           if (res.length > 0) {
-            allPapers.push(...res);
+            const rankedRes = res.map((paper, rankIdx) => ({
+              ...paper,
+              title: language === 'en' && paper.title === 'Sem título' ? 'Untitled' : paper.title,
+              sourceRanks: {
+                ...(paper.sourceRanks ?? {}),
+                [src.id]: paper.sourceRanks?.[src.id] ?? rankIdx + 1,
+              },
+            }));
+            allPapers.push(...rankedRes);
             addedPapers = true;
           }
         } catch (err) {
           if (signal?.aborted || (err as Error)?.name === 'AbortError') return;
           const latencyMs = Math.round(performance.now() - t0);
-          const diagnostic = diagnoseSourceError(src.id, src.label, err);
+          const diagnostic = diagnoseSourceError(src.id, src.label, err, language);
           statuses[idx] = {
             source: src.id,
             label: src.label,

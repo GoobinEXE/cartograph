@@ -23,7 +23,7 @@ interface FeedbackViewProps {
 const STORAGE_KEY_FEEDBACK = 'cartograph_feedback_history_v1';
 
 export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
 
   const [type, setType] = useState<FeedbackType>('suggestion');
   const [subject, setSubject] = useState('');
@@ -112,17 +112,18 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) =>
     setSuccessBanner(
       persistedRemotely
         ? t('feedbackSuccessBanner')
-        : `${t('feedbackSuccessBanner')} (salvo no histórico local deste navegador — copie em Markdown para envio manual se desejar).`
+        : `${t('feedbackSuccessBanner')} ${t('feedbackLocalNotice')}`
     );
     setTimeout(() => setSuccessBanner(null), 6000);
   };
 
   const handleCopyMarkdown = async (item: UserFeedbackItem) => {
-    const text = `### [Feedback Cartograph] ${item.subject}
-- **Tipo:** ${item.type}
-- **Avaliação:** ${item.rating}/5
-- **Data:** ${new Date(item.createdAt).toLocaleDateString()}
-${item.institution ? `- **Instituição:** ${item.institution}\n` : ''}${item.relatedUrl ? `- **URL/Base:** ${item.relatedUrl}\n` : ''}${item.userEmail ? `- **Contato:** ${item.userEmail}\n` : ''}
+    const locale = language === 'en' ? 'en-US' : 'pt-BR';
+    const text = `### ${t('feedbackMarkdownHeader')} ${item.subject}
+- **${t('feedbackMarkdownType')}** ${item.type}
+- **${t('feedbackMarkdownRating')}** ${item.rating}/5
+- **${t('feedbackMarkdownDate')}** ${new Date(item.createdAt).toLocaleDateString(locale)}
+${item.institution ? `- **${t('feedbackMarkdownInstitution')}** ${item.institution}\n` : ''}${item.relatedUrl ? `- **${t('feedbackMarkdownUrl')}** ${item.relatedUrl}\n` : ''}${item.userEmail ? `- **${t('feedbackMarkdownContact')}** ${item.userEmail}\n` : ''}
 ${item.message}`;
 
     await navigator.clipboard.writeText(text);
@@ -149,7 +150,7 @@ ${item.message}`;
             <div className="inline-flex items-center gap-2 mb-2">
               <PrismMonogram className="h-4 w-auto" />
               <span className="text-xs font-medium text-[var(--text-muted)]">
-                Cartograph · Ciência Aberta
+                {t('feedbackBadge')}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-heading font-semibold text-[var(--text-primary)] tracking-tight">
@@ -225,7 +226,7 @@ ${item.message}`;
                   onMouseLeave={() => setHoverRating(null)}
                   onClick={() => setRating(star)}
                   className="p-1 text-[var(--text-muted)] hover:text-amber-400 transition-colors cursor-pointer"
-                  title={`${star} de 5`}
+                  title={t('feedbackRatingOutOf', { star })}
                 >
                   <Star
                     className={`w-5 h-5 transition-transform hover:scale-110 ${
@@ -316,7 +317,7 @@ ${item.message}`;
         {/* Action Button */}
         <div className="pt-2 flex items-center justify-between gap-4">
           <span className="text-[13px] text-[var(--text-muted)]">
-            Seus comentários ajudam a aprimorar o catálogo e a precisão do Cartograph.
+            {t('feedbackFooterHint')}
           </span>
           <button
             type="submit"
@@ -328,7 +329,7 @@ ${item.message}`;
             }`}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>{isSubmitting ? 'Registrando...' : t('feedbackSubmitBtn')}</span>
+            <span>{isSubmitting ? t('feedbackSubmittingBtn') : t('feedbackSubmitBtn')}</span>
           </button>
         </div>
       </form>
@@ -357,7 +358,7 @@ ${item.message}`;
                         {item.type}
                       </span>
                       <span className="text-xs text-[var(--text-muted)]">
-                        {new Date(item.createdAt).toLocaleDateString()}
+                        {new Date(item.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'pt-BR')}
                       </span>
                       <span className="text-xs text-amber-400">
                         {'★'.repeat(item.rating)}
@@ -373,21 +374,21 @@ ${item.message}`;
                       type="button"
                       onClick={() => handleCopyMarkdown(item)}
                       className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-canvas)] transition-colors cursor-pointer"
-                      title="Copiar em Markdown"
+                      title={t('feedbackCopyMarkdownTitle')}
                     >
                       {copiedKey === item.id ? (
                         <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
                       ) : (
                         <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                       )}
-                      <span>Copiar</span>
+                      <span>{t('feedbackCopyBtn')}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleRemoveHistoryItem(item.id)}
                       className="p-1 text-[var(--text-muted)] hover:text-rose-500 transition-colors cursor-pointer"
-                      title="Remover do histórico"
+                      title={t('feedbackRemoveHistoryTitle')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -400,7 +401,7 @@ ${item.message}`;
 
                 {(item.institution || item.relatedUrl) && (
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] pt-1">
-                    {item.institution && <span>Instituição: {item.institution}</span>}
+                    {item.institution && <span>{t('feedbackInstitutionPrefix')} {item.institution}</span>}
                     {(() => {
                       const safeRelatedUrl = sanitizeExternalUrl(item.relatedUrl, {
                         allowImplicitHttps: true,
@@ -434,7 +435,7 @@ ${item.message}`;
             <span className="font-semibold text-[var(--text-primary)]">Cartograph</span>
             <span className="mx-1.5 text-[var(--divider)]">·</span>
             <span className="text-[var(--text-muted)]">
-              Metabusca científica e revisão sistemática em ciência aberta.
+              {t('feedbackFooterNote')}
             </span>
           </div>
         </div>

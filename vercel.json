@@ -50,7 +50,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://cartographsearch.vercel.app https://api.openalex.org https://api.semanticscholar.org https://api.crossref.org https://www.ebi.ac.uk https://eutils.ncbi.nlm.nih.gov https://doaj.org https://api.archives-ouvertes.fr https://api.datacite.org https://inspirehep.net https://api.figshare.com https://api.gbif.org https://export.arxiv.org https://zenodo.org https://www.osti.gov https://ntrs.nasa.gov https://vitals.vercel-insights.com https://va.vercel-scripts.com https://www.google-analytics.com https://region1.google-analytics.com http://127.0.0.1:4789 http://localhost:4789; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://cartographsearch.vercel.app https://api.openalex.org https://api.semanticscholar.org https://api.crossref.org https://www.ebi.ac.uk https://eutils.ncbi.nlm.nih.gov https://doaj.org https://api.archives-ouvertes.fr https://api.datacite.org https://inspirehep.net https://api.figshare.com https://api.gbif.org https://export.arxiv.org https://zenodo.org https://www.osti.gov https://ntrs.nasa.gov https://api.openaire.eu https://api.osf.io https://api.plos.org https://dataverse.harvard.edu https://api.core.ac.uk https://search.worldbank.org https://vitals.vercel-insights.com https://va.vercel-scripts.com https://www.google-analytics.com https://region1.google-analytics.com http://127.0.0.1:4789 http://localhost:4789; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
         }
       ]
     },
@@ -86,6 +86,8 @@
     { "source": "/api/zenodo", "destination": "/api/zenodo.ts" },
     { "source": "/api/osti", "destination": "/api/osti.ts" },
     { "source": "/api/ntrs", "destination": "/api/ntrs.ts" },
+    { "source": "/api/academic-proxy", "destination": "/api/academic-proxy.ts" },
+    { "source": "/api/byok-proxy", "destination": "/api/byok-proxy.ts" },
     { "source": "/api/translate", "destination": "/api/translate.ts" },
     { "source": "/api/feedback", "destination": "/api/feedback.ts" },
     { "source": "/federated", "destination": "/" },

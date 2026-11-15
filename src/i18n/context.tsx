@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { SupportedLanguage, TRANSLATIONS, Translations } from './translations';
+
+export const STORAGE_KEY_LANGUAGE = 'cartograph_language';
 
 export interface LanguageOption {
   code: SupportedLanguage;
@@ -10,37 +12,85 @@ export interface LanguageOption {
 export const AVAILABLE_LANGUAGES: LanguageOption[] = [
   { code: 'pt', label: 'Português', nativeLabel: 'Português (BR/PT)' },
   { code: 'en', label: 'English', nativeLabel: 'English (US/UK)' },
-  { code: 'es', label: 'Español', nativeLabel: 'Español' },
-  { code: 'fr', label: 'Français', nativeLabel: 'Français' },
 ];
 
-export function detectBrowserLanguage(): SupportedLanguage {
-  if (typeof window === 'undefined') return 'en';
+export function isSupportedLanguage(value: string | null | undefined): value is SupportedLanguage {
+  return value === 'pt' || value === 'en';
+}
 
-  const saved = localStorage.getItem('cartograph_language');
-  if (saved && (saved === 'pt' || saved === 'en' || saved === 'es' || saved === 'fr')) {
-    return saved;
+export function resolveLanguageFromTags(tags: readonly string[]): SupportedLanguage {
+  for (const rawLang of tags) {
+    if (!rawLang) continue;
+    const primary = rawLang.trim().toLowerCase().split(/[-_]/)[0];
+    if (primary === 'pt') return 'pt';
+    if (primary === 'en') return 'en';
   }
-
-  const browserLangs =
-    navigator.languages && navigator.languages.length > 0
-      ? navigator.languages
-      : [navigator.language || 'en'];
-
-  for (const rawLang of browserLangs) {
-    const code = rawLang.toLowerCase().slice(0, 2);
-    if (code === 'pt') return 'pt';
-    if (code === 'es') return 'es';
-    if (code === 'fr') return 'fr';
-    if (code === 'en') return 'en';
-  }
-
   return 'en';
+}
+
+export function detectSystemLanguage(): SupportedLanguage {
+  if (typeof window === 'undefined' && typeof navigator === 'undefined') {
+    return 'en';
+  }
+
+  const candidates: string[] = [];
+  if (typeof navigator !== 'undefined') {
+    if (Array.isArray(navigator.languages)) {
+      candidates.push(...navigator.languages);
+    }
+    if (navigator.language) {
+      candidates.push(navigator.language);
+    }
+  }
+
+  try {
+    const intlLocale = Intl.DateTimeFormat().resolvedOptions().locale;
+    if (intlLocale) {
+      candidates.push(intlLocale);
+    }
+  } catch {
+    // ignore Intl fallback error
+  }
+
+  return resolveLanguageFromTags(candidates);
+}
+
+function hasManualLanguageOverride(): SupportedLanguage | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlLang = params.get('lang')?.toLowerCase();
+    if (isSupportedLanguage(urlLang)) {
+      return urlLang;
+    }
+  } catch {
+    // ignore URL parsing error
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_LANGUAGE);
+    if (isSupportedLanguage(saved)) {
+      return saved;
+    }
+  } catch {
+    // ignore storage error
+  }
+
+  return null;
+}
+
+export function detectBrowserLanguage(): SupportedLanguage {
+  const override = hasManualLanguageOverride();
+  if (override) return override;
+  return detectSystemLanguage();
 }
 
 interface I18nContextType {
   language: SupportedLanguage;
+  isAutoLanguage: boolean;
   setLanguage: (lang: SupportedLanguage) => void;
+  resetToSystemLanguage: () => void;
   t: (key: keyof Translations, params?: Record<string, string | number>) => string;
   translations: Translations;
   availableLanguages: LanguageOption[];
@@ -49,39 +99,80 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | null>(null);
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isAutoLanguage, setIsAutoLanguage] = useState<boolean>(
+    () => hasManualLanguageOverride() === null
+  );
   const [language, setLanguageState] = useState<SupportedLanguage>(() => detectBrowserLanguage());
 
-  const setLanguage = (lang: SupportedLanguage) => {
+  const setLanguage = useCallback((lang: SupportedLanguage) => {
     setLanguageState(lang);
+    setIsAutoLanguage(false);
     try {
-      localStorage.setItem('cartograph_language', lang);
-      document.documentElement.lang = lang;
+      localStorage.setItem(STORAGE_KEY_LANGUAGE, lang);
+      document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en';
     } catch {
       // ignore storage error
     }
-  };
+  }, []);
+
+  const resetToSystemLanguage = useCallback(() => {
+    const systemLang = detectSystemLanguage();
+    setLanguageState(systemLang);
+    setIsAutoLanguage(true);
+    try {
+      localStorage.removeItem(STORAGE_KEY_LANGUAGE);
+      document.documentElement.lang = systemLang === 'pt' ? 'pt-BR' : 'en';
+    } catch {
+      // ignore storage error
+    }
+  }, []);
 
   useEffect(() => {
-    document.documentElement.lang = language;
+    document.documentElement.lang = language === 'pt' ? 'pt-BR' : 'en';
   }, [language]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleLanguageChange = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_LANGUAGE);
+        if (isSupportedLanguage(saved)) {
+          return;
+        }
+      } catch {
+        // ignore storage error
+      }
+      setIsAutoLanguage(true);
+      setLanguageState(detectSystemLanguage());
+    };
+
+    window.addEventListener('languagechange', handleLanguageChange);
+    return () => window.removeEventListener('languagechange', handleLanguageChange);
+  }, []);
 
   const translations = TRANSLATIONS[language] || TRANSLATIONS.en;
 
-  const t = (key: keyof Translations, params?: Record<string, string | number>): string => {
-    let str = translations[key] || TRANSLATIONS.en[key] || String(key);
-    if (params) {
-      Object.entries(params).forEach(([paramKey, paramValue]) => {
-        str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
-      });
-    }
-    return str;
-  };
+  const t = useCallback(
+    (key: keyof Translations, params?: Record<string, string | number>): string => {
+      let str = translations[key] || TRANSLATIONS.en[key] || String(key);
+      if (params) {
+        Object.entries(params).forEach(([paramKey, paramValue]) => {
+          str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+        });
+      }
+      return str;
+    },
+    [translations]
+  );
 
   return (
     <I18nContext.Provider
       value={{
         language,
+        isAutoLanguage,
         setLanguage,
+        resetToSystemLanguage,
         t,
         translations,
         availableLanguages: AVAILABLE_LANGUAGES,

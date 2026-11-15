@@ -128,6 +128,24 @@ function mergeSourceIds(primary: NormalizedPaper, secondary: NormalizedPaper): A
   );
 }
 
+function mergeSourceRanks(
+  primary: NormalizedPaper,
+  secondary: NormalizedPaper
+): Partial<Record<ApiSourceId, number>> | undefined {
+  const merged: Partial<Record<ApiSourceId, number>> = {
+    ...(primary.sourceRanks ?? {}),
+  };
+  if (secondary.sourceRanks) {
+    for (const [src, rank] of Object.entries(secondary.sourceRanks) as Array<[ApiSourceId, number | undefined]>) {
+      if (typeof rank === 'number' && rank > 0) {
+        const existing = merged[src];
+        merged[src] = typeof existing === 'number' ? Math.min(existing, rank) : rank;
+      }
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 /**
  * Merges two duplicate paper records preserving the richest data from both.
  */
@@ -146,7 +164,9 @@ function mergePaperRecords(primary: NormalizedPaper, secondary: NormalizedPaper)
       primary.authors.length >= secondary.authors.length ? primary.authors : secondary.authors,
     venue: primary.venue !== 'Periódico Científico' ? primary.venue : secondary.venue,
     year: primary.year || secondary.year,
+    publicationType: primary.publicationType || secondary.publicationType,
     sources: mergeSourceIds(primary, secondary),
+    sourceRanks: mergeSourceRanks(primary, secondary),
   };
 }
 

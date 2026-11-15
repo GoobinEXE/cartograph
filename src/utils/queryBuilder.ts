@@ -113,3 +113,19 @@ export async function translateAcademicQueryPtToEn(queryText: string): Promise<s
   return fallback;
 }
 
+/**
+ * Returns deterministic English academic equivalents matched from the PT-EN glossary
+ * without network calls, allowing cross-lingual relevance scoring.
+ */
+export function extractGlossaryEnglishEquivalents(queryText: string): string[] {
+  const equivalents: string[] = [];
+  for (const [pattern, replacement] of ACADEMIC_PT_EN_GLOSSARY) {
+    pattern.lastIndex = 0;
+    if (pattern.test(queryText)) {
+      equivalents.push(replacement);
+    }
+    pattern.lastIndex = 0;
+  }
+  return equivalents;
+}
+

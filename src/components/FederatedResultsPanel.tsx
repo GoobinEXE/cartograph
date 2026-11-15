@@ -2,8 +2,10 @@ import React, { useMemo, useState } from 'react';
 import {
   ApiSourceId,
   DeduplicationSummary,
+  InstitutionalProxyConfig,
   LibraryGroup,
   NormalizedPaper,
+  RelevanceBreakdown,
   SavedPaperItem,
   SourceFetchStatus,
 } from '../types/academic';
@@ -13,6 +15,8 @@ import {
   formatBibtexEntry,
 } from '../utils/citationExporter';
 import { parseAbstractMetadata } from '../utils/abstractParser';
+import { buildDoiProxyUrl } from '../utils/institutionalProxy';
+import { rankPapersByRelevance } from '../utils/relevanceRanker';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { useI18n } from '../i18n/context';
 import {
@@ -35,6 +39,7 @@ const STORAGE_KEY_FEDERATED_DRAWERS = 'cartograph_federated_sidebar_drawers_v1';
 
 interface FederatedResultsPanelProps {
   papers: NormalizedPaper[];
+  searchQuery?: string;
   statuses: SourceFetchStatus[];
   isSearching: boolean;
   savedIds: Set<string>;
@@ -46,10 +51,12 @@ interface FederatedResultsPanelProps {
   onAssignPaperGroup?: (paperId: string, groupId: string | null) => void;
   onToggleSave: (paper: NormalizedPaper, targetGroupId?: string | null) => void;
   deduplicationSummary?: DeduplicationSummary | null;
+  institutionalProxy?: InstitutionalProxyConfig;
 }
 
 export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   papers,
+  searchQuery = '',
   statuses,
   isSearching,
   savedIds,
@@ -61,8 +68,9 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   onAssignPaperGroup,
   onToggleSave,
   deduplicationSummary,
+  institutionalProxy,
 }) => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const [onlyOpenAccess, setOnlyOpenAccess] = useState(false);
   const [selectedSource, setSelectedSource] = useState<'all' | ApiSourceId>('all');
   const [sortBy, setSortBy] = useState<'relevance' | 'citations' | 'year'>('relevance');
@@ -142,7 +150,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
     return map;
   }, [savedPapers]);
 
-  const filteredPapers = useMemo(() => {
+  const { filteredPapers, relevanceBreakdownMap } = useMemo(() => {
     let list = [...papers];
     if (onlyOpenAccess) {
       list = list.filter((p) => p.isOpenAccess);
@@ -152,13 +160,24 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
         (p) => p.source === selectedSource || Boolean(p.sources?.includes(selectedSource))
       );
     }
+    const breakdownMap: Record<string, RelevanceBreakdown> = {};
+    if (sortBy === 'relevance') {
+      const ranked = rankPapersByRelevance(list, searchQuery);
+      ranked.forEach(({ paper, breakdown }) => {
+        breakdownMap[paper.id] = breakdown;
+      });
+      return {
+        filteredPapers: ranked.map((r) => r.paper),
+        relevanceBreakdownMap: breakdownMap,
+      };
+    }
     if (sortBy === 'citations') {
       list.sort((a, b) => b.citationCount - a.citationCount);
     } else if (sortBy === 'year') {
       list.sort((a, b) => (b.year || 0) - (a.year || 0));
     }
-    return list;
-  }, [papers, onlyOpenAccess, selectedSource, sortBy]);
+    return { filteredPapers: list, relevanceBreakdownMap: breakdownMap };
+  }, [papers, searchQuery, onlyOpenAccess, selectedSource, sortBy]);
 
   const totalSources = statuses.length;
   const completedSources = statuses.filter(
@@ -221,21 +240,21 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
       {/* Left Filter & Target Slot Column — Scroll Independente + Gavetas Retráteis */}
       <aside
         className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain pr-2 pb-6 select-none"
-        aria-label="Filtros e navegação de artigos encontrados"
+        aria-label={t('federatedSidebarAria')}
       >
         {/* Controle de Gavetas */}
         <div className="flex items-center justify-between pb-2 border-b border-[var(--divider)]">
           <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <span>Filtros & Navegação</span>
+            <span>{t('filtersNavTitle')}</span>
           </div>
           <button
             type="button"
             onClick={toggleAllSidebarDrawers}
             className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
-            title={allDrawersOpen ? 'Recolher todas as gavetas' : 'Expandir todas as gavetas'}
+            title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
           >
-            {allDrawersOpen ? 'Recolher tudo' : 'Expandir tudo'}
+            {allDrawersOpen ? t('collapseAll') : t('expandAll')}
           </button>
         </div>
 
@@ -257,7 +276,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             <div className="flex items-center gap-1.5 min-w-0">
               <Folder className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
-                Salvar no Slot / Grupo
+                {t('saveToSlotTitle')}
               </span>
               {activeSaveGroupObj && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[78px] shrink-0">
@@ -275,7 +294,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   }}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                 >
-                  Limpar
+                  {t('clearFilter')}
                 </button>
               )}
               <ChevronDown
@@ -294,10 +313,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     type="button"
                     onClick={() => setShowQuickGroupInput((v) => !v)}
                     className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
-                    title="Criar novo slot de pesquisa"
+                    title={t('createNewSlotTitle')}
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
-                    <span>Novo</span>
+                    <span>{t('newBtn')}</span>
                   </button>
                 </div>
               )}
@@ -311,10 +330,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
               >
-                <option value="">Sem grupo (Geral)</option>
+                <option value="">{t('ungroupedOption')}</option>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
-                    Slot: {g.name}
+                    {t('slotPrefix')} {g.name}
                   </option>
                 ))}
               </select>
@@ -325,7 +344,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     type="text"
                     value={quickGroupName}
                     onChange={(e) => setQuickGroupName(e.target.value)}
-                    placeholder="Ex: Jogos de IA, Medicamentos..."
+                    placeholder={t('slotPlaceholder')}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
                     autoFocus
                   />
@@ -335,21 +354,21 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                       onClick={() => setShowQuickGroupInput(false)}
                       className="px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                     >
-                      Cancelar
+                      {t('cancelBtn')}
                     </button>
                     <button
                       type="submit"
                       disabled={!quickGroupName.trim()}
                       className="px-2.5 py-1 rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-xs font-semibold cursor-pointer disabled:opacity-50"
                     >
-                      Criar Slot
+                      {t('createSlotBtn')}
                     </button>
                   </div>
                 </form>
               )}
 
               <p className="text-xs text-[var(--text-muted)] leading-snug">
-                Escolha um grupo para organizar esta pesquisa ou mantenha em <strong>Sem grupo</strong>.
+                {t('slotHelperPrefix')} <strong>{t('slotHelperUngrouped')}</strong>.
               </p>
             </div>
           )}
@@ -376,7 +395,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
               </span>
               {sortBy !== 'relevance' && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
-                  {sortBy === 'citations' ? 'Citações' : 'Ano'}
+                  {sortBy === 'citations' ? t('sortShortCitations') : t('sortShortYear')}
                 </span>
               )}
             </div>
@@ -390,7 +409,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   }}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                 >
-                  Limpar
+                  {t('clearFilter')}
                 </button>
               )}
               <ChevronDown
@@ -419,6 +438,11 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   {mode === 'year' && t('sortYear')}
                 </button>
               ))}
+              {sortBy === 'relevance' && (
+                <p className="px-2.5 pt-1 text-[11px] leading-snug text-[var(--text-muted)]">
+                  {t('relevanceMethodCaption')}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -440,7 +464,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                Disponibilidade
+                {t('availabilityTitle')}
               </span>
               {onlyOpenAccess && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
@@ -458,7 +482,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   }}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                 >
-                  Limpar
+                  {t('clearFilter')}
                 </button>
               )}
               <ChevronDown
@@ -477,7 +501,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                 onChange={(e) => setOnlyOpenAccess(e.target.checked)}
                 className="w-4 h-4 rounded accent-[var(--link-academic)]"
               />
-              <span>Somente Open Access</span>
+              <span>{t('availabilityOpenAccessOnly')}</span>
             </label>
           )}
         </div>
@@ -499,7 +523,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           >
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                Bases Consultadas
+                {t('queriedSourcesTitle')}
               </span>
               {selectedSource !== 'all' && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[85px]">
@@ -520,7 +544,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   }}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                 >
-                  Limpar
+                  {t('clearFilter')}
                 </button>
               )}
               <ChevronDown
@@ -542,7 +566,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
-                <span>Todas as fontes</span>
+                <span>{t('allSourcesOption')}</span>
                 <span className="text-xs text-[var(--text-muted)]">{papers.length}</span>
               </button>
 
@@ -592,7 +616,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             aria-valuenow={progressPercent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Progresso da metabusca nas fontes científicas"
+            aria-label={t('progressAriaLabel')}
           >
             <div
               className="h-full bg-[var(--link-academic)] transition-[width] duration-300 ease-out"
@@ -611,19 +635,28 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
               {isActiveViewLoading ? (
                 selectedSource === 'all' ? (
                   <>
-                    Consultando bases ({completedSources} de {totalSources})
-                    {filteredPapers.length > 0 && ` · ${filteredPapers.length} artigos exibidos`}
+                    {t('queryingAllProgress', { completed: completedSources, total: totalSources })}
+                    {filteredPapers.length > 0 &&
+                      ` ${t('papersDisplayedSuffix', { count: filteredPapers.length })}`}
                   </>
                 ) : (
                   <>
-                    Consultando {activeSourceStatus?.label ?? selectedSource}... ({completedSources} de{' '}
-                    {totalSources} bases)
+                    {t('queryingSourceProgress', {
+                      label: activeSourceStatus?.label ?? selectedSource,
+                      completed: completedSources,
+                      total: totalSources,
+                    })}
                   </>
                 )
               ) : (
                 <>
-                  Exibindo {filteredPapers.length} de {papers.length} artigos científicos encontrados
-                  {activeSourceStatus?.latencyMs ? ` · ${activeSourceStatus.label} (${activeSourceStatus.latencyMs} ms)` : ''}
+                  {t('showingResultsSummary', {
+                    displayed: filteredPapers.length,
+                    total: papers.length,
+                  })}
+                  {activeSourceStatus?.latencyMs
+                    ? ` · ${activeSourceStatus.label} (${activeSourceStatus.latencyMs} ms)`
+                    : ''}
                 </>
               )}
             </span>
@@ -632,16 +665,20 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           {deduplicationSummary && deduplicationSummary.duplicatesRemoved > 0 && (
             <span
               className="text-xs text-[var(--text-muted)] shrink-0"
-              title={`${deduplicationSummary.mergedByDoi} por DOI canônico, ${deduplicationSummary.mergedByPmidOrArxiv} por ID persistente (PMID/arXiv), ${deduplicationSummary.mergedByFuzzyTitle} por título (Jaro-Winkler)`}
+              title={t('duplicatesMergedTitle', {
+                doi: deduplicationSummary.mergedByDoi,
+                ids: deduplicationSummary.mergedByPmidOrArxiv,
+                fuzzy: deduplicationSummary.mergedByFuzzyTitle,
+              })}
             >
-              {deduplicationSummary.duplicatesRemoved} duplicatas mescladas
+              {t('duplicatesMergedCount', { count: deduplicationSummary.duplicatesRemoved })}
             </span>
           )}
         </div>
 
         {/* Minimalist Search Result Skeletons while waiting for first hits of the active view */}
         {filteredPapers.length === 0 && isActiveViewLoading && (
-          <div className="space-y-7" aria-busy="true" aria-label="Carregando resultados">
+          <div className="space-y-7" aria-busy="true" aria-label={t('loadingResultsAria')}>
             {[0, 1, 2, 3].map((idx) => (
               <div key={idx} className="animate-pulse space-y-2.5">
                 <div className="h-5 w-4/5 rounded bg-[var(--bg-secondary)]" />
@@ -662,10 +699,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             {activeSourceStatus?.status === 'error' ? (
               <>
                 <div className="font-semibold text-[var(--text-primary)]">
-                  Consulta não concluída em {activeSourceStatus.label}
+                  {t('sourceErrorTitle', { label: activeSourceStatus.label })}
                 </div>
                 <p className="text-[13.5px] text-[var(--text-primary)] leading-relaxed">
-                  {activeSourceStatus.errorMessage || 'O tempo limite de resposta da base foi atingido.'}
+                  {activeSourceStatus.errorMessage || t('sourceTimeoutFallback')}
                 </p>
                 {activeSourceStatus.errorDetail && (
                   <p className="text-[13px] text-[var(--text-muted)] leading-relaxed">
@@ -678,21 +715,23 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     onClick={() => setSelectedSource('all')}
                     className="text-[13px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
                   >
-                    Voltar para &ldquo;Todas as fontes&rdquo;
+                    {t('backToAllSources')}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <div className="font-semibold text-[var(--text-primary)]">
-                  Nenhum artigo encontrado nesta visualização
+                  {t('noPapersInViewTitle')}
                 </div>
                 <p className="text-[13.5px] text-[var(--text-muted)]">
                   {onlyOpenAccess
-                    ? 'Nenhum artigo com acesso aberto direto corresponde aos filtros atuais. Desmarque "Somente Open Access" para ampliar.'
+                    ? t('noOpenAccessMatchDesc')
                     : selectedSource !== 'all'
-                    ? `${activeSourceStatus?.label ?? 'Esta base'} concluiu sem correspondências para esta consulta.`
-                    : 'Nenhuma das bases consultadas retornou correspondências para os termos informados.'}
+                    ? t('noSourceMatchDesc', {
+                        label: activeSourceStatus?.label ?? t('noSourceFallbackName'),
+                      })
+                    : t('noAllSourcesMatchDesc')}
                 </p>
               </>
             )}
@@ -705,13 +744,22 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             const assignedGroupId = savedPaperGroupMap[paper.id] ?? null;
             const isExpanded = Boolean(expandedAbstracts[paper.id]);
             const isStructuredExpanded = Boolean(expandedStructured[paper.id]);
-            const meta = parseAbstractMetadata(paper.title, paper.abstractText, paper.publicationType);
+            const meta = parseAbstractMetadata(
+              paper.title,
+              paper.abstractText,
+              paper.publicationType,
+              language
+            );
+            const relevance = relevanceBreakdownMap[paper.id];
             const safePaperUrl = sanitizeExternalUrl(paper.url);
             const safePdfUrl = sanitizeExternalUrl(paper.pdfUrl);
+            const safeProxyDoiUrl = institutionalProxy
+              ? sanitizeExternalUrl(buildDoiProxyUrl(paper.doi, institutionalProxy))
+              : null;
 
             return (
               <article key={paper.id} className="group">
-                {/* Title Row + Direct PDF Link (Google Scholar Pattern) */}
+                {/* Title Row + Direct PDF / Institutional Proxy Links (Google Scholar Pattern) */}
                 <div className="flex items-baseline justify-between gap-4">
                   <h3 className="text-[19px] font-medium leading-snug">
                     {safePaperUrl ? (
@@ -728,16 +776,28 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     )}
                   </h3>
 
-                  {safePdfUrl && (
-                    <a
-                      href={safePdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[13px] font-medium text-[var(--meta-green)] hover:underline"
-                    >
-                      [PDF] {paper.sourceLabel.split(' ')[0]}
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    {safePdfUrl && (
+                      <a
+                        href={safePdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] font-medium text-[var(--meta-green)] hover:underline"
+                      >
+                        [PDF] {paper.sourceLabel.split(' ')[0]}
+                      </a>
+                    )}
+                    {safeProxyDoiUrl && (
+                      <a
+                        href={safeProxyDoiUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] font-medium text-[var(--link-academic)] hover:underline"
+                      >
+                        {t('proxyDoiButton')}
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 {/* Green Academic Metadata Line */}
@@ -808,8 +868,8 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                           <FileText className="w-3.5 h-3.5" />
                           <span>
                             {isStructuredExpanded
-                              ? 'Ocultar Seções Estruturadas'
-                              : 'Ver Resumo Estruturado'}
+                              ? t('hideStructuredSections')
+                              : t('viewStructuredAbstract')}
                           </span>
                         </button>
                       )}
@@ -820,25 +880,25 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                       <div className="mt-2.5 p-3.5 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-subtle)] space-y-2 text-[13.5px]">
                         {meta.objective && (
                           <div>
-                            <span className="font-semibold text-[var(--text-primary)]">Objetivo: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">{t('labelObjective')} </span>
                             <span className="text-[var(--text-secondary)]">{meta.objective}</span>
                           </div>
                         )}
                         {meta.methods && (
                           <div>
-                            <span className="font-semibold text-[var(--text-primary)]">Métodos / Casuística: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">{t('labelMethodsSample')} </span>
                             <span className="text-[var(--text-secondary)]">{meta.methods}</span>
                           </div>
                         )}
                         {meta.results && (
                           <div>
-                            <span className="font-semibold text-[var(--text-primary)]">Resultados: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">{t('labelResults')} </span>
                             <span className="text-[var(--text-secondary)]">{meta.results}</span>
                           </div>
                         )}
                         {meta.conclusion && (
                           <div>
-                            <span className="font-semibold text-[var(--text-primary)]">Conclusão: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">{t('labelConclusion')} </span>
                             <span className="text-[var(--text-secondary)]">{meta.conclusion}</span>
                           </div>
                         )}
@@ -862,16 +922,15 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                       {isSaved ? (
                         <>
                           <BookmarkCheck className="w-4 h-4" />
-                          <span>Salvo</span>
+                          <span>{t('savedShort')}</span>
                         </>
                       ) : (
                         <>
                           <Bookmark className="w-4 h-4" />
                           <span>
-                            Salvar
-                            {activeSaveGroupId &&
-                              groups.find((g) => g.id === activeSaveGroupId) &&
-                              ` em "${groups.find((g) => g.id === activeSaveGroupId)?.name}"`}
+                            {activeSaveGroupObj
+                              ? t('saveIntoGroup', { name: activeSaveGroupObj.name })
+                              : t('saveShort')}
                           </span>
                         </>
                       )}
@@ -885,12 +944,12 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                           onAssignPaperGroup(paper.id, e.target.value ? e.target.value : null)
                         }
                         className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-medium text-[var(--text-primary)] cursor-pointer"
-                        title="Alterar grupo / slot deste artigo"
+                        title={t('changePaperGroupTitle')}
                       >
-                        <option value="">Sem grupo</option>
+                        <option value="">{t('ungroupedShort')}</option>
                         {groups.map((g) => (
                           <option key={g.id} value={g.id}>
-                            Slot: {g.name}
+                            {t('slotPrefix')} {g.name}
                           </option>
                         ))}
                       </select>
@@ -898,11 +957,35 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   </div>
 
                   <span>
-                    Citado por {paper.citationCount}
+                    {t('citedByCount', { count: paper.citationCount })}
                   </span>
 
+                  {relevance && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)]"
+                      title={t('relevanceBreakdownTitle', {
+                        lexical: relevance.lexicalScore,
+                        sources: relevance.sourcesCount,
+                        sourcesLabel:
+                          relevance.sourcesCount === 1
+                            ? t('sourceCountSingular')
+                            : t('sourceCountPlural'),
+                        consensus: relevance.consensusScore,
+                        impact: relevance.impactRecencyScore,
+                        quality: relevance.qualityAccessScore,
+                      })}
+                    >
+                      {t('relevanceScoreBadge', { score: Math.round(relevance.totalScore) })}
+                      {relevance.sourcesCount > 1 && (
+                        <span className="text-[var(--link-academic)]">
+                          · {t('corroboratedSourcesBadge', { count: relevance.sourcesCount })}
+                        </span>
+                      )}
+                    </span>
+                  )}
+
                   <div className="inline-flex items-center gap-2">
-                    <span>Citar:</span>
+                    <span>{t('citePrefix')}</span>
                     {(['abnt', 'apa', 'bibtex'] as const).map((fmt) => {
                       const isCopied = copiedKey === `${paper.id}-${fmt}`;
                       return (
@@ -940,8 +1023,9 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           <div className="mt-7 pt-4 border-t border-[var(--border-subtle)] flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--link-academic)]" />
             <span>
-              Aguardando mais {loadingSourcesCount}{' '}
-              {loadingSourcesCount === 1 ? 'base científica...' : 'bases científicas...'}
+              {loadingSourcesCount === 1
+                ? t('waitingMoreSourcesSingular')
+                : t('waitingMoreSourcesPlural', { count: loadingSourcesCount })}
             </span>
           </div>
         )}

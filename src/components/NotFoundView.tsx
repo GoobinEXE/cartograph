@@ -34,30 +34,6 @@ const NOT_FOUND_COPY = {
     btnSearch: 'Focus Search Bar',
     pathLabel: 'Requested path:',
   },
-  es: {
-    code: 'HTTP 404 · COORDENADA NO ENCONTRADA',
-    title: 'Esta ruta no existe en el índice de Cartograph',
-    description:
-      'La ruta solicitada no corresponde a una vista activa o documento técnico de Cartograph. Utilice los accesos directos para volver al directorio de 111 plataformas científicas, consultar las 15 APIs federadas o revisar su biblioteca PRISMA 2020.',
-    btnPlatforms: 'Directorio de 111 Plataformas',
-    btnFederated: 'Metabuscador (15 APIs)',
-    btnSaved: 'Biblioteca y PRISMA 2020',
-    btnAbout: 'Documentación y Licencias',
-    btnSearch: 'Enfocar Barra de Búsqueda',
-    pathLabel: 'Ruta solicitada:',
-  },
-  fr: {
-    code: 'HTTP 404 · COORDONNÉE INTROUVABLE',
-    title: "Cette route n'existe pas dans l'index Cartograph",
-    description:
-      "Le chemin demandé ne correspond pas à une vue active ou à un document technique de Cartograph. Utilisez les raccourcis ci-dessous pour revenir au répertoire des 111 plateformes scientifiques, interroger les 15 API fédérées ou consulter votre bibliothèque PRISMA 2020.",
-    btnPlatforms: 'Répertoire des 111 Plateformes',
-    btnFederated: 'Métamoteur (15 APIs)',
-    btnSaved: 'Bibliothèque & PRISMA 2020',
-    btnAbout: 'Documentation & Licences',
-    btnSearch: 'Rechercher un article',
-    pathLabel: 'Chemin demandé :',
-  },
 } as const;
 
 export const NotFoundView: React.FC<NotFoundViewProps> = ({

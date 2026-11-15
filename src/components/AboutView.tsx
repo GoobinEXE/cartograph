@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import { PLATFORMS } from '../data/platforms';
+import { useI18n } from '../i18n/context';
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,147 +28,165 @@ interface AboutViewProps {
   onNavigateTab?: (tab: 'platforms' | 'federated' | 'saved' | 'feedback' | 'about') => void;
 }
 
-const FEDERATED_APIS_LIST = [
+interface FederatedApiDoc {
+  name: string;
+  org: string;
+  license: string;
+  licenseEn: string;
+  scope: string;
+  scopeEn: string;
+}
+
+const FEDERATED_APIS_LIST: FederatedApiDoc[] = [
   {
     name: 'OpenAlex API',
     org: 'OurResearch',
     license: 'CC0 1.0 (Domínio Público)',
-    scope: 'Mais de 250 milhões de obras científicas, conceitos, grafo de citações e links diretos de PDF em Acesso Aberto.',
+    licenseEn: 'CC0 1.0 (Public Domain)',
+    scope:
+      'Mais de 250 milhões de obras científicas, conceitos, grafo de citações e links diretos de PDF em Acesso Aberto.',
+    scopeEn:
+      'Over 250 million scholarly works, concepts, citation graphs, and direct Open Access PDF links.',
   },
   {
     name: 'Semantic Scholar Graph API',
     org: 'Allen Institute for AI (AI2)',
     license: 'AI2 Open Research Corpus',
-    scope: 'Indexação multidisciplinar, métricas de citações influentes, resumos estruturados e localização de PDFs abertos.',
+    licenseEn: 'AI2 Open Research Corpus',
+    scope:
+      'Indexação multidisciplinar, métricas de citações influentes, resumos estruturados e localização de PDFs abertos.',
+    scopeEn:
+      'Multidisciplinary indexing, influential citation metrics, structured abstracts, and open PDF discovery.',
   },
   {
     name: 'PubMed / MEDLINE (NCBI Entrez)',
     org: 'National Library of Medicine (NIH)',
     license: 'NLM Public Domain / Open',
-    scope: 'Base biomédica e clínica oficial com resolução de identificadores PMID, PMCID, vocabulário MeSH e textos completos no PMC.',
+    licenseEn: 'NLM Public Domain / Open',
+    scope:
+      'Base biomédica e clínica oficial com resolução de identificadores PMID, PMCID, vocabulário MeSH e textos completos no PMC.',
+    scopeEn:
+      'Official biomedical and clinical database with PMID, PMCID, MeSH vocabulary, and PubMed Central full-text resolution.',
   },
   {
     name: 'Europe PMC REST API',
     org: 'EMBL-EBI',
     license: 'EMBL-EBI Open Science',
-    scope: 'Literatura europeia e global em ciências da vida, biociências e ensaios clínicos com rastreamento de financiamento.',
+    licenseEn: 'EMBL-EBI Open Science',
+    scope:
+      'Literatura europeia e global em ciências da vida, biociências e ensaios clínicos com rastreamento de financiamento.',
+    scopeEn:
+      'European and global life sciences literature, biosciences, and clinical trials with funding attribution.',
   },
   {
     name: 'arXiv API',
     org: 'Cornell University',
     license: 'arXiv Open Metadata',
-    scope: 'Repositório primário de preprints em Ciência da Computação, Física, Matemática, Biologia Quantitativa, Estatística e Economia.',
+    licenseEn: 'arXiv Open Metadata',
+    scope:
+      'Repositório primário de preprints em Ciência da Computação, Física, Matemática, Biologia Quantitativa, Estatística e Economia.',
+    scopeEn:
+      'Primary preprint repository for Computer Science, Physics, Mathematics, Quantitative Biology, Statistics, and Economics.',
   },
   {
     name: 'Crossref REST API',
     org: 'Crossref DOI Foundation',
     license: 'CC0 1.0 (Metadados)',
-    scope: 'Registro mundial de Digital Object Identifiers (DOIs) e metadados editoriais auditados de periódicos revisados por pares.',
+    licenseEn: 'CC0 1.0 (Metadata)',
+    scope:
+      'Registro mundial de Digital Object Identifiers (DOIs) e metadados editoriais auditados de periódicos revisados por pares.',
+    scopeEn:
+      'Global Digital Object Identifier (DOI) registry and audited publisher metadata for peer-reviewed journals.',
   },
   {
     name: 'DOAJ API v4',
     org: 'Directory of Open Access Journals',
     license: 'CC0 / Open Access',
-    scope: 'Artigos publicados exclusivamente em periódicos científicos de Acesso Aberto com revisão por pares auditada.',
+    licenseEn: 'CC0 / Open Access',
+    scope:
+      'Artigos publicados exclusivamente em periódicos científicos de Acesso Aberto com revisão por pares auditada.',
+    scopeEn:
+      'Articles published exclusively in audited, peer-reviewed Open Access scientific journals.',
   },
   {
     name: 'Zenodo / OpenAIRE API',
     org: 'CERN',
     license: 'CERN Open Data / CC',
-    scope: 'Conjuntos de dados empíricos, pacotes de replicação, softwares científicos e relatórios técnicos depositados no CERN.',
+    licenseEn: 'CERN Open Data / CC',
+    scope:
+      'Conjuntos de dados empíricos, pacotes de replicação, softwares científicos e relatórios técnicos depositados no CERN.',
+    scopeEn:
+      'Empirical datasets, replication packages, scientific software, and technical reports hosted by CERN.',
   },
   {
     name: 'HAL Open Science API',
     org: 'CNRS (França)',
     license: 'Open Archive France',
-    scope: 'Repositório nacional multi-institucional francês com mais de 3,5 milhões de artigos e teses acadêmicas.',
+    licenseEn: 'Open Archive France',
+    scope:
+      'Repositório nacional multi-institucional francês com mais de 3,5 milhões de artigos e teses acadêmicas.',
+    scopeEn:
+      'French national multi-institutional open repository with over 3.5 million scholarly articles and theses.',
   },
   {
     name: 'DataCite Commons API',
     org: 'DataCite e.V.',
     license: 'CC0 1.0 (Domínio Público)',
-    scope: 'Consórcio global de DOIs para datasets, repositórios institucionais, OSF Preprints, Dryad e Figshare.',
+    licenseEn: 'CC0 1.0 (Public Domain)',
+    scope:
+      'Consórcio global de DOIs para datasets, repositórios institucionais, OSF Preprints, Dryad e Figshare.',
+    scopeEn:
+      'Global DOI consortium covering datasets, institutional repositories, OSF Preprints, Dryad, and Figshare.',
   },
   {
     name: 'INSPIRE-HEP API',
     org: 'CERN / DESY / Fermilab / SLAC',
     license: 'CC0 / Open High-Energy Physics',
-    scope: 'Literatura internacional de física de altas energias, aceleradores, cosmologia e computação quântica.',
+    licenseEn: 'CC0 / Open High-Energy Physics',
+    scope:
+      'Literatura internacional de física de altas energias, aceleradores, cosmologia e computação quântica.',
+    scopeEn:
+      'International high-energy physics, particle accelerators, cosmology, and quantum computing literature.',
   },
   {
     name: 'Figshare REST API v2',
     org: 'Digital Science',
     license: 'CC0 / CC-BY',
-    scope: 'Repositório de dados suplementares, figuras técnicas, scripts de análise e resultados experimentais abertos.',
+    licenseEn: 'CC0 / CC-BY',
+    scope:
+      'Repositório de dados suplementares, figuras técnicas, scripts de análise e resultados experimentais abertos.',
+    scopeEn:
+      'Repository for supplementary datasets, technical figures, analysis scripts, and open experimental outputs.',
   },
   {
     name: 'GBIF Literature API',
     org: 'Global Biodiversity Information Facility',
     license: 'CC0 / CC-BY',
-    scope: 'Publicações revisadas por pares que utilizam dados globais de biodiversidade, ecologia e modelagem climática.',
+    licenseEn: 'CC0 / CC-BY',
+    scope:
+      'Publicações revisadas por pares que utilizam dados globais de biodiversidade, ecologia e modelagem climática.',
+    scopeEn:
+      'Peer-reviewed publications citing global biodiversity, ecology, and climate modeling records.',
   },
   {
     name: 'OSTI.GOV API',
     org: 'U.S. Department of Energy (DOE)',
     license: 'U.S. Government Open Data',
-    scope: 'Relatórios técnicos, patentes energéticas e resultados de pesquisa dos laboratórios nacionais dos Estados Unidos.',
+    licenseEn: 'U.S. Government Open Data',
+    scope:
+      'Relatórios técnicos, patentes energéticas e resultados de pesquisa dos laboratórios nacionais dos Estados Unidos.',
+    scopeEn:
+      'Technical reports, energy patents, and research outputs from U.S. Department of Energy national laboratories.',
   },
   {
     name: 'NASA NTRS API',
     org: 'NASA STI Program',
     license: 'U.S. Government Public Domain',
-    scope: 'NASA Technical Reports Server com estudos de engenharia aeroespacial, propulsão, ciência planetária e materiais.',
-  },
-];
-
-const CITATION_FORMATS = {
-  abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString('pt-BR')}.`,
-  apa: `Cartograph. (2026). Cartograph: Scientific Metasearch Hub & PRISMA 2020 Systematic Review Workstation (Version 2.4) [Computer software]. https://cartographsearch.com`,
-  bibtex: `@software{cartograph_2026,
-  author       = {{Cartograph}},
-  title        = {{Cartograph: Scientific Metasearch Hub and PRISMA 2020 Systematic Review Workstation}},
-  year         = {2026},
-  version      = {2.4.0},
-  url          = {https://cartographsearch.com},
-  note         = {Federated metasearch across 15 open scientific APIs and 111 curated academic platforms}
-}`,
-};
-
-const SECTIONS_META: {
-  id: AboutSectionId;
-  label: string;
-  shortDesc: string;
-  icon: React.FC<{ className?: string }>;
-}[] = [
-  {
-    id: 'cartograph',
-    label: 'Sobre o Cartograph',
-    shortDesc: 'Arquitetura, deduplicação e PRISMA 2020',
-    icon: BookOpen,
-  },
-  {
-    id: 'apis',
-    label: '15 APIs Federadas',
-    shortDesc: 'Especificação das fontes em tempo real',
-    icon: Database,
-  },
-  {
-    id: 'citation',
-    label: 'Como Citar',
-    shortDesc: 'ABNT NBR 6023, APA 7ª Ed. e BibTeX',
-    icon: FileText,
-  },
-  {
-    id: 'copyright',
-    label: 'Direitos Autorais & Licenças',
-    shortDesc: 'Copyright, marcas de terceiros e CC0',
-    icon: Scale,
-  },
-  {
-    id: 'privacy',
-    label: 'Privacidade (LGPD) & Termos',
-    shortDesc: 'Proteção de dados Local-First e termos de uso',
-    icon: Lock,
+    licenseEn: 'U.S. Government Public Domain',
+    scope:
+      'NASA Technical Reports Server com estudos de engenharia aeroespacial, propulsão, ciência planetária e materiais.',
+    scopeEn:
+      'NASA Technical Reports Server covering aerospace engineering, propulsion, planetary science, and materials.',
   },
 ];
 
@@ -176,11 +195,74 @@ export const AboutView: React.FC<AboutViewProps> = ({
   onSelectSection,
   onNavigateTab,
 }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [internalSection, setInternalSection] = useState<AboutSectionId>('cartograph');
   const [copiedCitation, setCopiedCitation] = useState<'abnt' | 'apa' | 'bibtex' | null>(null);
 
   const currentSection = controlledSection ?? internalSection;
   const currentYear = new Date().getFullYear();
+
+  const citationFormats = {
+    abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR')}.`,
+    apa: `Cartograph. (2026). Cartograph: Scientific Metasearch Hub & PRISMA 2020 Systematic Review Workstation (Version 2.4) [Computer software]. https://cartographsearch.com`,
+    bibtex: `@software{cartograph_2026,
+  author       = {{Cartograph}},
+  title        = {{Cartograph: Scientific Metasearch Hub and PRISMA 2020 Systematic Review Workstation}},
+  year         = {2026},
+  version      = {2.4.0},
+  url          = {https://cartographsearch.com},
+  note         = {Federated metasearch across 15 open scientific APIs and ${PLATFORMS.length} curated academic platforms}
+}`,
+  };
+
+  const sectionsMeta: {
+    id: AboutSectionId;
+    label: string;
+    shortDesc: string;
+    icon: React.FC<{ className?: string }>;
+  }[] = [
+    {
+      id: 'cartograph',
+      label: isEn ? 'About Cartograph' : 'Sobre o Cartograph',
+      shortDesc: isEn
+        ? 'Architecture, deduplication, and PRISMA 2020'
+        : 'Arquitetura, deduplicação e PRISMA 2020',
+      icon: BookOpen,
+    },
+    {
+      id: 'apis',
+      label: isEn ? '15 Federated APIs' : '15 APIs Federadas',
+      shortDesc: isEn
+        ? 'Real-time open source specifications'
+        : 'Especificação das fontes em tempo real',
+      icon: Database,
+    },
+    {
+      id: 'citation',
+      label: isEn ? 'How to Cite' : 'Como Citar',
+      shortDesc: isEn
+        ? 'ABNT NBR 6023, APA 7th Ed., and BibTeX'
+        : 'ABNT NBR 6023, APA 7ª Ed. e BibTeX',
+      icon: FileText,
+    },
+    {
+      id: 'copyright',
+      label: isEn ? 'Copyright & Licenses' : 'Direitos Autorais & Licenças',
+      shortDesc: isEn
+        ? 'Software copyright, third-party marks, and CC0'
+        : 'Copyright, marcas de terceiros e CC0',
+      icon: Scale,
+    },
+    {
+      id: 'privacy',
+      label: isEn ? 'Privacy (LGPD / GDPR) & Terms' : 'Privacidade (LGPD) & Termos',
+      shortDesc: isEn
+        ? 'Local-First data protection and terms of use'
+        : 'Proteção de dados Local-First e termos de uso',
+      icon: Lock,
+    },
+  ];
 
   const handleSelectSection = (sec: AboutSectionId) => {
     if (onSelectSection) {
@@ -191,14 +273,14 @@ export const AboutView: React.FC<AboutViewProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const currentIndex = SECTIONS_META.findIndex((s) => s.id === currentSection);
-  const prevSection = currentIndex > 0 ? SECTIONS_META[currentIndex - 1] : null;
+  const currentIndex = sectionsMeta.findIndex((s) => s.id === currentSection);
+  const prevSection = currentIndex > 0 ? sectionsMeta[currentIndex - 1] : null;
   const nextSection =
-    currentIndex < SECTIONS_META.length - 1 ? SECTIONS_META[currentIndex + 1] : null;
+    currentIndex < sectionsMeta.length - 1 ? sectionsMeta[currentIndex + 1] : null;
 
   const handleCopyCitation = async (format: 'abnt' | 'apa' | 'bibtex') => {
     try {
-      await navigator.clipboard.writeText(CITATION_FORMATS[format]);
+      await navigator.clipboard.writeText(citationFormats[format]);
       setCopiedCitation(format);
       setTimeout(() => setCopiedCitation(null), 2200);
     } catch {
@@ -208,12 +290,15 @@ export const AboutView: React.FC<AboutViewProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-8 xl:gap-12 items-start pb-16">
-      {/* COLUNA ESQUERDA: NAVEGAÇÃO DOCUMENTAL & FICHA TÉCNICA */}
+      {/* LEFT SIDEBAR: DOCUMENT NAVIGATION & TECHNICAL SPEC */}
       <aside
         className="space-y-6 lg:sticky lg:top-24"
-        aria-label="Navegação institucional e documentação legal"
+        aria-label={
+          isEn
+            ? 'Institutional navigation and legal documentation'
+            : 'Navegação institucional e documentação legal'
+        }
       >
-        {/* Bloco de Assinatura Institucional */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2.5">
             <PrismMonogram className="h-7 w-auto shrink-0" />
@@ -221,23 +306,29 @@ export const AboutView: React.FC<AboutViewProps> = ({
               <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
                 Cartograph
               </div>
-              <div className="text-xs text-[var(--text-muted)]">Versão 2.4</div>
+              <div className="text-xs text-[var(--text-muted)]">
+                {isEn ? 'Version 2.4' : 'Versão 2.4'}
+              </div>
             </div>
           </div>
 
           <PrismSpectralBar className="h-[2px] w-full opacity-85" />
 
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            Documentação técnica, diretrizes metodológicas e termos legais do sistema.
+            {isEn
+              ? 'Technical documentation, methodological guidelines, and legal terms.'
+              : 'Documentação técnica, diretrizes metodológicas e termos legais do sistema.'}
           </p>
         </div>
 
-        {/* Menu de Seções */}
-        <nav className="space-y-1" aria-label="Seções da página Sobre">
+        <nav
+          className="space-y-1"
+          aria-label={isEn ? 'About page sections' : 'Seções da página Sobre'}
+        >
           <div className="px-3 pb-2 text-xs font-semibold text-[var(--text-muted)]">
-            Sumário da Documentação
+            {isEn ? 'Documentation Contents' : 'Sumário da Documentação'}
           </div>
-          {SECTIONS_META.map((sec) => {
+          {sectionsMeta.map((sec) => {
             const Icon = sec.icon;
             const isActive = currentSection === sec.id;
             return (
@@ -263,26 +354,37 @@ export const AboutView: React.FC<AboutViewProps> = ({
           })}
         </nav>
 
-        {/* Ficha Técnica Resumida */}
         <div className="border-t border-[var(--divider)] pt-5 px-2 space-y-3 text-sm">
           <div className="text-xs font-semibold text-[var(--text-muted)]">
-            Ficha Técnica
+            {isEn ? 'Technical Specifications' : 'Ficha Técnica'}
           </div>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">Plataformas Curadas</dt>
-              <dd className="font-medium text-[var(--text-primary)]">{PLATFORMS.length} portais</dd>
+              <dt className="text-[var(--text-muted)]">
+                {isEn ? 'Curated Platforms' : 'Plataformas Curadas'}
+              </dt>
+              <dd className="font-medium text-[var(--text-primary)]">
+                {PLATFORMS.length} {isEn ? 'portals' : 'portais'}
+              </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">APIs em Tempo Real</dt>
-              <dd className="font-medium text-[var(--text-primary)]">15 fontes abertas</dd>
+              <dt className="text-[var(--text-muted)]">
+                {isEn ? 'Real-Time APIs' : 'APIs em Tempo Real'}
+              </dt>
+              <dd className="font-medium text-[var(--text-primary)]">
+                {isEn ? '15 open sources' : '15 fontes abertas'}
+              </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">Diretriz de Triagem</dt>
+              <dt className="text-[var(--text-muted)]">
+                {isEn ? 'Screening Guideline' : 'Diretriz de Triagem'}
+              </dt>
               <dd className="font-medium text-[var(--meta-green)]">PRISMA 2020</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">Persistência de Dados</dt>
+              <dt className="text-[var(--text-muted)]">
+                {isEn ? 'Data Persistence' : 'Persistência de Dados'}
+              </dt>
               <dd className="font-medium text-[var(--text-primary)]">Local-First</dd>
             </div>
           </dl>
@@ -294,7 +396,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 onClick={() => onNavigateTab('platforms')}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--link-academic)] transition-colors cursor-pointer"
               >
-                <span>Ir para o Diretório de Bases</span>
+                <span>{isEn ? 'Go to Platforms Directory' : 'Ir para o Diretório de Bases'}</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
               <button
@@ -302,7 +404,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 onClick={() => onNavigateTab('feedback')}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               >
-                <span>Enviar Sugestão ou Relato</span>
+                <span>{isEn ? 'Submit Suggestion or Report' : 'Enviar Sugestão ou Relato'}</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -310,78 +412,118 @@ export const AboutView: React.FC<AboutViewProps> = ({
         </div>
       </aside>
 
-      {/* COLUNA DIREITA: CONTEÚDO EDITORIAL COM TIPOGRAFIA DE LEITURA ACADÊMICA */}
+      {/* RIGHT CONTENT COLUMN */}
       <div className="min-w-0 bg-[var(--bg-secondary)]/50 rounded-2xl p-6 sm:p-10 lg:p-12 border border-[var(--divider)]">
-        {/* SEÇÃO 1: SOBRE O CARTOGRAPH */}
+        {/* SECTION 1: ABOUT CARTOGRAPH */}
         {currentSection === 'cartograph' && (
           <article className="space-y-8 max-w-4xl">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
-                Arquitetura e Metodologia Científica
+                {isEn
+                  ? 'Architecture and Scientific Methodology'
+                  : 'Arquitetura e Metodologia Científica'}
               </div>
               <div className="flex items-center gap-3.5">
                 <PrismMonogram className="h-9 w-auto shrink-0" />
                 <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                  Sobre o Cartograph
+                  {isEn ? 'About Cartograph' : 'Sobre o Cartograph'}
                 </h1>
               </div>
               <p className="text-base sm:text-lg text-[var(--text-secondary)] leading-relaxed pt-1">
-                O <strong>Cartograph</strong> é um hub de metabusca científica, tecnológica e acadêmica projetado para pesquisadores, docentes, pós-graduandos e equipes de revisão sistemática de literatura.
+                {isEn ? (
+                  <>
+                    <strong>Cartograph</strong> is a scientific, technical, and academic metasearch hub designed for researchers, faculty, graduate students, and systematic review teams.
+                  </>
+                ) : (
+                  <>
+                    O <strong>Cartograph</strong> é um hub de metabusca científica, tecnológica e acadêmica projetado para pesquisadores, docentes, pós-graduandos e equipes de revisão sistemática de literatura.
+                  </>
+                )}
               </p>
             </header>
 
             <div className="space-y-6 text-base text-[var(--text-primary)] leading-relaxed">
               <p className="text-[var(--text-secondary)]">
-                A produção científica contemporânea encontra-se distribuída em centenas de repositórios institucionais, bases governamentais, servidores de preprints e editoras comerciais. O Cartograph unifica a descoberta bibliográfica em uma interface de comando única, combinando <strong>consulta federada direta em 15 APIs abertas</strong> com um <strong>catálogo estruturado de {PLATFORMS.length} plataformas especializadas</strong>.
+                {isEn ? (
+                  <>
+                    Contemporary scientific output is distributed across institutional repositories, government archives, preprint servers, and commercial publishers. Cartograph unifies bibliographic discovery in one command interface, combining <strong>direct federated search across 15 open APIs</strong> with a <strong>curated directory of {PLATFORMS.length} specialized platforms</strong>.
+                  </>
+                ) : (
+                  <>
+                    A produção científica contemporânea encontra-se distribuída em centenas de repositórios institucionais, bases governamentais, servidores de preprints e editoras comerciais. O Cartograph unifica a descoberta bibliográfica em uma interface de comando única, combinando <strong>consulta federada direta em 15 APIs abertas</strong> com um <strong>catálogo estruturado de {PLATFORMS.length} plataformas especializadas</strong>.
+                  </>
+                )}
               </p>
 
               <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)] pt-2">
-                Pilares Técnicos e Operacionais
+                {isEn ? 'Technical and Operational Architecture' : 'Pilares Técnicos e Operacionais'}
               </h2>
 
               <div className="divide-y divide-[var(--divider)] border-y border-[var(--divider)]">
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    Metabusca Federada em 15 APIs Abertas
+                    {isEn ? 'Federated Search Across 15 Open APIs' : 'Metabusca Federada em 15 APIs Abertas'}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    Consulta assíncrona paralela em bases mundiais como OpenAlex, Semantic Scholar, PubMed/MEDLINE, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV e NASA NTRS. Caso uma base externa apresente latência elevada ou limite de requisições, as demais continuam operando sem interrupção.
+                    {isEn
+                      ? 'Parallel asynchronous querying across OpenAlex, Semantic Scholar, PubMed/MEDLINE, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV, and NASA NTRS. If one external source experiences high latency or rate limiting, the remaining sources continue returning results without interruption.'
+                      : 'Consulta assíncrona paralela em bases mundiais como OpenAlex, Semantic Scholar, PubMed/MEDLINE, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV e NASA NTRS. Caso uma base externa apresente latência elevada ou limite de requisições, as demais continuam operando sem interrupção.'}
                   </div>
                 </div>
 
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    Deduplicação Determinística em 3 Níveis
+                    {isEn ? '3-Level Deterministic Deduplication' : 'Deduplicação Determinística em 3 Níveis'}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    Quando o mesmo estudo retorna de múltiplas APIs, o motor de deduplicação executa três verificações sequenciais: normalização canônica de DOI, cruzamento exato de identificadores (PMID e arXiv ID) e cálculo de similaridade textual Jaro-Winkler combinada à distância de Levenshtein (limiar ≥ 0,92). Os registros colapsados têm seus metadados fundidos, preservando a maior contagem de citações e o link direto de PDF aberto.
+                    {isEn
+                      ? 'When the same study returns from multiple APIs, the deduplication engine executes three sequential checks: canonical DOI normalization, exact identifier matching (PMID and arXiv ID), and Jaro-Winkler combined with Levenshtein title similarity (threshold ≥ 0.92). Collapsed records merge metadata, preserving the highest citation count and direct open PDF links.'
+                      : 'Quando o mesmo estudo retorna de múltiplas APIs, o motor de deduplicação executa três verificações sequenciais: normalização canônica de DOI, cruzamento exato de identificadores (PMID e arXiv ID) e cálculo de similaridade textual Jaro-Winkler combinada à distância de Levenshtein (limiar ≥ 0,92). Os registros colapsados têm seus metadados fundidos, preservando a maior contagem de citações e o link direto de PDF aberto.'}
                   </div>
                 </div>
 
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    Fluxo Sistemático PRISMA 2020
+                    {isEn ? 'PRISMA 2020 Systematic Flow' : 'Fluxo Sistemático PRISMA 2020'}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    A biblioteca integrada estrutura a triagem segundo a diretriz internacional <strong>PRISMA 2020</strong> (<em>Preferred Reporting Items for Systematic Reviews and Meta-Analyses</em>). O pesquisador organiza seus estudos em diferentes grupos de pesquisa (ou sem grupo), registra decisões de inclusão ou exclusão com justificativa padronizada e gera automaticamente o diagrama oficial de fluxo em formato vetorial SVG e o parágrafo metodológico pronto para publicação.
+                    {isEn ? (
+                      <>
+                        The built-in library structures screening according to the international <strong>PRISMA 2020</strong> guideline (<em>Preferred Reporting Items for Systematic Reviews and Meta-Analyses</em>). Researchers organize studies into isolated research groups (or ungrouped), log inclusion/exclusion decisions with standardized reasons, and automatically generate the vector SVG flow diagram and publication-ready methods paragraph.
+                      </>
+                    ) : (
+                      <>
+                        A biblioteca integrada estrutura a triagem segundo a diretriz internacional <strong>PRISMA 2020</strong> (<em>Preferred Reporting Items for Systematic Reviews and Meta-Analyses</em>). O pesquisador organiza seus estudos em diferentes grupos de pesquisa (ou sem grupo), registra decisões de inclusão ou exclusão com justificativa padronizada e gera automaticamente o diagrama oficial de fluxo em formato vetorial SVG e o parágrafo metodológico pronto para publicação.
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    Extração Metodológica Zero-Alucinação
+                    {isEn ? 'Zero-Hallucination Method Extraction' : 'Extração Metodológica Zero-Alucinação'}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    O Cartograph não utiliza modelos de linguagem generativos para reescrever ou inventar dados bibliográficos. O parser de resumos opera por expressões regulares e vocabulário controlado para destacar Objetivo, Métodos, Tamanho Amostral (<em>N</em>), Desenho de Estudo e Conclusões diretamente do texto original dos autores.
+                    {isEn ? (
+                      <>
+                        Cartograph runs deterministically without generative language models rewriting or fabricating bibliographic data. The abstract parser applies regular expressions and controlled vocabulary to surface Objective, Methods, Sample Size (<em>N</em>), Study Design, and Conclusions directly from author abstracts.
+                      </>
+                    ) : (
+                      <>
+                        O Cartograph não utiliza modelos de linguagem generativos para reescrever ou inventar dados bibliográficos. O parser de resumos opera por expressões regulares e vocabulário controlado para destacar Objetivo, Métodos, Tamanho Amostral (<em>N</em>), Desenho de Estudo e Conclusões diretamente do texto original dos autores.
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    Abertura Multi-Abas e Sessões Institucionais
+                    {isEn ? 'Batch Tab Launch & Institutional Access' : 'Abertura Multi-Abas e Sessões Institucionais'}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    No diretório de {PLATFORMS.length} bases, o pesquisador compila sua expressão booleana uma única vez e dispara a busca simultaneamente nos portais selecionados, aproveitando sua sessão institucional ativa (como Portal de Periódicos CAPES/CAFe ou proxy universitário) e extensões de coleta como o Zotero Connector.
+                    {isEn
+                      ? `In the directory of ${PLATFORMS.length} sources, researchers compile a Boolean query once and dispatch it across selected portals in one batch, reusing active university authentication (such as university EZProxy, Shibboleth, or CAPES CAFe) and browser reference managers such as Zotero Connector.`
+                      : `No diretório de ${PLATFORMS.length} bases, o pesquisador compila sua expressão booleana uma única vez e dispara a busca simultaneamente nos portais selecionados, aproveitando sua sessão institucional ativa (como Portal de Periódicos CAPES/CAFe ou proxy universitário) e extensões de coleta como o Zotero Connector.`}
                   </div>
                 </div>
               </div>
@@ -389,18 +531,22 @@ export const AboutView: React.FC<AboutViewProps> = ({
           </article>
         )}
 
-        {/* SEÇÃO 2: 15 APIs CIENTÍFICAS FEDERADAS */}
+        {/* SECTION 2: 15 FEDERATED SCIENTIFIC APIS */}
         {currentSection === 'apis' && (
           <article className="space-y-8">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
-                Fontes de Dados em Tempo Real
+                {isEn ? 'Real-Time Data Sources' : 'Fontes de Dados em Tempo Real'}
               </div>
               <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                15 APIs Científicas e Tecnológicas Federadas
+                {isEn
+                  ? '15 Federated Scientific and Technical APIs'
+                  : '15 APIs Científicas e Tecnológicas Federadas'}
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-3xl">
-                Relação completa das interfaces de programação (APIs REST/XML) consultadas em paralelo pelo motor de agregação do Cartograph durante a busca integrada.
+                {isEn
+                  ? 'Complete specification of the REST/XML programming interfaces queried in parallel by the Cartograph aggregation engine.'
+                  : 'Relação completa das interfaces de programação (APIs REST/XML) consultadas em paralelo pelo motor de agregação do Cartograph durante a busca integrada.'}
               </p>
             </header>
 
@@ -409,10 +555,10 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 <thead>
                   <tr className="border-b-2 border-[var(--divider)] text-xs font-semibold text-[var(--text-muted)]">
                     <th className="py-3.5 pr-4 w-10">#</th>
-                    <th className="py-3.5 px-4 min-w-[200px]">API / Fonte</th>
-                    <th className="py-3.5 px-4 min-w-[180px]">Instituição Mantenedora</th>
-                    <th className="py-3.5 px-4 min-w-[170px]">Licença de Metadados</th>
-                    <th className="py-3.5 pl-4">Escopo e Cobertura Científica</th>
+                    <th className="py-3.5 px-4 min-w-[200px]">{isEn ? 'API / Source' : 'API / Fonte'}</th>
+                    <th className="py-3.5 px-4 min-w-[180px]">{isEn ? 'Maintaining Organization' : 'Instituição Mantenedora'}</th>
+                    <th className="py-3.5 px-4 min-w-[170px]">{isEn ? 'Metadata License' : 'Licença de Metadados'}</th>
+                    <th className="py-3.5 pl-4">{isEn ? 'Scientific Scope & Coverage' : 'Escopo e Cobertura Científica'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--divider)] text-sm sm:text-base">
@@ -428,10 +574,10 @@ export const AboutView: React.FC<AboutViewProps> = ({
                         {api.org}
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-secondary)] align-top">
-                        {api.license}
+                        {isEn ? api.licenseEn : api.license}
                       </td>
                       <td className="py-4 pl-4 text-[var(--text-secondary)] leading-relaxed align-top">
-                        {api.scope}
+                        {isEn ? api.scopeEn : api.scope}
                       </td>
                     </tr>
                   ))}
@@ -441,18 +587,22 @@ export const AboutView: React.FC<AboutViewProps> = ({
           </article>
         )}
 
-        {/* SEÇÃO 4: COMO CITAR O CARTOGRAPH */}
+        {/* SECTION 3: HOW TO CITE */}
         {currentSection === 'citation' && (
           <article className="space-y-8 max-w-4xl">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
-                Referência Metodológica
+                {isEn ? 'Methodological Reference' : 'Referência Metodológica'}
               </div>
               <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                Como Citar o Cartograph em Trabalhos Acadêmicos
+                {isEn
+                  ? 'How to Cite Cartograph in Academic Work'
+                  : 'Como Citar o Cartograph em Trabalhos Acadêmicos'}
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                Pesquisadores que utilizem a busca federada, o algoritmo de deduplicação multicritério ou o gerador de fluxograma PRISMA 2020 do Cartograph na seção de metodologia de artigos, dissertações ou teses podem utilizar os formatos normativos abaixo.
+                {isEn
+                  ? 'Researchers using federated metasearch, multi-criteria deduplication, or the PRISMA 2020 flowchart generator in manuscripts, dissertations, or theses may use the reference formats below.'
+                  : 'Pesquisadores que utilizem a busca federada, o algoritmo de deduplicação multicritério ou o gerador de fluxograma PRISMA 2020 do Cartograph na seção de metodologia de artigos, dissertações ou teses podem utilizar os formatos normativos abaixo.'}
               </p>
             </header>
 
@@ -462,10 +612,12 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      Padrão ABNT (NBR 6023:2018)
+                      {isEn ? 'ABNT Standard (NBR 6023:2018)' : 'Padrão ABNT (NBR 6023:2018)'}
                     </h2>
                     <p className="text-sm text-[var(--text-muted)]">
-                      Recomendado para teses, dissertações, TCCs e periódicos brasileiros.
+                      {isEn
+                        ? 'Recommended for Brazilian theses, dissertations, and Portuguese-language journals.'
+                        : 'Recomendado para teses, dissertações, TCCs e periódicos brasileiros.'}
                     </p>
                   </div>
                   <button
@@ -478,11 +630,15 @@ export const AboutView: React.FC<AboutViewProps> = ({
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                    <span>{copiedCitation === 'abnt' ? 'Copiado' : 'Copiar ABNT'}</span>
+                    <span>
+                      {copiedCitation === 'abnt'
+                        ? isEn ? 'Copied' : 'Copiado'
+                        : isEn ? 'Copy ABNT' : 'Copiar ABNT'}
+                    </span>
                   </button>
                 </div>
                 <div className="p-4 rounded-lg bg-[var(--bg-secondary)] text-base text-[var(--text-primary)] leading-relaxed break-words">
-                  {CITATION_FORMATS.abnt}
+                  {citationFormats.abnt}
                 </div>
               </div>
 
@@ -491,10 +647,12 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      Padrão APA (7ª Edição)
+                      {isEn ? 'APA Style (7th Edition)' : 'Padrão APA (7ª Edição)'}
                     </h2>
                     <p className="text-sm text-[var(--text-muted)]">
-                      Recomendado para periódicos internacionais, psicologia, ciências sociais e saúde.
+                      {isEn
+                        ? 'Recommended for international journals, psychology, social sciences, and health sciences.'
+                        : 'Recomendado para periódicos internacionais, psicologia, ciências sociais e saúde.'}
                     </p>
                   </div>
                   <button
@@ -507,11 +665,15 @@ export const AboutView: React.FC<AboutViewProps> = ({
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                    <span>{copiedCitation === 'apa' ? 'Copiado' : 'Copiar APA'}</span>
+                    <span>
+                      {copiedCitation === 'apa'
+                        ? isEn ? 'Copied' : 'Copiado'
+                        : isEn ? 'Copy APA' : 'Copiar APA'}
+                    </span>
                   </button>
                 </div>
                 <div className="p-4 rounded-lg bg-[var(--bg-secondary)] text-base text-[var(--text-primary)] leading-relaxed break-words">
-                  {CITATION_FORMATS.apa}
+                  {citationFormats.apa}
                 </div>
               </div>
 
@@ -520,10 +682,20 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      Entrada BibTeX (LaTeX / Overleaf / Zotero)
+                      {isEn
+                        ? 'BibTeX Entry (LaTeX / Overleaf / Zotero)'
+                        : 'Entrada BibTeX (LaTeX / Overleaf / Zotero)'}
                     </h2>
                     <p className="text-sm text-[var(--text-muted)]">
-                      Pronto para inclusão direta em arquivos <code>.bib</code>.
+                      {isEn ? (
+                        <>
+                          Ready for direct inclusion in <code>.bib</code> files.
+                        </>
+                      ) : (
+                        <>
+                          Pronto para inclusão direta em arquivos <code>.bib</code>.
+                        </>
+                      )}
                     </p>
                   </div>
                   <button
@@ -536,142 +708,264 @@ export const AboutView: React.FC<AboutViewProps> = ({
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                    <span>{copiedCitation === 'bibtex' ? 'Copiado' : 'Copiar BibTeX'}</span>
+                    <span>
+                      {copiedCitation === 'bibtex'
+                        ? isEn ? 'Copied' : 'Copiado'
+                        : isEn ? 'Copy BibTeX' : 'Copiar BibTeX'}
+                    </span>
                   </button>
                 </div>
                 <pre className="p-4 rounded-lg bg-[var(--bg-secondary)] text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed overflow-x-auto whitespace-pre-wrap">
-                  {CITATION_FORMATS.bibtex}
+                  {citationFormats.bibtex}
                 </pre>
               </div>
             </div>
           </article>
         )}
 
-        {/* SEÇÃO 5: DIREITOS AUTORAIS, PROPRIEDADE INTELECTUAL E LICENÇAS */}
+        {/* SECTION 4: COPYRIGHT & LICENSES */}
         {currentSection === 'copyright' && (
           <article className="space-y-8 max-w-4xl">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
-                Propriedade Intelectual e Direitos Autorais
+                {isEn ? 'Intellectual Property and Copyright' : 'Propriedade Intelectual e Direitos Autorais'}
               </div>
               <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                Direitos Autorais (Copyright) e Licenciamento de Dados
+                {isEn
+                  ? 'Copyright and Data Licensing'
+                  : 'Direitos Autorais (Copyright) e Licenciamento de Dados'}
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                Declaração de titularidade sobre o software Cartograph, marcas de terceiros e regime jurídico dos metadados científicos.
+                {isEn
+                  ? 'Ownership statement for the Cartograph software, third-party trademarks, and scholarly metadata licensing terms.'
+                  : 'Declaração de titularidade sobre o software Cartograph, marcas de terceiros e regime jurídico dos metadados científicos.'}
               </p>
             </header>
 
             <div className="space-y-8 text-base text-[var(--text-secondary)] leading-relaxed">
               <section className="space-y-3">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  1. Titularidade do Software Cartograph
+                  {isEn ? '1. Ownership of the Cartograph Software' : '1. Titularidade do Software Cartograph'}
                 </h2>
                 <p className="font-medium text-[var(--text-primary)]">
-                  © {currentYear} Cartograph. Todos os direitos reservados.
+                  {isEn
+                    ? `© ${currentYear} Cartograph. All rights reserved.`
+                    : `© ${currentYear} Cartograph. Todos os direitos reservados.`}
                 </p>
                 <p>
-                  A marca, o logotipo da lupa cartográfica e o sistema <strong>Cartograph</strong> (compreendendo seu código-fonte, projeto de interface gráfica, motor de deduplicação multicritério, parser determinístico de resumos estruturados, geradores vetoriais PRISMA 2020, compiladores bibliográficos e taxonomia curada de plataformas) são protegidos por direitos de propriedade intelectual.
+                  {isEn ? (
+                    <>
+                      The brand, the prism magnifying glass mark, and the <strong>Cartograph</strong> system (comprising its source code, graphical user interface, multi-criteria deduplication engine, deterministic structured abstract parser, PRISMA 2020 vector generators, citation exporters, and curated platform taxonomy) are protected by intellectual property laws.
+                    </>
+                  ) : (
+                    <>
+                      A marca, o logotipo da lupa cartográfica e o sistema <strong>Cartograph</strong> (compreendendo seu código-fonte, projeto de interface gráfica, motor de deduplicação multicritério, parser determinístico de resumos estruturados, geradores vetoriais PRISMA 2020, compiladores bibliográficos e taxonomia curada de plataformas) são protegidos por direitos de propriedade intelectual.
+                    </>
+                  )}
                 </p>
                 <p>
-                  Estes ativos são amparados pela legislação brasileira de Propriedade Intelectual, Lei do Software (Lei nº 9.609/1998), Lei de Direitos Autorais (Lei nº 9.610/1998) e pelos tratados internacionais aplicáveis (Convenção de Berna e Acordo TRIPS). É vedada a reprodução comercial não autorizada ou redistribuição como serviço próprio.
+                  {isEn
+                    ? 'These assets are protected under Brazilian Intellectual Property legislation (Software Law No. 9.609/1998 and Copyright Law No. 9.610/1998) and applicable international treaties (Berne Convention and TRIPS Agreement). Unauthorized commercial reproduction or redistribution as a standalone service is prohibited.'
+                    : 'Estes ativos são amparados pela legislação brasileira de Propriedade Intelectual, Lei do Software (Lei nº 9.609/1998), Lei de Direitos Autorais (Lei nº 9.610/1998) e pelos tratados internacionais aplicáveis (Convenção de Berna e Acordo TRIPS). É vedada a reprodução comercial não autorizada ou redistribuição como serviço próprio.'}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  2. Marcas de Terceiros e Isenção de Afiliação Editorial
+                  {isEn
+                    ? '2. Third-Party Trademarks and Editorial Independence'
+                    : '2. Marcas de Terceiros e Isenção de Afiliação Editorial'}
                 </h2>
                 <p>
-                  Todas as denominações de bases de dados, periódicos, editoras científicas, índices de citação e repositórios institucionais listados no diretório de {PLATFORMS.length} plataformas (incluindo, sem limitação, <em>Google Scholar, PubMed/MEDLINE, OpenAlex, Semantic Scholar, Crossref, Scopus, Web of Science, IEEE Xplore, ACM Digital Library, SciELO, Portal de Periódicos CAPES, Springer Nature, Elsevier/ScienceDirect, Wiley, Oxford Academic, Cambridge Core, JSTOR, arXiv</em> e <em>CERN Zenodo</em>) constituem marcas registradas ou serviços pertencentes aos seus respectivos titulares e instituições mantenedoras.
+                  {isEn ? (
+                    <>
+                      All database, journal, publisher, citation index, and institutional repository names listed in the {PLATFORMS.length}-platform directory (including, without limitation, <em>Google Scholar, PubMed/MEDLINE, OpenAlex, Semantic Scholar, Crossref, Scopus, Web of Science, IEEE Xplore, ACM Digital Library, SciELO, Portal de Periódicos CAPES, Springer Nature, Elsevier/ScienceDirect, Wiley, Oxford Academic, Cambridge Core, JSTOR, arXiv</em>, and <em>CERN Zenodo</em>) are trademarks or services of their respective owners and maintaining institutions.
+                    </>
+                  ) : (
+                    <>
+                      Todas as denominações de bases de dados, periódicos, editoras científicas, índices de citação e repositórios institucionais listados no diretório de {PLATFORMS.length} plataformas (incluindo, sem limitação, <em>Google Scholar, PubMed/MEDLINE, OpenAlex, Semantic Scholar, Crossref, Scopus, Web of Science, IEEE Xplore, ACM Digital Library, SciELO, Portal de Periódicos CAPES, Springer Nature, Elsevier/ScienceDirect, Wiley, Oxford Academic, Cambridge Core, JSTOR, arXiv</em> e <em>CERN Zenodo</em>) constituem marcas registradas ou serviços pertencentes aos seus respectivos titulares e instituições mantenedoras.
+                    </>
+                  )}
                 </p>
                 <p>
-                  A citação dessas plataformas no Cartograph possui caráter estritamente informativo, acadêmico e de facilitação técnica de consultas, não configurando parceria societária, representação comercial ou endosso oficial por parte de tais editoras ou órgãos governamentais.
+                  {isEn
+                    ? 'References to those platforms inside Cartograph serve strictly informational, academic, and query-routing purposes, and do not imply corporate partnership, commercial representation, or official endorsement by those publishers or government agencies.'
+                    : 'A citação dessas plataformas no Cartograph possui caráter estritamente informativo, acadêmico e de facilitação técnica de consultas, não configurando parceria societária, representação comercial ou endosso oficial por parte de tais editoras ou órgãos governamentais.'}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  3. Licenciamento de Metadados Científicos e Direitos sobre Artigos
+                  {isEn
+                    ? '3. Scientific Metadata Licensing and Full-Text Rights'
+                    : '3. Licenciamento de Metadados Científicos e Direitos sobre Artigos'}
                 </h2>
                 <p>
-                  Os metadados bibliográficos exibidos na busca federada (títulos, nomes de autores, ano de publicação, periódico, identificadores DOI/PMID e contagens de citação) são obtidos em tempo real por meio de APIs públicas sob licenças abertas, tais como a dedicação ao domínio público <strong>CC0 1.0 Universal</strong> (adotada pelo OpenAlex, Crossref e DataCite) e termos de dados abertos da National Library of Medicine (NIH) e do CERN.
+                  {isEn ? (
+                    <>
+                      Bibliographic metadata displayed in federated search (titles, author names, publication years, venues, DOI/PMID identifiers, and citation counts) are retrieved in real time via public APIs under open licenses such as the <strong>CC0 1.0 Universal</strong> public domain dedication (adopted by OpenAlex, Crossref, and DataCite) and open data terms of the National Library of Medicine (NIH) and CERN.
+                    </>
+                  ) : (
+                    <>
+                      Os metadados bibliográficos exibidos na busca federada (títulos, nomes de autores, ano de publicação, periódico, identificadores DOI/PMID e contagens de citação) são obtidos em tempo real por meio de APIs públicas sob licenças abertas, tais como a dedicação ao domínio público <strong>CC0 1.0 Universal</strong> (adotada pelo OpenAlex, Crossref e DataCite) e termos de dados abertos da National Library of Medicine (NIH) e do CERN.
+                    </>
+                  )}
                 </p>
                 <p>
-                  Os direitos autorais sobre os textos completos (arquivos PDF), resumos originais, ilustrações e conjuntos de dados vinculados pertencem integralmente aos respectivos autores, periódicos ou editoras. Cabe ao pesquisador observar a licença específica de cada obra (como Creative Commons <code>CC-BY</code>, <code>CC-BY-NC</code>, <code>CC-BY-ND</code> ou termos de acesso institucional restrito) ao baixar, armazenar ou citar os documentos.
+                  {isEn ? (
+                    <>
+                      Copyright over full-text PDFs, original abstracts, illustrations, and linked datasets belongs exclusively to their respective authors, journals, or publishers. Researchers must observe the license governing each work (such as Creative Commons <code>CC-BY</code>, <code>CC-BY-NC</code>, <code>CC-BY-ND</code>, or institutional subscription terms) when downloading, storing, or citing documents.
+                    </>
+                  ) : (
+                    <>
+                      Os direitos autorais sobre os textos completos (arquivos PDF), resumos originais, ilustrações e conjuntos de dados vinculados pertencem integralmente aos respectivos autores, periódicos ou editoras. Cabe ao pesquisador observar a licença específica de cada obra (como Creative Commons <code>CC-BY</code>, <code>CC-BY-NC</code>, <code>CC-BY-ND</code> ou termos de acesso institucional restrito) ao baixar, armazenar ou citar os documentos.
+                    </>
+                  )}
                 </p>
               </section>
             </div>
           </article>
         )}
 
-        {/* SEÇÃO 6: PRIVACIDADE (LGPD / GDPR) E TERMOS DE USO */}
+        {/* SECTION 5: PRIVACY & TERMS */}
         {currentSection === 'privacy' && (
           <article className="space-y-8 max-w-4xl">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
-                Proteção de Dados e Termos Operacionais
+                {isEn ? 'Data Protection and Operational Terms' : 'Proteção de Dados e Termos Operacionais'}
               </div>
               <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                Política de Privacidade (LGPD / GDPR) e Termos de Uso
+                {isEn
+                  ? 'Privacy Policy (LGPD / GDPR) and Terms of Use'
+                  : 'Política de Privacidade (LGPD / GDPR) e Termos de Uso'}
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                Transparência sobre o armazenamento local de dados do pesquisador, segurança de credenciais institucionais e limites de responsabilidade acadêmica e clínica.
+                {isEn
+                  ? 'Transparency regarding local researcher data storage, institutional credential safety, and academic/clinical liability boundaries.'
+                  : 'Transparência sobre o armazenamento local de dados do pesquisador, segurança de credenciais institucionais e limites de responsabilidade acadêmica e clínica.'}
               </p>
             </header>
 
             <div className="space-y-8 text-base text-[var(--text-secondary)] leading-relaxed">
               <section className="space-y-3">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  1. Conformidade com a LGPD (Lei nº 13.709/2018) e GDPR
+                  {isEn
+                    ? '1. LGPD (Law No. 13.709/2018) and GDPR Compliance'
+                    : '1. Conformidade com a LGPD (Lei nº 13.709/2018) e GDPR'}
                 </h2>
                 <p>
-                  O Cartograph foi concebido segundo os princípios de <em>Privacy-by-Design</em> e minimização de dados previstos na <strong>Lei Geral de Proteção de Dados Pessoais brasileira (Lei nº 13.709/2018, LGPD)</strong>, no Marco Civil da Internet (Lei nº 12.965/2014) e no Regulamento Geral sobre a Proteção de Dados da União Europeia (<strong>GDPR</strong>).
+                  {isEn ? (
+                    <>
+                      Cartograph is designed around <em>Privacy-by-Design</em> and data minimization principles under the <strong>Brazilian General Data Protection Law (Law No. 13.709/2018, LGPD)</strong>, the Brazilian Civil Rights Framework for the Internet (Law No. 12.965/2014), and the European Union <strong>General Data Protection Regulation (GDPR)</strong>.
+                    </>
+                  ) : (
+                    <>
+                      O Cartograph foi concebido segundo os princípios de <em>Privacy-by-Design</em> e minimização de dados previstos na <strong>Lei Geral de Proteção de Dados Pessoais brasileira (Lei nº 13.709/2018, LGPD)</strong>, no Marco Civil da Internet (Lei nº 12.965/2014) e no Regulamento Geral sobre a Proteção de Dados da União Europeia (<strong>GDPR</strong>).
+                    </>
+                  )}
                 </p>
                 <p>
-                  O uso do sistema para pesquisa em plataformas, metabusca federada, construção booleana e revisão sistemática PRISMA 2020 <strong>não exige criação de conta, cadastro de dados pessoais ou rastreamento comportamental</strong>.
+                  {isEn ? (
+                    <>
+                      Using the platform directory, federated metasearch, Boolean builder, and PRISMA 2020 screening tools <strong>requires no account registration, personal profile creation, or behavioral tracking</strong>.
+                    </>
+                  ) : (
+                    <>
+                      O uso do sistema para pesquisa em plataformas, metabusca federada, construção booleana e revisão sistemática PRISMA 2020 <strong>não exige criação de conta, cadastro de dados pessoais ou rastreamento comportamental</strong>.
+                    </>
+                  )}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  2. Armazenamento Estritamente Local (LocalStorage)
+                  {isEn
+                    ? '2. Strictly Local Storage (LocalStorage)'
+                    : '2. Armazenamento Estritamente Local (LocalStorage)'}
                 </h2>
                 <p>
-                  Toda a biblioteca de artigos salvos, grupos de pesquisa, notas de fichamento, classificações de prioridade, justificativas de exclusão PRISMA 2020, seleção de plataformas favoritas e preferências visuais (tema claro/escuro e idioma) são armazenadas exclusivamente no navegador do próprio dispositivo do usuário por meio da API nativa <code>window.localStorage</code>.
+                  {isEn ? (
+                    <>
+                      All saved articles, research groups, screening notes, priority tags, PRISMA 2020 exclusion reasons, selected favorite platforms, and interface preferences (light/dark theme and language) are stored exclusively in the browser on the user&apos;s own device through the native <code>window.localStorage</code> API.
+                    </>
+                  ) : (
+                    <>
+                      Toda a biblioteca de artigos salvos, grupos de pesquisa, notas de fichamento, classificações de prioridade, justificativas de exclusão PRISMA 2020, seleção de plataformas favoritas e preferências visuais (tema claro/escuro e idioma) são armazenadas exclusivamente no navegador do próprio dispositivo do usuário por meio da API nativa <code>window.localStorage</code>.
+                    </>
+                  )}
                 </p>
                 <p>
-                  O pesquisador detém controle total sobre esses registros, podendo exportá-los em CSV, BibTeX ou Backup JSON completo, importar referências <code>.bib</code>/<code>.ris</code> ou excluí-los permanentemente pelo botão de limpeza da biblioteca. Apenas os envios voluntários realizados na aba <em>Feedback & Sugestões</em> transmitem os dados preenchidos no formulário para análise de melhoria do catálogo.
+                  {isEn ? (
+                    <>
+                      Researchers retain full control over these records and can export them as CSV, BibTeX, or full JSON Backup, import <code>.bib</code>/<code>.ris</code> references, or permanently erase them from the library panel. Only voluntary submissions through the <em>Feedback & Suggestions</em> tab transmit the form contents entered there to improve the catalog.
+                    </>
+                  ) : (
+                    <>
+                      O pesquisador detém controle total sobre esses registros, podendo exportá-los em CSV, BibTeX ou Backup JSON completo, importar referências <code>.bib</code>/<code>.ris</code> ou excluí-los permanentemente pelo botão de limpeza da biblioteca. Apenas os envios voluntários realizados na aba <em>Feedback & Sugestões</em> transmitem os dados preenchidos no formulário para análise de melhoria do catálogo.
+                    </>
+                  )}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  3. Segurança de Credenciais Institucionais (CAPES CAFe, Shibboleth e EZProxy)
+                  {isEn
+                    ? '3. Institutional Credential Security (CAPES CAFe, Shibboleth, and EZProxy)'
+                    : '3. Segurança de Credenciais Institucionais (CAPES CAFe, Shibboleth e EZProxy)'}
                 </h2>
                 <p>
-                  O Cartograph <strong>jamais solicita, processa ou intercepta</strong> senhas acadêmicas ou credenciais institucionais. Quando o pesquisador abre portais com acesso assinado (como Periódicos CAPES/CAFe, IEEE, Scopus ou ScienceDirect), a navegação ocorre diretamente em abas nativas do seu navegador padrão, utilizando os cookies e sessões autenticadas diretamente junto à sua universidade ou instituto de pesquisa.
+                  {isEn ? (
+                    <>
+                      Cartograph <strong>never requests, processes, or intercepts</strong> academic passwords or institutional credentials. When opening subscription portals (such as CAPES CAFe, IEEE, Scopus, or ScienceDirect), navigation occurs directly in native tabs of your default browser using the authenticated cookies and sessions held directly with your university or research institute.
+                    </>
+                  ) : (
+                    <>
+                      O Cartograph <strong>jamais solicita, processa ou intercepta</strong> senhas acadêmicas ou credenciais institucionais. Quando o pesquisador abre portais com acesso assinado (como Periódicos CAPES/CAFe, IEEE, Scopus ou ScienceDirect), a navegação ocorre diretamente em abas nativas do seu navegador padrão, utilizando os cookies e sessões autenticadas diretamente junto à sua universidade ou instituto de pesquisa.
+                    </>
+                  )}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  4. Termos de Uso e Isenção de Responsabilidade Clínica, Jurídica e Técnica
+                  {isEn
+                    ? '4. Terms of Use and Clinical, Legal, and Technical Disclaimer'
+                    : '4. Termos de Uso e Isenção de Responsabilidade Clínica, Jurídica e Técnica'}
                 </h2>
                 <p>
-                  O Cartograph é disponibilizado gratuitamente no estado em que se encontra (<em>&ldquo;as is&rdquo;</em>) como instrumento computacional de auxílio à localização, triagem e organização bibliográfica.
+                  {isEn ? (
+                    <>
+                      Cartograph is provided free of charge on an <em>&ldquo;as is&rdquo;</em> basis as a computational tool for bibliographic discovery, screening, and organization.
+                    </>
+                  ) : (
+                    <>
+                      O Cartograph é disponibilizado gratuitamente no estado em que se encontra (<em>&ldquo;as is&rdquo;</em>) como instrumento computacional de auxílio à localização, triagem e organização bibliográfica.
+                    </>
+                  )}
                 </p>
                 <p>
-                  Os artigos médicos, biomédicos, farmacológicos, jurídicos ou de engenharia recuperados por meio das APIs e plataformas refletem unicamente as opiniões e resultados experimentais de seus respectivos autores. Nenhuma informação apresentada pelo Cartograph substitui parecer médico, diagnóstico clínico, prescrição terapêutica, consultoria jurídica ou laudo técnico homologado. É responsabilidade indelegável do pesquisador verificar o status de revisão por pares (<em>peer review</em> vs. <em>preprint</em>), a qualidade metodológica e a eventual retratação de qualquer estudo antes de adotá-lo em sua prática acadêmica ou profissional.
+                  {isEn ? (
+                    <>
+                      Medical, biomedical, pharmacological, legal, or engineering articles retrieved from external APIs and portals reflect solely the findings and views of their respective authors. Nothing displayed in Cartograph replaces clinical judgment, medical diagnosis, therapeutic prescription, legal counsel, or certified engineering review. Researchers remain solely responsible for verifying peer-review status (<em>peer review</em> vs. <em>preprint</em>), methodological rigor, and potential retractions prior to applying any study in academic or professional work.
+                    </>
+                  ) : (
+                    <>
+                      Os artigos médicos, biomédicos, farmacológicos, jurídicos ou de engenharia recuperados por meio das APIs e plataformas refletem unicamente as opiniões e resultados experimentais de seus respectivos autores. Nenhuma informação apresentada pelo Cartograph substitui parecer médico, diagnóstico clínico, prescrição terapêutica, consultoria jurídica ou laudo técnico homologado. É responsabilidade indelegável do pesquisador verificar o status de revisão por pares (<em>peer review</em> vs. <em>preprint</em>), a qualidade metodológica e a eventual retratação de qualquer estudo antes de adotá-lo em sua prática acadêmica ou profissional.
+                    </>
+                  )}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  5. Canal de Privacidade, LGPD e Contato Institucional
+                  {isEn
+                    ? '5. Privacy Contact (LGPD/GDPR) and Institutional Channel'
+                    : '5. Canal de Privacidade, LGPD e Contato Institucional'}
                 </h2>
                 <p>
-                  Para solicitações sobre privacidade (LGPD/GDPR), correção de URLs de portais, pedidos de remoção de indexação ou questões de segurança, o contato oficial da equipe mantenedora é{' '}
+                  {isEn
+                    ? 'For privacy requests (LGPD/GDPR), portal URL corrections, indexing removal inquiries, or security reports, contact the maintaining team at '
+                    : 'Para solicitações sobre privacidade (LGPD/GDPR), correção de URLs de portais, pedidos de remoção de indexação ou questões de segurança, o contato oficial da equipe mantenedora é '}
                   <a
                     href="mailto:contato@cartographsearch.com"
                     className="text-[var(--link-academic)] underline font-medium"
@@ -685,7 +979,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
           </article>
         )}
 
-        {/* RODAPÉ DE PAGINAÇÃO INTERNA ENTRE AS SEÇÕES */}
+        {/* INTERNAL SECTION PAGINATION FOOTER */}
         <div className="mt-12 pt-6 border-t border-[var(--divider)] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           {prevSection ? (
             <button
@@ -695,7 +989,9 @@ export const AboutView: React.FC<AboutViewProps> = ({
             >
               <ArrowLeft className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <div>
-                <div className="text-xs text-[var(--text-muted)]">Seção anterior</div>
+                <div className="text-xs text-[var(--text-muted)]">
+                  {isEn ? 'Previous section' : 'Seção anterior'}
+                </div>
                 <div className="text-sm font-semibold text-[var(--text-primary)]">{prevSection.label}</div>
               </div>
             </button>
@@ -710,7 +1006,9 @@ export const AboutView: React.FC<AboutViewProps> = ({
               className="flex items-center justify-end gap-3 px-4 py-3 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)] transition-colors cursor-pointer text-right"
             >
               <div>
-                <div className="text-xs text-[var(--text-muted)]">Próxima seção</div>
+                <div className="text-xs text-[var(--text-muted)]">
+                  {isEn ? 'Next section' : 'Próxima seção'}
+                </div>
                 <div className="text-sm font-semibold text-[var(--text-primary)]">{nextSection.label}</div>
               </div>
               <ArrowRight className="w-4 h-4 text-[var(--link-academic)] shrink-0" />

@@ -1,3 +1,4 @@
+import { SupportedLanguage } from '../i18n/translations';
 import { NormalizedPaper, SavedPaperItem } from '../types/academic';
 
 function formatAuthorAbnt(fullName: string): string {
@@ -92,47 +93,90 @@ function escapeCsvCell(value: string | number | null | undefined): string {
 
 export function exportSavedPapersCsv(
   items: SavedPaperItem[],
-  groupNameMap?: Record<string, string>
+  groupNameMap?: Record<string, string>,
+  language: SupportedLanguage = 'pt'
 ): string {
-  const headers = [
-    'Grupo_Slot',
-    'Titulo',
-    'Autores',
-    'Ano',
-    'Periodico_Fonte',
-    'Citacoes',
-    'Open_Access',
-    'DOI',
-    'Link_PDF_Gratuito',
-    'Link_Pagina',
-    'Base_Indexadora',
-    'Prioridade',
-    'Status_Triagem_PRISMA',
-    'Motivo_Exclusao',
-    'Delineamento_Estudo',
-    'Amostra_N',
-    'Objetivo_Extraido',
-    'Metodologia_Extraida',
-    'Resultados_Extraidos',
-    'Conclusao_Extraida',
-    'Notas_Fichamento',
-    'Resumo_Abstract',
-    'Referencia_ABNT',
-    'Referencia_APA',
-  ];
+  const isEn = language === 'en';
+  const headers = isEn
+    ? [
+        'Group_Slot',
+        'Title',
+        'Authors',
+        'Year',
+        'Venue_Source',
+        'Citations',
+        'Open_Access',
+        'DOI',
+        'Free_PDF_URL',
+        'Page_URL',
+        'Indexing_Database',
+        'Priority',
+        'PRISMA_Screening_Status',
+        'Exclusion_Reason',
+        'Study_Design',
+        'Sample_Size_N',
+        'Extracted_Objective',
+        'Extracted_Methods',
+        'Extracted_Results',
+        'Extracted_Conclusion',
+        'Researcher_Notes',
+        'Abstract',
+        'ABNT_Citation',
+        'APA_Citation',
+      ]
+    : [
+        'Grupo_Slot',
+        'Titulo',
+        'Autores',
+        'Ano',
+        'Periodico_Fonte',
+        'Citacoes',
+        'Open_Access',
+        'DOI',
+        'Link_PDF_Gratuito',
+        'Link_Pagina',
+        'Base_Indexadora',
+        'Prioridade',
+        'Status_Triagem_PRISMA',
+        'Motivo_Exclusao',
+        'Delineamento_Estudo',
+        'Amostra_N',
+        'Objetivo_Extraido',
+        'Metodologia_Extraida',
+        'Resultados_Extraidos',
+        'Conclusao_Extraida',
+        'Notas_Fichamento',
+        'Resumo_Abstract',
+        'Referencia_ABNT',
+        'Referencia_APA',
+      ];
 
   const rows = items.map((item) => {
     const meta = item.extractedMetadata;
-    const screeningLabel =
-      item.screeningStatus === 'included'
-        ? 'INCLUIDO'
+    const screeningLabel = isEn
+      ? item.screeningStatus === 'included'
+        ? 'INCLUDED'
         : item.screeningStatus === 'excluded'
-        ? 'EXCLUIDO'
-        : 'PENDENTE';
+        ? 'EXCLUDED'
+        : 'PENDING'
+      : item.screeningStatus === 'included'
+      ? 'INCLUIDO'
+      : item.screeningStatus === 'excluded'
+      ? 'EXCLUIDO'
+      : 'PENDENTE';
     const groupLabel =
       item.groupId && groupNameMap?.[item.groupId]
         ? groupNameMap[item.groupId]
+        : isEn
+        ? 'Ungrouped (General)'
         : 'Sem Grupo (Geral)';
+    const priorityLabel = isEn
+      ? item.relevanceTag === 'alta'
+        ? 'HIGH'
+        : item.relevanceTag === 'media'
+        ? 'MEDIUM'
+        : 'REVIEW'
+      : item.relevanceTag.toUpperCase();
 
     return [
       escapeCsvCell(groupLabel),
@@ -141,12 +185,12 @@ export function exportSavedPapersCsv(
       escapeCsvCell(item.year ?? ''),
       escapeCsvCell(item.venue),
       escapeCsvCell(item.citationCount),
-      escapeCsvCell(item.isOpenAccess ? 'Sim' : 'Nao'),
+      escapeCsvCell(item.isOpenAccess ? (isEn ? 'Yes' : 'Sim') : isEn ? 'No' : 'Nao'),
       escapeCsvCell(item.doi ? `https://doi.org/${item.doi}` : ''),
       escapeCsvCell(item.pdfUrl ?? ''),
       escapeCsvCell(item.url),
       escapeCsvCell(item.sourceLabel),
-      escapeCsvCell(item.relevanceTag.toUpperCase()),
+      escapeCsvCell(priorityLabel),
       escapeCsvCell(screeningLabel),
       escapeCsvCell(item.exclusionReason ?? ''),
       escapeCsvCell(meta?.studyDesign ?? ''),

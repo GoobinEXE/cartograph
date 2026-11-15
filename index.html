@@ -3,6 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var qLang = (params.get('lang') || '').toLowerCase();
+          var stored = '';
+          try {
+            stored = (window.localStorage.getItem('cartograph_language') || '').toLowerCase();
+          } catch (e) {}
+          var resolved = '';
+          if (qLang === 'pt' || qLang === 'en') {
+            resolved = qLang;
+          } else if (stored === 'pt' || stored === 'en') {
+            resolved = stored;
+          } else {
+            var langs = Array.isArray(navigator.languages) && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language || ''];
+            for (var i = 0; i < langs.length; i++) {
+              var tag = String(langs[i] || '').toLowerCase();
+              if (tag.indexOf('pt') === 0) { resolved = 'pt'; break; }
+              if (tag.indexOf('en') === 0) { resolved = 'en'; break; }
+            }
+            if (!resolved) resolved = 'en';
+          }
+          document.documentElement.lang = resolved === 'pt' ? 'pt-BR' : 'en';
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- 3. Meta Title & Meta Description -->
     <title>Cartograph — Hub de Metabusca Científica &amp; Revisão de Literatura</title>
@@ -26,8 +55,6 @@
     <link rel="canonical" href="https://cartographsearch.com/" />
     <link rel="alternate" hreflang="pt-BR" href="https://cartographsearch.com/?lang=pt" />
     <link rel="alternate" hreflang="en" href="https://cartographsearch.com/?lang=en" />
-    <link rel="alternate" hreflang="es" href="https://cartographsearch.com/?lang=es" />
-    <link rel="alternate" hreflang="fr" href="https://cartographsearch.com/?lang=fr" />
     <link rel="alternate" hreflang="x-default" href="https://cartographsearch.com/" />
 
     <!-- 5. Open Graph & Twitter Cards (1200x630) -->
@@ -53,8 +80,6 @@
     />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:locale:alternate" content="en_US" />
-    <meta property="og:locale:alternate" content="es_ES" />
-    <meta property="og:locale:alternate" content="fr_FR" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta
@@ -111,7 +136,7 @@
             "publisher": {
               "@id": "https://cartographsearch.com/#organization"
             },
-            "inLanguage": ["pt-BR", "en", "es", "fr"],
+            "inLanguage": ["pt-BR", "en"],
             "potentialAction": {
               "@type": "SearchAction",
               "target": {

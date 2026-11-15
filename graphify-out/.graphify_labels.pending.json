@@ -1,10 +1,9 @@
 {
-  "0": "AboutView.tsx",
+  "0": "AccessSettingsModal.tsx",
+  "3": "academicAggregator.ts",
   "24": "_security.ts",
-  "25": "App.tsx",
-  "26": "AcademicCommandCenter",
+  "25": "relevanceRanker.ts",
+  "26": "App.tsx",
   "27": "context.tsx",
-  "28": "seo.ts",
-  "29": "BooleanBuilderDrawer.tsx",
-  "36": "ErrorBoundary"
+  "36": "deduplication.ts"
 }

@@ -12,7 +12,7 @@ import {
   formatBibtexEntry,
   triggerFileDownload,
 } from '../utils/citationExporter';
-import { calculatePrisma2020Counts, SCREENING_REASON_LABELS } from '../utils/prismaFlow';
+import { calculatePrisma2020Counts, getScreeningReasonLabels } from '../utils/prismaFlow';
 import { PrismaFlowDiagram } from './PrismaFlowDiagram';
 import { parseAbstractMetadata } from '../utils/abstractParser';
 import { trackAcademicEvent } from '../utils/analytics';
@@ -51,12 +51,12 @@ import {
 } from 'lucide-react';
 
 const GROUP_COLORS = [
-  { hex: '#01ABE8', label: 'Ciano' },
-  { hex: '#AEB932', label: 'Oliva' },
-  { hex: '#E97635', label: 'Âmbar' },
-  { hex: '#DA0082', label: 'Magenta' },
-  { hex: '#6366F1', label: 'Índigo' },
-  { hex: '#10B981', label: 'Esmeralda' },
+  { hex: '#01ABE8', label: 'Ciano', labelEn: 'Cyan' },
+  { hex: '#AEB932', label: 'Oliva', labelEn: 'Olive' },
+  { hex: '#E97635', label: 'Âmbar', labelEn: 'Amber' },
+  { hex: '#DA0082', label: 'Magenta', labelEn: 'Magenta' },
+  { hex: '#6366F1', label: 'Índigo', labelEn: 'Indigo' },
+  { hex: '#10B981', label: 'Esmeralda', labelEn: 'Emerald' },
 ];
 
 export type LibrarySlotView = 'all' | 'ungrouped' | string;
@@ -65,6 +65,7 @@ interface SavedLiteratureDrawerProps {
   items: SavedPaperItem[];
   groups: LibraryGroup[];
   selectedPlatformIds: string[];
+  ownedPlatformIds?: string[];
   activeSaveGroupId: string | null;
   onSelectActiveSaveGroup: (groupId: string | null) => void;
   onCreateGroup: (name: string, color?: string) => LibraryGroup;
@@ -92,6 +93,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   items,
   groups,
   selectedPlatformIds,
+  ownedPlatformIds,
   activeSaveGroupId,
   onSelectActiveSaveGroup,
   onCreateGroup,
@@ -108,7 +110,8 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   onImportPapers,
   onRestoreBackup,
 }) => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
+  const isEn = language === 'en';
   const [selectedSlotView, setSelectedSlotView] = useState<LibrarySlotView>('all');
   const [subTab, setSubTab] = useState<'matrix' | 'prisma'>('matrix');
   const [filterScreening, setFilterScreening] = useState<'all' | ScreeningStatus>('all');
@@ -172,9 +175,10 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
       slotItems,
       totalIdentified,
       duplicatesCount,
-      isAll ? sourceBreakdown : undefined
+      isAll ? sourceBreakdown : undefined,
+      language
     );
-  }, [slotItems, selectedSlotView, dedupSummary, sourceBreakdown]);
+  }, [slotItems, selectedSlotView, dedupSummary, sourceBreakdown, language]);
 
   // Items further filtered by PRISMA screening status (all / included / excluded / unscreened)
   const filteredItems = useMemo(() => {
@@ -234,9 +238,9 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   };
 
   const getExportSlug = () => {
-    if (selectedSlotView === 'all') return 'todos';
-    if (selectedSlotView === 'ungrouped') return 'sem-grupo';
-    const name = activeGroupObj?.name || 'grupo';
+    if (selectedSlotView === 'all') return isEn ? 'all' : 'todos';
+    if (selectedSlotView === 'ungrouped') return isEn ? 'ungrouped' : 'sem-grupo';
+    const name = activeGroupObj?.name || (isEn ? 'group' : 'grupo');
     return name
       .toLowerCase()
       .normalize('NFD')
@@ -247,7 +251,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
 
   const handleDownloadCsv = () => {
     if (slotItems.length === 0) return;
-    const csv = exportSavedPapersCsv(slotItems, groupNameMap);
+    const csv = exportSavedPapersCsv(slotItems, groupNameMap, language);
     const dateStamp = new Date().toISOString().slice(0, 10);
     triggerFileDownload(
       `cartograph-prisma-${getExportSlug()}-${dateStamp}.csv`,
@@ -281,6 +285,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
       groups,
       selectedPlatformIds,
       activeSaveGroupId,
+      ownedPlatformIds,
     });
     const dateStamp = new Date().toISOString().slice(0, 10);
     triggerFileDownload(
@@ -288,7 +293,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
       json,
       'application/json;charset=utf-8;'
     );
-    setImportFeedback('Backup JSON exportado com grupos, artigos e seleção de plataformas.');
+    setImportFeedback(t('backupExportedFeedback'));
     setTimeout(() => setImportFeedback(null), 4000);
   };
 
@@ -300,25 +305,29 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
     try {
       const content = await file.text();
       if (file.name.toLowerCase().endsWith('.json')) {
-        const parsed = parseWorkspaceBackup(content);
+        const parsed = parseWorkspaceBackup(content, language);
         if (!parsed.ok) {
-          setImportFeedback(`Falha no backup JSON: ${parsed.error}`);
+          setImportFeedback(t('backupFailedFeedback', { error: parsed.error }));
           return;
         }
         const result = onRestoreBackup(parsed.payload, restoreMode);
         setImportFeedback(
           restoreMode === 'replace'
-            ? `Sessão restaurada: ${parsed.payload.savedPapers.length} artigos e ${parsed.payload.groups.length} grupos.`
-            : `Backup mesclado: +${result.papersAdded} artigos e +${result.groupsAdded} grupos.`
+            ? t('backupRestoredFeedback', {
+                papers: parsed.payload.savedPapers.length,
+                groups: parsed.payload.groups.length,
+              })
+            : t('backupMergedFeedback', {
+                papers: result.papersAdded,
+                groups: result.groupsAdded,
+              })
         );
         return;
       }
 
       const detected = parseImportedReferences(file.name, content);
       if (detected.format === 'unknown' || detected.items.length === 0) {
-        setImportFeedback(
-          'Nenhuma referência válida encontrada. Use arquivos .bib (BibTeX), .ris ou backup .json.'
-        );
+        setImportFeedback(t('importInvalidFeedback'));
         return;
       }
 
@@ -328,33 +337,37 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
           : activeSaveGroupId;
       const summary = onImportPapers(detected.items, targetGroup);
       setImportFeedback(
-        `Importação ${detected.format.toUpperCase()}: +${summary.added} artigos adicionados (${summary.skippedDuplicates} duplicatas ignoradas).`
+        t('importSuccessFeedback', {
+          format: detected.format.toUpperCase(),
+          added: summary.added,
+          skipped: summary.skippedDuplicates,
+        })
       );
     } catch {
-      setImportFeedback('Não foi possível ler o arquivo selecionado.');
+      setImportFeedback(t('importReadErrorFeedback'));
     }
   };
 
   const currentSlotTitle =
     selectedSlotView === 'all'
-      ? 'Todos os Artigos da Biblioteca'
+      ? t('allLibraryPapersTitle')
       : selectedSlotView === 'ungrouped'
-      ? 'Sem Grupo (Geral)'
-      : `Slot: ${activeGroupObj?.name || 'Grupo'}`;
+      ? t('ungroupedOption')
+      : `${t('slotPrefix')} ${activeGroupObj?.name || t('groupFallbackName')}`;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[295px_1fr] xl:grid-cols-[310px_1fr] gap-6 items-start pb-14">
       {/* COLUNA ESQUERDA: GERENCIADOR DE SLOTS & GRUPOS DE PESQUISA */}
       <aside
         className="space-y-4 lg:sticky lg:top-24"
-        aria-label="Gerenciamento de grupos e slots de pesquisa"
+        aria-label={t('savedSidebarAria')}
       >
         {/* 1. Criar Novo Slot / Grupo de Pesquisa */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
               <FolderPlus className="w-4 h-4 text-[var(--link-academic)]" />
-              <span>Novo Slot / Grupo de Pesquisa</span>
+              <span>{t('newResearchGroupTitle')}</span>
             </div>
           </div>
 
@@ -363,12 +376,12 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Ex: Jogos de IA, Medicamentos..."
+              placeholder={t('slotPlaceholder')}
               className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
 
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5" aria-label="Cor do grupo">
+              <div className="flex items-center gap-1.5" aria-label={t('groupColorAria')}>
                 {GROUP_COLORS.map((c) => (
                   <button
                     key={c.hex}
@@ -380,7 +393,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                         : 'opacity-70 hover:opacity-100'
                     }`}
                     style={{ backgroundColor: c.hex }}
-                    title={`Cor: ${c.label}`}
+                    title={`${t('colorPrefix')} ${isEn ? c.labelEn : c.label}`}
                   />
                 ))}
               </div>
@@ -390,7 +403,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                 disabled={!newGroupName.trim()}
                 className="px-3 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[13px] font-semibold transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                + Criar Slot
+                {t('createSlotPlusBtn')}
               </button>
             </div>
           </form>
@@ -400,29 +413,31 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-2">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
             <Pin className="w-4 h-4 text-[var(--link-academic)]" />
-            <span>Destino Padrão ao Salvar Artigos</span>
+            <span>{t('defaultSaveTargetTitle')}</span>
           </div>
           <select
             value={activeSaveGroupId ?? ''}
             onChange={(e) => onSelectActiveSaveGroup(e.target.value ? e.target.value : null)}
             className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
           >
-            <option value="">Sem grupo (Geral)</option>
+            <option value="">{t('ungroupedOption')}</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
-                Slot: {g.name}
+                {t('slotPrefix')} {g.name}
               </option>
             ))}
           </select>
           <p className="text-xs text-[var(--text-muted)] leading-snug">
-            Artigos salvos na aba <em>Artigos Encontrados</em> irão automaticamente para este destino.
+            {t('defaultSaveTargetDescPrefix')}{' '}
+            <em>{t('tabFederated', { count: 0 }).replace(/\s*\(\d+\)\s*$/, '')}</em>{' '}
+            {t('defaultSaveTargetDescSuffix')}
           </p>
         </div>
 
         {/* 3. Lista de Visões e Slots da Biblioteca */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-3 space-y-1">
           <div className="px-2.5 py-1 text-[13px] font-semibold text-[var(--text-muted)]">
-            Slots da Biblioteca
+            {t('librarySlotsTitle')}
           </div>
 
           {/* Visão 1: Todos os Artigos */}
@@ -437,7 +452,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
           >
             <div className="flex items-center gap-2 truncate">
               <Layers className="w-4 h-4 shrink-0" />
-              <span className="truncate">Todos os Artigos</span>
+              <span className="truncate">{t('allPapersSlot')}</span>
             </div>
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0">
               {items.length}
@@ -459,10 +474,10 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
           >
             <div className="flex items-center gap-2 truncate">
               <Inbox className="w-4 h-4 shrink-0" />
-              <span className="truncate">Sem Grupo (Geral)</span>
+              <span className="truncate">{t('ungroupedOption')}</span>
               {activeSaveGroupId === null && (
                 <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)]">
-                  Ativo
+                  {t('activeBadge')}
                 </span>
               )}
             </div>
@@ -473,12 +488,12 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
 
           {/* Divisória para Grupos Criados pelo Usuário */}
           <div className="pt-2 pb-1 px-2.5 flex items-center justify-between text-[13px] font-semibold text-[var(--text-muted)] border-t border-[var(--divider)]">
-            <span>Grupos de Pesquisa ({groups.length})</span>
+            <span>{t('researchGroupsCount', { count: groups.length })}</span>
           </div>
 
           {groups.length === 0 ? (
             <div className="px-3 py-3 text-center text-[13px] text-[var(--text-muted)] leading-relaxed">
-              Nenhum grupo criado ainda. Crie slots acima (ex.: <em>Jogos de IA</em>, <em>Medicamentos</em>) para separar suas pesquisas.
+              {t('noGroupsHint')}
             </div>
           ) : (
             <div className="space-y-0.5">
@@ -514,7 +529,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                           type="button"
                           onClick={() => handleConfirmRename(group.id)}
                           className="p-1 text-[var(--meta-green)] hover:opacity-80 cursor-pointer"
-                          title="Salvar nome"
+                          title={t('saveNameTitle')}
                         >
                           <Check className="w-4 h-4" />
                         </button>
@@ -522,7 +537,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                           type="button"
                           onClick={() => setEditingGroupId(null)}
                           className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                          title="Cancelar"
+                          title={t('cancelBtn')}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -549,7 +564,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                           <span className="text-[13px] font-medium truncate">{group.name}</span>
                           {isTargetSlot && (
                             <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)] shrink-0">
-                              Ativo
+                              {t('activeBadge')}
                             </span>
                           )}
                         </button>
@@ -559,7 +574,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                             type="button"
                             onClick={() => handleStartRename(group)}
                             className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity cursor-pointer"
-                            title="Renomear grupo"
+                            title={t('renameGroupTitle')}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -572,7 +587,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               onDeleteGroup(group.id);
                             }}
                             className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-rose-500 transition-opacity cursor-pointer"
-                            title="Excluir grupo (os artigos são mantidos em Sem Grupo)"
+                            title={t('deleteGroupTitle')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -592,10 +607,10 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
         {/* 4. Backup & Importação (.bib / .ris / .json) */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3">
           <div className="text-[13px] font-semibold text-[var(--text-primary)]">
-            Backup & Importação Local
+            {t('localBackupTitle')}
           </div>
           <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-            Exporte toda a biblioteca em JSON ou importe arquivos <code>.bib</code>, <code>.ris</code> (Zotero/Mendeley) ou backups anteriores.
+            {t('localBackupDesc')}
           </p>
 
           <input
@@ -608,7 +623,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
 
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
             <label htmlFor="restore-mode-select" className="shrink-0">
-              Ao restaurar JSON:
+              {t('restoreModeLabel')}
             </label>
             <select
               id="restore-mode-select"
@@ -616,8 +631,8 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               onChange={(e) => setRestoreMode(e.target.value as 'merge' | 'replace')}
               className="flex-1 px-2 py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] cursor-pointer"
             >
-              <option value="merge">Mesclar com atual</option>
-              <option value="replace">Substituir tudo</option>
+              <option value="merge">{t('restoreModeMerge')}</option>
+              <option value="replace">{t('restoreModeReplace')}</option>
             </select>
           </div>
 
@@ -628,17 +643,17 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-[var(--link-academic)]" />
-              <span>Importar</span>
+              <span>{t('importBtn')}</span>
             </button>
 
             <button
               type="button"
               onClick={handleDownloadBackupJson}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
-              title="Exportar biblioteca, grupos e plataformas selecionadas em JSON"
+              title={t('backupJsonTitle')}
             >
               <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)]" />
-              <span>Backup JSON</span>
+              <span>{t('backupJsonBtn')}</span>
             </button>
           </div>
 
@@ -672,10 +687,10 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               </div>
               <p className="text-[13px] text-[var(--text-secondary)] mt-1">
                 {selectedSlotView === 'all'
-                  ? 'Exibindo todos os artigos salvos em todos os grupos e itens sem grupo.'
+                  ? t('slotAllDesc')
                   : selectedSlotView === 'ungrouped'
-                  ? 'Exibindo artigos salvos de forma avulsa, sem vínculo a nenhum grupo específico.'
-                  : `Revisão de literatura e matriz PRISMA 2020 isolada para o grupo "${activeGroupObj?.name}".`}
+                  ? t('slotUngroupedDesc')
+                  : t('slotGroupDesc', { name: activeGroupObj?.name ?? t('groupFallbackName') })}
               </p>
             </div>
 
@@ -685,10 +700,10 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                   type="button"
                   onClick={handleDownloadCsv}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
-                  title="Baixar planilha CSV dos artigos deste slot"
+                  title={t('exportCsvTitle')}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>Exportar CSV ({slotItems.length})</span>
+                  <span>{t('exportCsvCount', { count: slotItems.length })}</span>
                 </button>
 
                 <button
@@ -722,15 +737,11 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                     onClearAll(selectedSlotView === 'all' ? undefined : selectedSlotView)
                   }
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] text-[var(--text-muted)] hover:text-rose-500 transition-colors cursor-pointer"
-                  title={
-                    selectedSlotView === 'all'
-                      ? 'Remover todos os artigos da biblioteca'
-                      : 'Remover os artigos deste slot'
-                  }
+                  title={selectedSlotView === 'all' ? t('clearAllTitle') : t('clearSlotTitle')}
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>
-                    {selectedSlotView === 'all' ? t('clearAll') : 'Limpar Slot'}
+                    {selectedSlotView === 'all' ? t('clearAll') : t('clearSlot')}
                   </span>
                 </button>
               </div>
@@ -749,7 +760,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               }`}
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>Matriz de Fichamento ({slotItems.length})</span>
+              <span>{t('subTabMatrix', { count: slotItems.length })}</span>
             </button>
 
             <button
@@ -762,7 +773,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               }`}
             >
               <GitBranch className="w-4 h-4" />
-              <span>Fluxograma PRISMA 2020</span>
+              <span>{t('subTabPrisma')}</span>
             </button>
           </div>
         </div>
@@ -775,13 +786,11 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               {selectedSlotView === 'all'
                 ? t('emptySavedTitle')
                 : selectedSlotView === 'ungrouped'
-                ? 'Nenhum artigo salvo sem grupo'
-                : `O grupo "${activeGroupObj?.name}" ainda não possui artigos`}
+                ? t('emptyUngroupedTitle')
+                : t('emptyGroupTitle', { name: activeGroupObj?.name ?? t('groupFallbackName') })}
             </h3>
             <p className="text-[15px] text-[var(--text-secondary)] max-w-lg mx-auto leading-relaxed">
-              {selectedSlotView === 'all'
-                ? t('emptySavedDesc')
-                : 'Realize uma busca na aba "Artigos Encontrados" para salvar novos estudos diretamente neste slot, ou mova artigos já existentes usando o seletor de grupo em cada card.'}
+              {selectedSlotView === 'all' ? t('emptySavedDesc') : t('emptySlotDesc')}
             </p>
           </div>
         ) : (
@@ -797,24 +806,34 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                   <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                     <Filter className="w-4 h-4" />
                     <span className="font-semibold text-[var(--text-primary)]">
-                      Triagem Sistemática ({currentSlotTitle}):
+                      {t('systematicScreeningLabel', { title: currentSlotTitle })}
                     </span>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
                     {(
                       [
-                        { id: 'all', label: `Todos (${slotItems.length})` },
-                        { id: 'included', label: `Incluídos (${prismaCounts.includedStudies})` },
-                        { id: 'excluded', label: `Excluídos (${prismaCounts.excludedScreening})` },
+                        { id: 'all', label: t('filterAllCount', { count: slotItems.length }) },
+                        {
+                          id: 'included',
+                          label: t('filterIncludedCount', { count: prismaCounts.includedStudies }),
+                        },
+                        {
+                          id: 'excluded',
+                          label: t('filterExcludedCount', {
+                            count: prismaCounts.excludedScreening,
+                          }),
+                        },
                         {
                           id: 'unscreened',
-                          label: `Pendentes (${Math.max(
-                            0,
-                            slotItems.length -
-                              prismaCounts.includedStudies -
-                              prismaCounts.excludedScreening
-                          )})`,
+                          label: t('filterPendingCount', {
+                            count: Math.max(
+                              0,
+                              slotItems.length -
+                                prismaCounts.includedStudies -
+                                prismaCounts.excludedScreening
+                            ),
+                          }),
                         },
                       ] as const
                     ).map((f) => (
@@ -837,13 +856,20 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                 {/* Cards List */}
                 <div className="space-y-4">
                   {filteredItems.map((item) => {
-                    const meta =
-                      item.extractedMetadata ||
-                      parseAbstractMetadata(
-                        item.title,
-                        item.abstractText,
-                        item.publicationType
-                      );
+                    const meta = item.abstractText
+                      ? parseAbstractMetadata(
+                          item.title,
+                          item.abstractText,
+                          item.publicationType,
+                          language
+                        )
+                      : item.extractedMetadata ||
+                        parseAbstractMetadata(
+                          item.title,
+                          item.abstractText,
+                          item.publicationType,
+                          language
+                        );
                     const isDetailsOpen = Boolean(expandedDetails[item.id]);
                     const currentStatus = item.screeningStatus || 'unscreened';
                     const itemGroup = item.groupId
@@ -868,7 +894,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--text-muted)] border border-[var(--divider)]">
-                                  Sem grupo
+                                  {t('ungroupedShort')}
                                 </span>
                               )}
                             </div>
@@ -911,12 +937,12 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                                   )
                                 }
                                 className="bg-transparent text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none"
-                                title="Mover artigo para outro slot ou deixar sem grupo"
+                                title={t('movePaperGroupTitle')}
                               >
-                                <option value="">Sem grupo (Geral)</option>
+                                <option value="">{t('ungroupedOption')}</option>
                                 {groups.map((g) => (
                                   <option key={g.id} value={g.id}>
-                                    Slot: {g.name}
+                                    {t('slotPrefix')} {g.name}
                                   </option>
                                 ))}
                               </select>
@@ -969,7 +995,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                         {/* Systematic Screening Action Buttons (Included / Excluded / Pending) */}
                         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--divider)]">
                           <span className="text-[13px] font-semibold text-[var(--text-primary)] mr-1">
-                            Decisão PRISMA:
+                            {t('prismaDecisionLabel')}
                           </span>
 
                           <button
@@ -982,7 +1008,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                             }`}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Incluir</span>
+                            <span>{t('decisionInclude')}</span>
                           </button>
 
                           <button
@@ -1001,7 +1027,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                             }`}
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            <span>Excluir</span>
+                            <span>{t('decisionExclude')}</span>
                           </button>
 
                           <button
@@ -1014,7 +1040,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                             }`}
                           >
                             <HelpCircle className="w-3.5 h-3.5" />
-                            <span>Pendente</span>
+                            <span>{t('decisionPending')}</span>
                           </button>
 
                           {/* If Excluded: Reason Selector */}
@@ -1026,7 +1052,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               }
                               className="bg-[var(--bg-canvas)] border border-rose-300 dark:border-rose-900/40 rounded-lg px-2.5 py-1 text-[13px] text-rose-700 dark:text-rose-300 cursor-pointer font-medium"
                             >
-                              {Object.entries(SCREENING_REASON_LABELS).map(([key, label]) => (
+                              {Object.entries(getScreeningReasonLabels(language)).map(([key, label]) => (
                                 <option key={key} value={key}>
                                   {label}
                                 </option>
@@ -1057,9 +1083,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                           >
                             <FileText className="w-4 h-4" />
                             <span>
-                              {isDetailsOpen
-                                ? 'Ocultar Variáveis Metodológicas Extraídas'
-                                : 'Ver Variáveis Metodológicas Extraídas (Objetivo, Métodos, Resultados)'}
+                              {isDetailsOpen ? t('hideExtractedVars') : t('showExtractedVars')}
                             </span>
                           </button>
 
@@ -1068,7 +1092,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               {meta.objective && (
                                 <div>
                                   <span className="font-semibold text-[var(--text-primary)]">
-                                    Objetivo:{' '}
+                                    {t('labelObjective')}{' '}
                                   </span>
                                   <span className="text-[var(--text-secondary)]">
                                     {meta.objective}
@@ -1078,7 +1102,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               {meta.methods && (
                                 <div>
                                   <span className="font-semibold text-[var(--text-primary)]">
-                                    Métodos / Delineamento:{' '}
+                                    {t('labelMethodsDesign')}{' '}
                                   </span>
                                   <span className="text-[var(--text-secondary)]">
                                     {meta.methods}
@@ -1088,7 +1112,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               {meta.sampleSize && (
                                 <div>
                                   <span className="font-semibold text-[var(--text-primary)]">
-                                    Amostra / Participantes:{' '}
+                                    {t('labelSampleParticipants')}{' '}
                                   </span>
                                   <span className="text-[var(--text-secondary)]">
                                     {meta.sampleSize}
@@ -1098,7 +1122,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               {meta.results && (
                                 <div>
                                   <span className="font-semibold text-[var(--text-primary)]">
-                                    Resultados:{' '}
+                                    {t('labelResults')}{' '}
                                   </span>
                                   <span className="text-[var(--text-secondary)]">
                                     {meta.results}
@@ -1108,7 +1132,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               {meta.conclusion && (
                                 <div>
                                   <span className="font-semibold text-[var(--text-primary)]">
-                                    Conclusão:{' '}
+                                    {t('labelConclusion')}{' '}
                                   </span>
                                   <span className="text-[var(--text-secondary)]">
                                     {meta.conclusion}
@@ -1120,7 +1144,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                                 !meta.results &&
                                 !meta.conclusion && (
                                   <div className="text-[var(--text-muted)] italic">
-                                    Resumo sem marcações canônicas de seções estruturadas.
+                                    {t('noStructuredSectionsNotice')}
                                   </div>
                                 )}
                             </div>
@@ -1159,7 +1183,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                               [PDF] {t('downloadFullPdf')}
                             </a>
                           )}
-                          <span>Citado por {item.citationCount}</span>
+                          <span>{t('citedByCount', { count: item.citationCount })}</span>
                         </div>
                       </div>
                     );

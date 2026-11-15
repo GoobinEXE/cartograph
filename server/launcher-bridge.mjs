@@ -89,7 +89,8 @@ function buildCorsHeaders(req) {
   if (origin && isAllowedBridgeOrigin(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type';
+    headers['Access-Control-Allow-Headers'] =
+      'Content-Type, X-Cartograph-Key, X-Cartograph-Inst-Token';
   }
   return headers;
 }
@@ -335,6 +336,201 @@ const server = http.createServer(async (req, res) => {
         {
           ok: false,
           error: err instanceof Error ? err.message : 'Falha ao consultar NASA NTRS API',
+        },
+        req
+      );
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && reqUrl.pathname === '/api/academic-proxy') {
+    const provider = (reqUrl.searchParams.get('provider') || '').trim().toLowerCase();
+    const query = (reqUrl.searchParams.get('q') || '').trim();
+    const limit = Math.min(Math.max(1, Number(reqUrl.searchParams.get('limit') || 8)), 15);
+    const yearRaw = Number(reqUrl.searchParams.get('yearFrom'));
+    const yearFrom = Number.isFinite(yearRaw) && yearRaw > 1900 ? Math.floor(yearRaw) : undefined;
+    if (!query || query.length > 300) {
+      sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
+      return;
+    }
+
+    const enc = encodeURIComponent(query);
+    const freeUrls = {
+      openaire: `https://api.openaire.eu/graph/v2/researchProducts?search=${enc}&type=publication&page=1&pageSize=${limit}${
+        yearFrom ? `&fromPublicationDate=${yearFrom}-01-01` : ''
+      }`,
+      osf: `https://api.osf.io/v2/preprints/?filter[title,description]=${enc}&page[size]=${limit}`,
+      socarxiv: `https://api.osf.io/v2/preprints/?filter[provider]=socarxiv&filter[title,description]=${enc}&page[size]=${limit}`,
+      eric: `https://api.ies.ed.gov/eric/?search=${enc}&format=json&rows=${limit}`,
+      plos: `https://api.plos.org/search?q=${enc}&wt=json&rows=${limit}&fl=id,title_display,author_display,journal,publication_date,abstract`,
+      oasisbr: `https://oasisbr.ibict.br/vufind/api/v1/search?lookfor=${enc}&type=AllFields&limit=${limit}&field[]=id&field[]=title&field[]=authors&field[]=publicationDates&field[]=urls&field[]=summary`,
+      dataverse: `https://dataverse.harvard.edu/api/search?q=${enc}&type=dataset&per_page=${limit}`,
+      core: `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(
+        query + (yearFrom ? ` AND yearPublished>=${yearFrom}` : '')
+      )}&limit=${limit}`,
+      worldbank_wds: `https://search.worldbank.org/api/v3/wds?format=json&qterm=${enc}&rows=${limit}&fl=id,display_title,authors,docdt,pdfurl,url,abstracts,docty,repnme`,
+      worldbank_okr: `https://openknowledge.worldbank.org/server/api/discover/search/objects?query=${enc}&size=${limit}`,
+      ipea: `https://repositorio.ipea.gov.br/server/api/discover/search/objects?query=${enc}&size=${limit}`,
+      undl: `https://digitallibrary.un.org/search?p=${enc}&of=recjson&rg=${limit}`,
+    };
+
+    const targetUrl = freeUrls[provider];
+    if (!targetUrl) {
+      sendJson(res, 400, { ok: false, error: 'Provedor acadêmico inválido' }, req);
+      return;
+    }
+
+    try {
+      const response = await fetch(targetUrl, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': CARTOGRAPH_USER_AGENT,
+        },
+        signal: AbortSignal.timeout(12_000),
+      });
+      const text = await response.text();
+      res.writeHead(response.status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        ...buildCorsHeaders(req),
+      });
+      res.end(text);
+    } catch (err) {
+      sendJson(
+        res,
+        502,
+        {
+          ok: false,
+          error: err instanceof Error ? err.message : `Falha ao consultar ${provider}`,
+        },
+        req
+      );
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && reqUrl.pathname === '/api/byok-proxy') {
+    const provider = (reqUrl.searchParams.get('provider') || '').trim().toLowerCase();
+    const query = (reqUrl.searchParams.get('q') || '').trim();
+    const limit = Math.min(Math.max(1, Number(reqUrl.searchParams.get('limit') || 8)), 15);
+    const yearRaw = Number(reqUrl.searchParams.get('yearFrom'));
+    const yearFrom = Number.isFinite(yearRaw) && yearRaw > 1900 ? Math.floor(yearRaw) : undefined;
+    const apiKey = String(req.headers['x-cartograph-key'] || '').trim();
+    const instToken = String(req.headers['x-cartograph-inst-token'] || '').trim();
+
+    if (!apiKey || apiKey.length > 512) {
+      sendJson(res, 401, { ok: false, error: 'Chave BYOK ausente.' }, req);
+      return;
+    }
+    if (!query || query.length > 300) {
+      sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
+      return;
+    }
+
+    const enc = encodeURIComponent(query);
+    const baseHeaders = { Accept: 'application/json', 'User-Agent': CARTOGRAPH_USER_AGENT };
+    const specs = {
+      semanticscholar: {
+        url: `https://api.semanticscholar.org/graph/v1/paper/search?query=${enc}&limit=${limit}${
+          yearFrom ? `&year=${yearFrom}-` : ''
+        }&fields=paperId,title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,abstract,externalIds,url`,
+        method: 'GET',
+        headers: { ...baseHeaders, 'x-api-key': apiKey },
+      },
+      core: {
+        url: `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(
+          query + (yearFrom ? ` AND yearPublished>=${yearFrom}` : '')
+        )}&limit=${limit}`,
+        method: 'GET',
+        headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` },
+      },
+      springer: {
+        url: `https://api.springernature.com/openaccess/json?q=${encodeURIComponent(
+          query + (yearFrom ? ` year:${yearFrom}` : '')
+        )}&p=${limit}`,
+        method: 'GET',
+        headers: { ...baseHeaders, 'X-ApiKey': apiKey },
+      },
+      scopus: {
+        url: `https://api.elsevier.com/content/search/scopus?query=${encodeURIComponent(
+          `TITLE-ABS-KEY(${query})${yearFrom ? ` AND PUBYEAR > ${yearFrom - 1}` : ''}`
+        )}&count=${limit}`,
+        method: 'GET',
+        headers: {
+          ...baseHeaders,
+          'X-ELS-APIKey': apiKey,
+          ...(instToken ? { 'X-ELS-Insttoken': instToken } : {}),
+        },
+      },
+      sciencedirect: {
+        url: `https://api.elsevier.com/content/search/sciencedirect?query=${enc}&count=${limit}`,
+        method: 'GET',
+        headers: {
+          ...baseHeaders,
+          'X-ELS-APIKey': apiKey,
+          ...(instToken ? { 'X-ELS-Insttoken': instToken } : {}),
+        },
+      },
+      ieeexplore: {
+        url: `https://ieeexploreapi.ieee.org/api/v1/search/articles?querytext=${enc}&max_records=${limit}${
+          yearFrom ? `&start_year=${yearFrom}` : ''
+        }&apikey=${encodeURIComponent(apiKey)}`,
+        method: 'GET',
+        headers: baseHeaders,
+      },
+      lens: {
+        url: 'https://api.lens.org/scholarly/search',
+        method: 'POST',
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          query: yearFrom
+            ? { bool: { must: [{ query_string: { query } }, { range: { year_published: { gte: yearFrom } } }] } }
+            : { query_string: { query } },
+          size: limit,
+        }),
+      },
+      fedinprint: {
+        url: `https://fedinprint.org/api/item?q=${enc}&limit=${limit}`,
+        method: 'GET',
+        headers: { ...baseHeaders, 'X-API-Key': apiKey },
+      },
+      govinfo: {
+        url: `https://api.congress.gov/v3/bill?query=${enc}&limit=${limit}&format=json`,
+        method: 'GET',
+        headers: { ...baseHeaders, 'X-Api-Key': apiKey },
+      },
+    };
+
+    const spec = specs[provider];
+    if (!spec) {
+      sendJson(res, 400, { ok: false, error: 'Provedor BYOK inválido' }, req);
+      return;
+    }
+
+    try {
+      const response = await fetch(spec.url, {
+        method: spec.method,
+        headers: spec.headers,
+        body: spec.body,
+        signal: AbortSignal.timeout(12_000),
+      });
+      const text = await response.text();
+      res.writeHead(response.status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, private',
+        ...buildCorsHeaders(req),
+      });
+      res.end(text);
+    } catch (err) {
+      sendJson(
+        res,
+        502,
+        {
+          ok: false,
+          error: err instanceof Error ? err.message : `Falha ao consultar ${provider}`,
         },
         req
       );

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Copy, ExternalLink, X } from 'lucide-react';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { useI18n } from '../i18n/context';
 
 export interface WebLaunchTarget {
   id: string;
@@ -24,6 +25,7 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
   blockedOrBrowserLimited,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
   const [copiedAll, setCopiedAll] = useState(false);
 
@@ -87,19 +89,17 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
               id="web-launch-dialog-title"
               className="text-base font-heading font-semibold text-[var(--text-primary)]"
             >
-              Abertura Assistida de Portais ({targets.length})
+              {t('webLaunchTitle', { count: targets.length })}
             </h2>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-snug">
-              {blockedOrBrowserLimited
-                ? 'Navegadores bloqueiam múltiplas abas simultâneas sem Bridge local. Clique em cada portal abaixo para abrir diretamente com a sua busca:'
-                : 'Acesso direto aos portais selecionados para a busca atual:'}
+              {blockedOrBrowserLimited ? t('webLaunchBlockedDesc') : t('webLaunchDirectDesc')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
-            aria-label="Fechar painel"
+            aria-label={t('webLaunchCloseAria')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -107,7 +107,7 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
 
         <div className="px-5 py-3 bg-[var(--bg-secondary)] border-b border-[var(--divider)] flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="text-[var(--text-secondary)] truncate max-w-md">
-            Query: <code className="font-mono text-[var(--text-primary)]">{query}</code>
+            {t('webLaunchQueryLabel')} <code className="font-mono text-[var(--text-primary)]">{query}</code>
           </div>
           <button
             type="button"
@@ -119,7 +119,7 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
             ) : (
               <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />
             )}
-            <span>{copiedAll ? 'URLs copiadas' : 'Copiar todas as URLs'}</span>
+            <span>{copiedAll ? t('webLaunchCopiedAll') : t('webLaunchCopyAll')}</span>
           </button>
         </div>
 
@@ -145,7 +145,7 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
                     {isOpened && (
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--meta-green)]">
                         <Check className="w-3 h-3" />
-                        <span>Aberto</span>
+                        <span>{t('webLaunchOpenedBadge')}</span>
                       </span>
                     )}
                   </div>
@@ -161,7 +161,7 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
                   onClick={() => markOpened(target.id)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 shrink-0"
                 >
-                  <span>Abrir</span>
+                  <span>{t('webLaunchOpenBtn')}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -172,16 +172,14 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
         <div className="px-5 py-3 bg-[var(--bg-secondary)] border-t border-[var(--divider)] flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
           <span className="inline-flex items-center gap-1.5">
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>
-              Dica: permita pop-ups para <strong>cartographsearch.com</strong> ou use o app desktop Tauri para abrir tudo de uma vez.
-            </span>
+            <span>{t('webLaunchTip')}</span>
           </span>
           <button
             type="button"
             onClick={onClose}
             className="px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--text-primary)] font-medium cursor-pointer hover:bg-[var(--bg-hover)] shrink-0"
           >
-            Fechar
+            {t('webLaunchCloseBtn')}
           </button>
         </div>
       </div>

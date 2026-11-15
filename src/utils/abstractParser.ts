@@ -1,3 +1,4 @@
+import { SupportedLanguage } from '../i18n/translations';
 import { ExtractedPaperMetadata } from '../types/academic';
 
 /**
@@ -36,37 +37,45 @@ const SAMPLE_SIZE_REGEXES = [
 /**
  * Deterministic patterns to detect study design.
  */
-const STUDY_DESIGN_PATTERNS: Array<{ label: string; regex: RegExp }> = [
+const STUDY_DESIGN_PATTERNS: Array<{ labelPt: string; labelEn: string; regex: RegExp }> = [
   {
-    label: 'Ensaio Clínico Randomizado (RCT)',
+    labelPt: 'Ensaio Clínico Randomizado (RCT)',
+    labelEn: 'Randomized Controlled Trial (RCT)',
     regex: /\b(?:randomized controlled trial|randomised controlled trial|RCT|ensaio clínico randomizado|placebo-controlled)\b/i,
   },
   {
-    label: 'Revisão Sistemática / Meta-análise',
+    labelPt: 'Revisão Sistemática / Meta-análise',
+    labelEn: 'Systematic Review / Meta-Analysis',
     regex: /\b(?:systematic review|meta-analysis|meta-analytic|revisão sistemática|metanálise|PRISMA guideline)\b/i,
   },
   {
-    label: 'Estudo de Coorte (Prospectivo/Retrospectivo)',
+    labelPt: 'Estudo de Coorte (Prospectivo/Retrospectivo)',
+    labelEn: 'Cohort Study (Prospective/Retrospective)',
     regex: /\b(?:cohort study|prospective cohort|retrospective cohort|estudo de coorte|longitudinal study)\b/i,
   },
   {
-    label: 'Estudo de Caso-Controle',
+    labelPt: 'Estudo de Caso-Controle',
+    labelEn: 'Case-Control Study',
     regex: /\b(?:case-control study|case control study|estudo de caso-controle)\b/i,
   },
   {
-    label: 'Estudo Transversal (Cross-Sectional)',
+    labelPt: 'Estudo Transversal (Cross-Sectional)',
+    labelEn: 'Cross-Sectional Study',
     regex: /\b(?:cross-sectional study|cross sectional survey|estudo transversal|inquérito populacional)\b/i,
   },
   {
-    label: 'Quase-Experimental / Série Temporal',
+    labelPt: 'Quase-Experimental / Série Temporal',
+    labelEn: 'Quasi-Experimental / Time Series',
     regex: /\b(?:quasi-experimental|interrupted time series|difference-in-differences|quase-experimental)\b/i,
   },
   {
-    label: 'Estudo Qualitativo',
+    labelPt: 'Estudo Qualitativo',
+    labelEn: 'Qualitative Study',
     regex: /\b(?:qualitative study|grounded theory|phenomenological|estudo qualitativo|entrevistas semiestruturadas)\b/i,
   },
   {
-    label: 'Relato ou Série de Casos',
+    labelPt: 'Relato ou Série de Casos',
+    labelEn: 'Case Report / Case Series',
     regex: /\b(?:case report|case series|relato de caso|série de casos)\b/i,
   },
 ];
@@ -91,12 +100,13 @@ export function extractSampleSize(text: string): string | undefined {
 export function detectStudyDesign(
   title: string,
   abstractText?: string | null,
-  publicationType?: string
+  publicationType?: string,
+  language: SupportedLanguage = 'pt'
 ): string | undefined {
   const combined = `${title} ${publicationType || ''} ${abstractText || ''}`;
   for (const item of STUDY_DESIGN_PATTERNS) {
     if (item.regex.test(combined)) {
-      return item.label;
+      return language === 'en' ? item.labelEn : item.labelPt;
     }
   }
   return undefined;
@@ -109,9 +119,10 @@ export function detectStudyDesign(
 export function parseAbstractMetadata(
   title: string,
   abstractText?: string | null,
-  publicationType?: string
+  publicationType?: string,
+  language: SupportedLanguage = 'pt'
 ): ExtractedPaperMetadata {
-  const studyDesign = detectStudyDesign(title, abstractText, publicationType);
+  const studyDesign = detectStudyDesign(title, abstractText, publicationType, language);
 
   if (!abstractText || !abstractText.trim()) {
     return {

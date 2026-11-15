@@ -224,124 +224,16 @@ const SEO_METADATA: Record<
         'The requested route was not found in Cartograph. Return to the 111 scientific platforms directory or the 15-API federated metasearch.',
     },
   },
-  es: {
-    platforms: {
-      title: 'Cartograph — Hub de Metabúsqueda Científica y Revisión PRISMA 2020',
-      description:
-        'Metabuscador científico y académico con 15 APIs abiertas en tiempo real, 111 plataformas curadas, constructor booleano y flujo sistemático PRISMA 2020.',
-    },
-    federated: {
-      title: 'Metabuscador Federado (15 APIs Abiertas) · Cartograph',
-      description:
-        'Consulte simultáneamente OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI y NASA.',
-    },
-    saved: {
-      title: 'Biblioteca y Cribado Sistemático PRISMA 2020 · Cartograph',
-      description:
-        'Organice referencias en grupos, aplique criterios PRISMA 2020, exporte diagramas SVG y genere referencias en ABNT, APA 7, BibTeX y CSV.',
-    },
-    feedback: {
-      title: 'Comentarios y Sugerencias de Plataformas · Cartograph',
-      description:
-        'Sugiera nuevas bases de datos científicas o mejoras funcionales para el catálogo académico de Cartograph.',
-    },
-    cartograph: {
-      title: 'Sobre Cartograph — Arquitectura y Metodología Científica',
-      description:
-        'Ingeniería determinista de Cartograph v2.4: deduplicación multicriterio, análisis de resúmenes estructurados y reproducibilidad PRISMA 2020.',
-    },
-    apis: {
-      title: 'Catálogo de 15 APIs Científicas Abiertas Federadas · Cartograph',
-      description:
-        'Especificaciones técnicas y licencias de las 15 APIs públicas integradas en Cartograph: OpenAlex, PubMed, Semantic Scholar, arXiv, CERN Zenodo y más.',
-    },
-    citation: {
-      title: 'Cómo Citar Cartograph (APA 7, ABNT, BibTeX)',
-      description:
-        'Formatos oficiales de citación bibliográfica para referenciar Cartograph en artículos científicos, tesis y revisiones sistemáticas.',
-    },
-    copyright: {
-      title: 'Derechos de Autor y Licencias de Datos · Cartograph',
-      description:
-        'Titularidad del software Cartograph, aviso sobre marcas de terceros y licencias abiertas CC0 de metadatos.',
-    },
-    privacy: {
-      title: 'Política de Privacidad (RGPD / LGPD) y Términos de Uso · Cartograph',
-      description:
-        'Privacidad por diseño conforme a RGPD y LGPD: almacenamiento local en el navegador y protección de credenciales institucionales.',
-    },
-    notFound: {
-      title: '404 — Coordenada No Encontrada · Cartograph',
-      description:
-        'La ruta solicitada no existe en Cartograph. Regrese al directorio de 111 plataformas científicas o al metabuscador federado.',
-    },
-  },
-  fr: {
-    platforms: {
-      title: 'Cartograph — Hub de Métarecherche Scientifique & Revue PRISMA 2020',
-      description:
-        'Métamoteur scientifique et académique avec 15 API ouvertes fédérées, 111 plateformes sélectionnées, constructeur booléen et flux systématique PRISMA 2020.',
-    },
-    federated: {
-      title: 'Métamoteur Fédéré (15 API Ouvertes) · Cartograph',
-      description:
-        'Interrogez simultanément OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI et NASA.',
-    },
-    saved: {
-      title: 'Bibliothèque & Triage Systématique PRISMA 2020 · Cartograph',
-      description:
-        'Organisez vos références par groupes, appliquez le flux PRISMA 2020, générez le diagramme SVG et exportez en APA 7, ABNT, BibTeX et CSV.',
-    },
-    feedback: {
-      title: 'Retours & Suggestions de Plateformes · Cartograph',
-      description:
-        'Proposez de nouvelles bases scientifiques ou des améliorations techniques pour enrichir le catalogue Cartograph.',
-    },
-    cartograph: {
-      title: 'À propos de Cartograph — Architecture & Méthodologie',
-      description:
-        'Architecture déterministe de Cartograph v2.4 : déduplication multicritère, analyse de résumés structurés et reproductibilité PRISMA 2020.',
-    },
-    apis: {
-      title: 'Catalogue des 15 API Scientifiques Ouvertes Fédérées · Cartograph',
-      description:
-        'Spécifications et licences des 15 API publiques agrégées par Cartograph : OpenAlex, PubMed, Semantic Scholar, arXiv, HAL, CERN Zenodo et plus.',
-    },
-    citation: {
-      title: 'Comment Citer Cartograph (APA 7, ABNT, BibTeX)',
-      description:
-        'Formats officiels de citation bibliographique pour référencer Cartograph dans vos articles scientifiques, thèses et revues systématiques.',
-    },
-    copyright: {
-      title: "Droits d'Auteur, Propriété Intellectuelle & Licences · Cartograph",
-      description:
-        'Titularité du logiciel Cartograph, mentions relatives aux marques tierces et licences CC0 des métadonnées.',
-    },
-    privacy: {
-      title: "Politique de Confidentialité (RGPD / LGPD) & Conditions d'Utilisation · Cartograph",
-      description:
-        'Confidentialité dès la conception (RGPD / LGPD) : stockage strictement local dans le navigateur et sécurité des accès institutionnels.',
-    },
-    notFound: {
-      title: '404 — Coordonnée Introuvable · Cartograph',
-      description:
-        "La route demandée n'existe pas dans Cartograph. Retournez au répertoire des 111 plateformes scientifiques ou au métamoteur fédéré.",
-    },
-  },
 };
 
 const HTML_LANG_MAP: Record<LanguageCode, string> = {
   pt: 'pt-BR',
   en: 'en',
-  es: 'es',
-  fr: 'fr',
 };
 
 const OG_LOCALE_MAP: Record<LanguageCode, string> = {
   pt: 'pt_BR',
   en: 'en_US',
-  es: 'es_ES',
-  fr: 'fr_FR',
 };
 
 function setMetaContent(selector: string, content: string): void {

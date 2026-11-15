@@ -1,9 +1,10 @@
-export type SupportedLanguage = 'pt' | 'en' | 'es' | 'fr';
+export type SupportedLanguage = 'pt' | 'en';
 export type LanguageCode = SupportedLanguage;
 
 export interface Translations {
   appName: string;
   appTagline: string;
+  brandTitle: string;
   systemBarSubtitle: string;
   bridgeActive: string;
   bridgeOffline: string;
@@ -12,13 +13,26 @@ export interface Translations {
   heroTitle: string;
   heroSubtitle: string;
   searchPlaceholder: string;
+  clearSearchTitle: string;
+  shareSearchTitle: string;
+  shareLinkCopied: string;
+  shareLinkError: string;
+  translateTitle: string;
+  searchBtn: string;
   btnSearchApis: string;
   btnLaunchTabs: string;
+  openPortalsCount: string;
+  openPortalsTitle: string;
   btnTotalSearch: string;
   translateBtn: string;
   booleanBuilderBtn: string;
+  toggleThemeTitle: string;
+  languageAutoSystem: string;
+  languageSystemHint: string;
+  languageMenuLabel: string;
   platformsOpenedBridge: string;
   platformsOpenedBrowser: string;
+  assistedLaunchNotice: string;
   termTranslatedBanner: string;
   booleanAppliedBanner: string;
 
@@ -33,6 +47,7 @@ export interface Translations {
   tabAbout: string;
   feedbackTitle: string;
   feedbackSubtitle: string;
+  feedbackBadge: string;
   feedbackTypeLabel: string;
   feedbackTypeSuggestion: string;
   feedbackTypeCorrection: string;
@@ -49,12 +64,60 @@ export interface Translations {
   feedbackEmailLabel: string;
   feedbackEmailPlaceholder: string;
   feedbackRatingLabel: string;
+  feedbackRatingOutOf: string;
+  feedbackFooterHint: string;
   feedbackSubmitBtn: string;
+  feedbackSubmittingBtn: string;
   feedbackSuccessBanner: string;
+  feedbackLocalNotice: string;
   feedbackHistoryTitle: string;
   feedbackHistoryEmpty: string;
+  feedbackCopyMarkdownTitle: string;
+  feedbackCopyBtn: string;
+  feedbackRemoveHistoryTitle: string;
+  feedbackInstitutionPrefix: string;
+  feedbackFooterNote: string;
+  feedbackMarkdownHeader: string;
+  feedbackMarkdownType: string;
+  feedbackMarkdownRating: string;
+  feedbackMarkdownDate: string;
+  feedbackMarkdownInstitution: string;
+  feedbackMarkdownUrl: string;
+  feedbackMarkdownContact: string;
+
   filterStrictlyFree: string;
   allCategories: string;
+
+  sidebarAriaLabel: string;
+  filtersNavTitle: string;
+  collapseAll: string;
+  expandAll: string;
+  collapseAllTitle: string;
+  expandAllTitle: string;
+  clearFilter: string;
+  accessModelTitle: string;
+  accessModelAll: string;
+  accessModelFree: string;
+  accessModelPaid: string;
+  accessModelInstitutional: string;
+  accessModelFreemium: string;
+  accessShortFree: string;
+  accessShortPaid: string;
+  accessShortInst: string;
+  accessShortFreemium: string;
+  quickSelectionTitle: string;
+  quickSelectionTitleAttr: string;
+  quickSelectionActiveCount: string;
+  quickSelectionAllBtn: string;
+  platformTypeTitle: string;
+  platformTypeAll: string;
+  directoryResultsSummary: string;
+  gridViewTitle: string;
+  listViewTitle: string;
+  includeInBatchTitle: string;
+  cardSearchAction: string;
+  cardOpenAction: string;
+  cardOpenPortalAction: string;
 
   platformSearchBtn: string;
   enterTopicAbove: string;
@@ -63,6 +126,57 @@ export interface Translations {
 
   federatedTitle: string;
   federatedCount: string;
+  federatedSidebarAria: string;
+  saveToSlotTitle: string;
+  createNewSlotTitle: string;
+  newBtn: string;
+  ungroupedOption: string;
+  slotPrefix: string;
+  slotPlaceholder: string;
+  cancelBtn: string;
+  createSlotBtn: string;
+  slotHelperPrefix: string;
+  slotHelperUngrouped: string;
+  sortShortCitations: string;
+  sortShortYear: string;
+  availabilityTitle: string;
+  availabilityOpenAccessOnly: string;
+  queriedSourcesTitle: string;
+  allSourcesOption: string;
+  progressAriaLabel: string;
+  queryingAllProgress: string;
+  queryingSourceProgress: string;
+  papersDisplayedSuffix: string;
+  showingResultsSummary: string;
+  duplicatesMergedCount: string;
+  duplicatesMergedTitle: string;
+  loadingResultsAria: string;
+  sourceErrorTitle: string;
+  sourceTimeoutFallback: string;
+  backToAllSources: string;
+  noPapersInViewTitle: string;
+  noOpenAccessMatchDesc: string;
+  noSourceMatchDesc: string;
+  noSourceFallbackName: string;
+  noAllSourcesMatchDesc: string;
+  hideStructuredSections: string;
+  viewStructuredAbstract: string;
+  labelObjective: string;
+  labelMethodsSample: string;
+  labelMethodsDesign: string;
+  labelSampleParticipants: string;
+  labelResults: string;
+  labelConclusion: string;
+  savedShort: string;
+  saveShort: string;
+  saveIntoGroup: string;
+  changePaperGroupTitle: string;
+  ungroupedShort: string;
+  citedByCount: string;
+  citePrefix: string;
+  waitingMoreSourcesSingular: string;
+  waitingMoreSourcesPlural: string;
+
   querying: string;
   itemsLatency: string;
   unavailable: string;
@@ -73,6 +187,12 @@ export interface Translations {
   sortRelevance: string;
   sortCitations: string;
   sortYear: string;
+  relevanceMethodCaption: string;
+  relevanceScoreBadge: string;
+  relevanceBreakdownTitle: string;
+  sourceCountSingular: string;
+  sourceCountPlural: string;
+  corroboratedSourcesBadge: string;
   savedInMatrix: string;
   savePaperBtn: string;
   noAuthors: string;
@@ -92,6 +212,9 @@ export interface Translations {
   downloadBib: string;
   copyAll: string;
   clearAll: string;
+  clearSlot: string;
+  clearAllTitle: string;
+  clearSlotTitle: string;
   priorityHigh: string;
   priorityMedium: string;
   priorityReview: string;
@@ -102,6 +225,89 @@ export interface Translations {
   downloadFullPdf: string;
   emptySavedTitle: string;
   emptySavedDesc: string;
+
+  savedSidebarAria: string;
+  newResearchGroupTitle: string;
+  groupColorAria: string;
+  colorPrefix: string;
+  createSlotPlusBtn: string;
+  defaultSaveTargetTitle: string;
+  defaultSaveTargetDescPrefix: string;
+  defaultSaveTargetDescSuffix: string;
+  librarySlotsTitle: string;
+  allPapersSlot: string;
+  activeBadge: string;
+  researchGroupsCount: string;
+  noGroupsHint: string;
+  saveNameTitle: string;
+  renameGroupTitle: string;
+  deleteGroupTitle: string;
+  localBackupTitle: string;
+  localBackupDesc: string;
+  restoreModeLabel: string;
+  restoreModeMerge: string;
+  restoreModeReplace: string;
+  importBtn: string;
+  backupJsonBtn: string;
+  backupJsonTitle: string;
+  backupExportedFeedback: string;
+  backupFailedFeedback: string;
+  backupRestoredFeedback: string;
+  backupMergedFeedback: string;
+  importInvalidFeedback: string;
+  importSuccessFeedback: string;
+  importReadErrorFeedback: string;
+  allLibraryPapersTitle: string;
+  groupFallbackName: string;
+  slotAllDesc: string;
+  slotUngroupedDesc: string;
+  slotGroupDesc: string;
+  exportCsvCount: string;
+  exportCsvTitle: string;
+  subTabMatrix: string;
+  subTabPrisma: string;
+  emptyUngroupedTitle: string;
+  emptyGroupTitle: string;
+  emptySlotDesc: string;
+  systematicScreeningLabel: string;
+  filterAllCount: string;
+  filterIncludedCount: string;
+  filterExcludedCount: string;
+  filterPendingCount: string;
+  movePaperGroupTitle: string;
+  prismaDecisionLabel: string;
+  decisionInclude: string;
+  decisionExclude: string;
+  decisionPending: string;
+  hideExtractedVars: string;
+  showExtractedVars: string;
+  noStructuredSectionsNotice: string;
+
+  webLaunchTitle: string;
+  webLaunchBlockedDesc: string;
+  webLaunchDirectDesc: string;
+  webLaunchCloseAria: string;
+  webLaunchQueryLabel: string;
+  webLaunchCopiedAll: string;
+  webLaunchCopyAll: string;
+  webLaunchOpenedBadge: string;
+  webLaunchOpenBtn: string;
+  webLaunchTip: string;
+  webLaunchCloseBtn: string;
+
+  footerBrandTitle: string;
+  footerNavAria: string;
+  footerAbout: string;
+  footerApis: string;
+  footerCitation: string;
+  footerCopyright: string;
+  footerPrivacy: string;
+  footerRightsReserved: string;
+  footerEngineeringNote: string;
+  analyticsConsentAria: string;
+  analyticsConsentText: string;
+  analyticsDeclineBtn: string;
+  analyticsAcceptBtn: string;
 
   bbTitle: string;
   bbSubtitle: string;
@@ -190,6 +396,55 @@ export interface Translations {
   presetGeoClimateDesc: string;
   presetGenomicsMaterials: string;
   presetGenomicsMaterialsDesc: string;
+  presetEconEmpirical: string;
+  presetEconEmpiricalDesc: string;
+  presetEconGlobalPolicy: string;
+  presetEconGlobalPolicyDesc: string;
+  presetEconPoliticalScience: string;
+  presetEconPoliticalScienceDesc: string;
+
+  scopeLabel: string;
+  scopeAll: string;
+  scopeGeneral: string;
+  scopeEconPolicy: string;
+  scopeHealth: string;
+  scopeExactTech: string;
+
+  proxyDoiButton: string;
+  activeSubscriptionBadge: string;
+  filterOwnedOnly: string;
+
+  accessSettingsBtn: string;
+  accessModalTitle: string;
+  accessModalSubtitle: string;
+  accessTabProxy: string;
+  accessTabByok: string;
+  accessTabSubscriptions: string;
+  proxyEnableLabel: string;
+  proxyModeLabel: string;
+  proxyModePrefix: string;
+  proxyModeCapesCafe: string;
+  proxyTemplateLabel: string;
+  proxyTemplatePlaceholder: string;
+  proxyPresetsLabel: string;
+  proxyPresetCapes: string;
+  proxyPresetEzproxy: string;
+  proxyPreviewLabel: string;
+  proxyApplyToLabel: string;
+  proxyLocalNotice: string;
+  byokIntro: string;
+  byokKeyLabel: string;
+  byokInstTokenLabel: string;
+  byokGetKeyLink: string;
+  byokStatusActive: string;
+  byokStatusInactive: string;
+  byokClearBtn: string;
+  byokToggleEnable: string;
+  subsIntro: string;
+  subsSelectCapesBtn: string;
+  subsClearAllBtn: string;
+  subsCountLabel: string;
+  closeModalBtn: string;
 
   thematicAreasTitle: string;
   areaAll: string;
@@ -206,12 +461,27 @@ export interface Translations {
   areaEconomiaPoliticas: string;
   areaPatentesNormas: string;
   areaMultidisciplinar: string;
+
+  areaShortMulti: string;
+  areaShortTech: string;
+  areaShortIa: string;
+  areaShortSaude: string;
+  areaShortExatas: string;
+  areaShortBio: string;
+  areaShortGeo: string;
+  areaShortEcon: string;
+  areaShortPatentes: string;
+  areaShortArte: string;
+  areaShortGames: string;
+  areaShortSoftware: string;
+  areaShortHardware: string;
 }
 
 export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
   pt: {
     appName: 'CARTOGRAPH',
     appTagline: 'Metabusca Científica',
+    brandTitle: 'Cartograph — Hub de Metabusca Científica',
     systemBarSubtitle: 'Pesquisa integrada em periódicos científicos e repositórios acadêmicos',
     bridgeActive: 'Bridge nativo ativo ({osName})',
     bridgeOffline: 'Execução local no navegador',
@@ -221,13 +491,26 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     heroSubtitle:
       'Consulte artigos, preprints e periódicos em bases científicas abertas e institucionais.',
     searchPlaceholder: 'Pesquise por tema, autor, artigo ou termos de busca...',
+    clearSearchTitle: 'Limpar busca',
+    shareSearchTitle: 'Copiar link compartilhável desta busca',
+    shareLinkCopied: 'Link compartilhável da busca copiado para a área de transferência.',
+    shareLinkError: 'Não foi possível copiar o link automaticamente.',
+    translateTitle: 'Traduzir termos para inglês acadêmico',
+    searchBtn: 'Buscar',
     btnSearchApis: 'Buscar Artigos',
     btnLaunchTabs: 'Abrir nos Portais ({count})',
+    openPortalsCount: 'Abrir {count} portais',
+    openPortalsTitle: 'Abrir pesquisa em abas nos portais selecionados (Shift + Enter)',
     btnTotalSearch: 'Busca Completa',
     translateBtn: 'Traduzir PT → EN',
     booleanBuilderBtn: 'Filtros Booleanos',
+    toggleThemeTitle: 'Alternar modo Claro / Escuro',
+    languageAutoSystem: 'Automático (Sistema)',
+    languageSystemHint: 'Detectado pelo sistema',
+    languageMenuLabel: 'Idioma da interface',
     platformsOpenedBridge: '{count} portais abertos no navegador.',
     platformsOpenedBrowser: '{count} abas abertas pelo navegador.',
+    assistedLaunchNotice: '• Painel de abertura assistida exibido para contornar bloqueio de pop-ups.',
     termTranslatedBanner: 'Termo traduzido para busca internacional: "{term}"',
     booleanAppliedBanner: 'Filtros booleanos aplicados à pesquisa.',
 
@@ -243,6 +526,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     feedbackTitle: 'Contribuições & Avaliação',
     feedbackSubtitle:
       'Envie sugestões de novas fontes científicas, reporte inconsistências ou proponha aprimoramentos para o Cartograph.',
+    feedbackBadge: 'Cartograph · Ciência Aberta',
     feedbackTypeLabel: 'Tipo de Contribuição',
     feedbackTypeSuggestion: 'Sugerir Nova Base / Portal',
     feedbackTypeCorrection: 'Reportar Inconsistência ou Link',
@@ -259,12 +543,61 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     feedbackEmailLabel: 'E-mail para Retorno (opcional)',
     feedbackEmailPlaceholder: 'seu.email@universidade.edu',
     feedbackRatingLabel: 'Avaliação da Experiência',
+    feedbackRatingOutOf: '{star} de 5',
+    feedbackFooterHint: 'Seus comentários ajudam a aprimorar o catálogo e a precisão do Cartograph.',
     feedbackSubmitBtn: 'Enviar Feedback',
+    feedbackSubmittingBtn: 'Registrando...',
     feedbackSuccessBanner: 'Feedback registrado com sucesso. Agradecemos sua contribuição.',
+    feedbackLocalNotice:
+      '(salvo no histórico local deste navegador — copie em Markdown para envio manual se desejar).',
     feedbackHistoryTitle: 'Histórico de Contribuições',
     feedbackHistoryEmpty: 'Nenhum feedback enviado neste navegador ainda.',
+    feedbackCopyMarkdownTitle: 'Copiar em Markdown',
+    feedbackCopyBtn: 'Copiar',
+    feedbackRemoveHistoryTitle: 'Remover do histórico',
+    feedbackInstitutionPrefix: 'Instituição:',
+    feedbackFooterNote: 'Metabusca científica e revisão sistemática em ciência aberta.',
+    feedbackMarkdownHeader: '### [Feedback Cartograph]',
+    feedbackMarkdownType: 'Tipo:',
+    feedbackMarkdownRating: 'Avaliação:',
+    feedbackMarkdownDate: 'Data:',
+    feedbackMarkdownInstitution: 'Instituição:',
+    feedbackMarkdownUrl: 'URL/Base:',
+    feedbackMarkdownContact: 'Contato:',
+
     filterStrictlyFree: 'Apenas Acesso Aberto',
     allCategories: 'Todas as Categorias ({count})',
+
+    sidebarAriaLabel: 'Filtros e navegação de plataformas',
+    filtersNavTitle: 'Filtros & Navegação',
+    collapseAll: 'Recolher tudo',
+    expandAll: 'Expandir tudo',
+    collapseAllTitle: 'Recolher todas as gavetas',
+    expandAllTitle: 'Expandir todas as gavetas',
+    clearFilter: 'Limpar',
+    accessModelTitle: 'Modelo de Acesso',
+    accessModelAll: 'Todos os modelos',
+    accessModelFree: '100% Gratuitas & Open',
+    accessModelPaid: 'Pagas / Assinatura',
+    accessModelInstitutional: 'Acesso Aberto + CAFe',
+    accessModelFreemium: 'Gratuito c/ Cota IA',
+    accessShortFree: 'Gratuito',
+    accessShortPaid: 'Assinatura',
+    accessShortInst: 'Institucional',
+    accessShortFreemium: 'Freemium',
+    quickSelectionTitle: 'Seleção Rápida',
+    quickSelectionTitleAttr: '{selected} de {total} plataformas selecionadas',
+    quickSelectionActiveCount: '{selected} de {total} ativas',
+    quickSelectionAllBtn: 'Todas',
+    platformTypeTitle: 'Tipo de Plataforma',
+    platformTypeAll: 'Todas as categorias',
+    directoryResultsSummary: '{visible} portais correspondentes · {selected} marcados para abertura simultânea',
+    gridViewTitle: 'Visualização em blocos',
+    listViewTitle: 'Visualização em lista acadêmica',
+    includeInBatchTitle: 'Incluir na abertura em lote',
+    cardSearchAction: 'Pesquisar ↗',
+    cardOpenAction: 'Abrir ↗',
+    cardOpenPortalAction: 'Abrir portal ↗',
 
     platformSearchBtn: 'Pesquisar em {name}',
     enterTopicAbove: 'Digite um termo de pesquisa',
@@ -273,6 +606,60 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
 
     federatedTitle: 'Artigos Científicos Encontrados',
     federatedCount: '{displayed} de {total} artigos',
+    federatedSidebarAria: 'Filtros e navegação de artigos encontrados',
+    saveToSlotTitle: 'Salvar no Slot / Grupo',
+    createNewSlotTitle: 'Criar novo slot de pesquisa',
+    newBtn: 'Novo',
+    ungroupedOption: 'Sem grupo (Geral)',
+    slotPrefix: 'Slot:',
+    slotPlaceholder: 'Ex: Jogos de IA, Medicamentos...',
+    cancelBtn: 'Cancelar',
+    createSlotBtn: 'Criar Slot',
+    slotHelperPrefix: 'Escolha um grupo para organizar esta pesquisa ou mantenha em',
+    slotHelperUngrouped: 'Sem grupo',
+    sortShortCitations: 'Citações',
+    sortShortYear: 'Ano',
+    availabilityTitle: 'Disponibilidade',
+    availabilityOpenAccessOnly: 'Somente Open Access',
+    queriedSourcesTitle: 'Bases Consultadas',
+    allSourcesOption: 'Todas as fontes',
+    progressAriaLabel: 'Progresso da metabusca nas fontes científicas',
+    queryingAllProgress: 'Consultando bases ({completed} de {total})',
+    queryingSourceProgress: 'Consultando {label}... ({completed} de {total} bases)',
+    papersDisplayedSuffix: '· {count} artigos exibidos',
+    showingResultsSummary: 'Exibindo {displayed} de {total} artigos científicos encontrados',
+    duplicatesMergedCount: '{count} duplicatas mescladas',
+    duplicatesMergedTitle:
+      '{doi} por DOI canônico, {ids} por ID persistente (PMID/arXiv), {fuzzy} por título (Jaro-Winkler)',
+    loadingResultsAria: 'Carregando resultados',
+    sourceErrorTitle: 'Consulta não concluída em {label}',
+    sourceTimeoutFallback: 'O tempo limite de resposta da base foi atingido.',
+    backToAllSources: 'Voltar para "Todas as fontes"',
+    noPapersInViewTitle: 'Nenhum artigo encontrado nesta visualização',
+    noOpenAccessMatchDesc:
+      'Nenhum artigo com acesso aberto direto corresponde aos filtros atuais. Desmarque "Somente Open Access" para ampliar.',
+    noSourceMatchDesc: '{label} concluiu sem correspondências para esta consulta.',
+    noSourceFallbackName: 'Esta base',
+    noAllSourcesMatchDesc:
+      'Nenhuma das bases consultadas retornou correspondências para os termos informados.',
+    hideStructuredSections: 'Ocultar Seções Estruturadas',
+    viewStructuredAbstract: 'Ver Resumo Estruturado',
+    labelObjective: 'Objetivo:',
+    labelMethodsSample: 'Métodos / Casuística:',
+    labelMethodsDesign: 'Métodos / Delineamento:',
+    labelSampleParticipants: 'Amostra / Participantes:',
+    labelResults: 'Resultados:',
+    labelConclusion: 'Conclusão:',
+    savedShort: 'Salvo',
+    saveShort: 'Salvar',
+    saveIntoGroup: 'Salvar em "{name}"',
+    changePaperGroupTitle: 'Alterar grupo / slot deste artigo',
+    ungroupedShort: 'Sem grupo',
+    citedByCount: 'Citado por {count}',
+    citePrefix: 'Citar:',
+    waitingMoreSourcesSingular: 'Aguardando mais 1 base científica...',
+    waitingMoreSourcesPlural: 'Aguardando mais {count} bases científicas...',
+
     querying: 'Buscando artigos...',
     itemsLatency: '{count} artigos ({latency}ms)',
     unavailable: 'Sem resposta',
@@ -283,6 +670,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     sortRelevance: 'Relevância',
     sortCitations: 'Mais citados',
     sortYear: 'Mais recentes',
+    relevanceMethodCaption: 'BM25F textual + consenso RRF + citações/ano + recência',
+    relevanceScoreBadge: 'Relevância {score}%',
+    relevanceBreakdownTitle:
+      'Textual (BM25F): {lexical}% · Consenso RRF ({sources} {sourcesLabel}): {consensus}% · Impacto/Recência: {impact}% · Evidência/Acesso: {quality}%',
+    sourceCountSingular: 'base',
+    sourceCountPlural: 'bases',
+    corroboratedSourcesBadge: '{count} bases',
     savedInMatrix: 'Salvo na Biblioteca',
     savePaperBtn: 'Salvar Artigo',
     noAuthors: 'Autores não informados',
@@ -299,35 +693,129 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     savedSubtitle: 'Artigos armazenados localmente para consulta e exportação de referências.',
     studySingular: 'artigo',
     studyPlural: 'artigos',
-    downloadCsv: 'Exportar Tabela (CSV)',
+    downloadCsv: 'Exportar Planilha (CSV)',
     downloadBib: 'Exportar BibTeX (.bib)',
-    copyAll: 'Copiar Referências ({format})',
+    copyAll: 'Copiar Citações ({format})',
     clearAll: 'Limpar Biblioteca',
+    clearSlot: 'Limpar Slot',
+    clearAllTitle: 'Remover todos os artigos da biblioteca',
+    clearSlotTitle: 'Remover os artigos deste slot',
     priorityHigh: 'Alta',
     priorityMedium: 'Média',
     priorityReview: 'Revisar',
     removeTooltip: 'Remover artigo',
-    notesLabel: 'Notas da pesquisa:',
-    notesPlaceholder: 'Anote observações, metodologia ou dados do estudo...',
-    openSource: 'Ver Artigo',
+    notesLabel: 'Notas de fichamento:',
+    notesPlaceholder: 'Registre observações, metodologia, achados ou comentários sobre o artigo...',
+    openSource: 'Abrir Artigo',
     downloadFullPdf: 'Baixar PDF',
-    emptySavedTitle: 'Nenhum artigo salvo',
+    emptySavedTitle: 'Nenhum artigo salvo na biblioteca',
     emptySavedDesc:
-      'Clique em "Salvar Artigo" nos resultados de busca para organizar sua revisão e exportar citações em ABNT, APA ou BibTeX.',
+      'Use o botão "Salvar" nos resultados de busca para organizar sua biblioteca e exportar referências em ABNT, APA ou BibTeX.',
+
+    savedSidebarAria: 'Gerenciamento de grupos e slots de pesquisa',
+    newResearchGroupTitle: 'Novo Slot / Grupo de Pesquisa',
+    groupColorAria: 'Cor do grupo',
+    colorPrefix: 'Cor:',
+    createSlotPlusBtn: '+ Criar Slot',
+    defaultSaveTargetTitle: 'Destino Padrão ao Salvar Artigos',
+    defaultSaveTargetDescPrefix: 'Artigos salvos na aba',
+    defaultSaveTargetDescSuffix: 'irão automaticamente para este destino.',
+    librarySlotsTitle: 'Slots da Biblioteca',
+    allPapersSlot: 'Todos os Artigos',
+    activeBadge: 'Ativo',
+    researchGroupsCount: 'Grupos de Pesquisa ({count})',
+    noGroupsHint:
+      'Nenhum grupo criado ainda. Crie slots acima (ex.: Jogos de IA, Medicamentos) para separar suas pesquisas.',
+    saveNameTitle: 'Salvar nome',
+    renameGroupTitle: 'Renomear grupo',
+    deleteGroupTitle: 'Excluir grupo (os artigos são mantidos em Sem Grupo)',
+    localBackupTitle: 'Backup & Importação Local',
+    localBackupDesc:
+      'Exporte toda a biblioteca em JSON ou importe arquivos .bib, .ris (Zotero/Mendeley) ou backups anteriores.',
+    restoreModeLabel: 'Ao restaurar JSON:',
+    restoreModeMerge: 'Mesclar com atual',
+    restoreModeReplace: 'Substituir tudo',
+    importBtn: 'Importar',
+    backupJsonBtn: 'Backup JSON',
+    backupJsonTitle: 'Exportar biblioteca, grupos e plataformas selecionadas em JSON',
+    backupExportedFeedback: 'Backup JSON exportado com grupos, artigos e seleção de plataformas.',
+    backupFailedFeedback: 'Falha no backup JSON: {error}',
+    backupRestoredFeedback: 'Sessão restaurada: {papers} artigos e {groups} grupos.',
+    backupMergedFeedback: 'Backup mesclado: +{papers} artigos e +{groups} grupos.',
+    importInvalidFeedback:
+      'Nenhuma referência válida encontrada. Use arquivos .bib (BibTeX), .ris ou backup .json.',
+    importSuccessFeedback:
+      'Importação {format}: +{added} artigos adicionados ({skipped} duplicatas ignoradas).',
+    importReadErrorFeedback: 'Não foi possível ler o arquivo selecionado.',
+    allLibraryPapersTitle: 'Todos os Artigos da Biblioteca',
+    groupFallbackName: 'Grupo',
+    slotAllDesc: 'Exibindo todos os artigos salvos em todos os grupos e itens sem grupo.',
+    slotUngroupedDesc: 'Exibindo artigos salvos de forma avulsa, sem vínculo a nenhum grupo específico.',
+    slotGroupDesc: 'Revisão de literatura e matriz PRISMA 2020 isolada para o grupo "{name}".',
+    exportCsvCount: 'Exportar CSV ({count})',
+    exportCsvTitle: 'Baixar planilha CSV dos artigos deste slot',
+    subTabMatrix: 'Matriz de Fichamento ({count})',
+    subTabPrisma: 'Fluxograma PRISMA 2020',
+    emptyUngroupedTitle: 'Nenhum artigo salvo sem grupo',
+    emptyGroupTitle: 'O grupo "{name}" ainda não possui artigos',
+    emptySlotDesc:
+      'Realize uma busca na aba "Artigos Encontrados" para salvar novos estudos diretamente neste slot, ou mova artigos já existentes usando o seletor de grupo em cada card.',
+    systematicScreeningLabel: 'Triagem Sistemática ({title}):',
+    filterAllCount: 'Todos ({count})',
+    filterIncludedCount: 'Incluídos ({count})',
+    filterExcludedCount: 'Excluídos ({count})',
+    filterPendingCount: 'Pendentes ({count})',
+    movePaperGroupTitle: 'Mover artigo para outro slot ou deixar sem grupo',
+    prismaDecisionLabel: 'Decisão PRISMA:',
+    decisionInclude: 'Incluir',
+    decisionExclude: 'Excluir',
+    decisionPending: 'Pendente',
+    hideExtractedVars: 'Ocultar Variáveis Metodológicas Extraídas',
+    showExtractedVars: 'Ver Variáveis Metodológicas Extraídas (Objetivo, Métodos, Resultados)',
+    noStructuredSectionsNotice: 'Resumo sem marcações canônicas de seções estruturadas.',
+
+    webLaunchTitle: 'Abertura Assistida de Portais ({count})',
+    webLaunchBlockedDesc:
+      'Navegadores bloqueiam múltiplas abas simultâneas sem Bridge local. Clique em cada portal abaixo para abrir diretamente com a sua busca:',
+    webLaunchDirectDesc: 'Acesso direto aos portais selecionados para a busca atual:',
+    webLaunchCloseAria: 'Fechar painel',
+    webLaunchQueryLabel: 'Query:',
+    webLaunchCopiedAll: 'URLs copiadas',
+    webLaunchCopyAll: 'Copiar todas as URLs',
+    webLaunchOpenedBadge: 'Aberto',
+    webLaunchOpenBtn: 'Abrir',
+    webLaunchTip:
+      'Dica: permita pop-ups para cartographsearch.com ou use o app desktop Tauri para abrir tudo de uma vez.',
+    webLaunchCloseBtn: 'Fechar',
+
+    footerBrandTitle: 'Sobre o Cartograph — Arquitetura e Metodologia',
+    footerNavAria: 'Links institucionais e legais do rodapé',
+    footerAbout: 'Sobre o Cartograph',
+    footerApis: '15 APIs Abertas',
+    footerCitation: 'Como Citar',
+    footerCopyright: 'Direitos Autorais & Licenças',
+    footerPrivacy: 'Privacidade (LGPD) & Termos',
+    footerRightsReserved: 'v2.4. Todos os direitos reservados.',
+    footerEngineeringNote: 'Engenharia determinística · Local-First · PRISMA 2020',
+    analyticsConsentAria: 'Preferência de telemetria anônima',
+    analyticsConsentText:
+      'O Cartograph utiliza métricas agregadas opcionais (sem termos de busca ou dados pessoais) para aprimorar as fontes científicas.',
+    analyticsDeclineBtn: 'Recusar',
+    analyticsAcceptBtn: 'Aceitar anônimo',
 
     bbTitle: 'Construtor de Expressão Booleana',
-    bbSubtitle: 'Combine palavras-chave para refinar os resultados.',
-    bbClear: 'Limpar campos',
-    bbMainConcept: 'Termo Principal',
-    bbMainConceptPh: 'Tema central da pesquisa',
-    bbAndTerms: 'Termos Obrigatórios (AND)',
-    bbAndTermsPh: 'Palavras que também devem estar presentes',
-    bbOrTerms: 'Termos Alternativos (OR)',
-    bbOrTermsPh: 'Sinônimos ou variantes',
-    bbExactPhrase: 'Frase Exata',
-    bbExactPhrasePh: 'Expressão exata entre aspas',
-    bbNotTerms: 'Excluir Termos (NOT)',
-    bbNotTermsPh: 'Palavras a desconsiderar',
+    bbSubtitle: 'Combine termos e operadores para refinar a consulta.',
+    bbClear: 'Limpar',
+    bbMainConcept: 'Tema Principal',
+    bbMainConceptPh: 'Assunto central da pesquisa',
+    bbAndTerms: 'Termos Obrigatórios',
+    bbAndTermsPh: 'Palavras que também devem aparecer',
+    bbOrTerms: 'Termos Alternativos',
+    bbOrTermsPh: 'Sinônimos ou variantes aceitas',
+    bbExactPhrase: 'Expressão Exata',
+    bbExactPhrasePh: 'Frase exata entre aspas',
+    bbNotTerms: 'Excluir Termos',
+    bbNotTermsPh: 'Palavras que deseja ignorar',
     bbStartYear: 'A Partir do Ano',
     bbAnyYear: 'Qualquer ano',
     bbFromYear: 'Desde {year}',
@@ -336,22 +824,22 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     bbSystematicReview: 'Revisão Sistemática',
     bbRct: 'Ensaio Clínico',
     bbEmpiricalCausal: 'Estudo Empírico',
-    bbCompiledString: 'Expressão montada:',
-    bbCompiledEmpty: 'Preencha os campos para compor a busca',
+    bbCompiledString: 'Expressão gerada:',
+    bbCompiledEmpty: 'Preencha os campos acima para montar a pesquisa',
     bbApplyBtn: 'Aplicar na Busca',
 
     catGlobalIndex: 'Bases Globais & Repositórios',
-    catGlobalIndexSub: 'Grandes índices acadêmicos mundiais e servidores de preprints.',
+    catGlobalIndexSub: 'Grandes indexadores acadêmicos mundiais e servidores de preprints.',
     catCommercialPublishers: 'Editoras Científicas',
-    catCommercialPublishersSub: 'Periódicos com acesso via assinatura ou convênio institucional.',
-    catRegionalLatam: 'América Latina & Península Ibérica',
+    catCommercialPublishersSub: 'Revistas com acesso via assinatura ou convênio institucional.',
+    catRegionalLatam: 'América Latina & Ibero-América',
     catRegionalLatamSub: 'Literatura científica regional, periódicos públicos e teses.',
     catAiSynthesis: 'Bases com Análise Semântica',
-    catAiSynthesisSub: 'Ferramentas com sumarização de achados e contexto de citação.',
+    catAiSynthesisSub: 'Plataformas que oferecem resumos de evidência e contexto de citações.',
     catCitationGraph: 'Redes de Citação',
-    catCitationGraphSub: 'Mapeamento visual de relações bibliográficas entre estudos.',
+    catCitationGraphSub: 'Mapeamento visual de conexões bibliográficas entre estudos.',
     catEvidenceHealth: 'Saúde & Medicina',
-    catEvidenceHealthSub: 'Literatura biomédica, revisões de saúde e ensaios clínicos.',
+    catEvidenceHealthSub: 'Literatura biomédica, revisões em saúde e ensaios clínicos.',
     catTechPatents: 'Patentes, Normas & Engenharia',
     catTechPatentsSub: 'Propriedade intelectual, RFCs, padrões técnicos, cibersegurança e P&D industrial.',
     catNicheScience: 'Ciência Aplicada & Nichos',
@@ -366,11 +854,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetCoreGoldDesc: 'Google Scholar, OpenAlex, Semantic Scholar, PubMed, SciELO e Consensus.',
     presetGlobalPublishers: 'Editoras Internacionais (8 Bases)',
     presetGlobalPublishersDesc: 'Web of Science, Scopus, ScienceDirect, IEEE Xplore, ACM, Springer, Wiley e JSTOR.',
-    presetStemTech: 'Ciências Exatas & Tecnologia (6 Bases)',
+    presetStemTech: 'Exatas & Tecnologia (6 Bases)',
     presetStemTechDesc: 'IEEE Xplore, ACM DL, arXiv, ScienceDirect, SpringerLink e DBLP.',
     preset100Free: 'Acesso Aberto (10 Bases)',
-    preset100FreeDesc: 'Plataformas de acesso livre sem muros de pagamento.',
-    presetBrasilLatam: 'Brasil & Ibero-América (8 Bases)',
+    preset100FreeDesc: 'Plataformas de acesso livre sem barreiras de pagamento.',
+    presetBrasilLatam: 'Ibero-América & LatAm (8 Bases)',
     presetBrasilLatamDesc: 'SciELO, Periódicos CAPES, BDTD, Oasisbr, LA Referencia, Redalyc, Dialnet e RCAAP.',
     presetEconPolicy: 'Ciências Sociais & Economia (6 Bases)',
     presetEconPolicyDesc: 'IDEAS/RePEc, SSRN, SPELL, OpenAlex, SciELO e Google Scholar.',
@@ -402,6 +890,55 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS e OSTI.GOV.',
     presetGenomicsMaterials: 'Genômica, Proteômica & Bioinformática',
     presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC e bioRxiv.',
+    presetEconEmpirical: 'Economia Empírica & Working Papers',
+    presetEconEmpiricalDesc: 'NBER, IDEAS/RePEc, SSRN, World Bank WDS, BIS Working Papers e EconStor.',
+    presetEconGlobalPolicy: 'Políticas Públicas & Organismos Globais',
+    presetEconGlobalPolicyDesc: 'World Bank OKR, IPEA, CEPAL, OECD iLibrary, IMF eLibrary, UNDL e J-PAL.',
+    presetEconPoliticalScience: 'Ciência Política & Governança',
+    presetEconPoliticalScienceDesc: 'SocArXiv, APSA Preprints, JSTOR, Brookings, GovInfo e SPELL.',
+
+    scopeLabel: 'Escopo da Metabusca',
+    scopeAll: 'Todas as Fontes',
+    scopeGeneral: 'Geral & Multi',
+    scopeEconPolicy: 'Economia & Política',
+    scopeHealth: 'Saúde & Bio',
+    scopeExactTech: 'Exatas, Tech & Dados',
+
+    proxyDoiButton: '[Proxy Institucional]',
+    activeSubscriptionBadge: 'Assinatura Ativa',
+    filterOwnedOnly: 'Somente minhas assinaturas',
+
+    accessSettingsBtn: 'Meu Acesso & APIs',
+    accessModalTitle: 'Acesso Institucional, Chaves BYOK & Assinaturas',
+    accessModalSubtitle: 'Configuração 100% local no navegador para usar suas assinaturas e chaves próprias sem cobranças ou limites do Cartograph.',
+    accessTabProxy: 'Proxy Institucional',
+    accessTabByok: 'Chaves de API (BYOK)',
+    accessTabSubscriptions: 'Minhas Assinaturas',
+    proxyEnableLabel: 'Ativar reescrita automática por Proxy Institucional (EZProxy / CAPES CAFe)',
+    proxyModeLabel: 'Modo de reescrita',
+    proxyModePrefix: 'Prefixo / Template {url} (EZProxy / OpenAthens)',
+    proxyModeCapesCafe: 'Sufixo de domínio (CAPES CAFe .ezXX)',
+    proxyTemplateLabel: 'URL ou sufixo do proxy da universidade',
+    proxyTemplatePlaceholder: 'Ex: https://ezproxy.universidade.br/login?url={url}',
+    proxyPresetsLabel: 'Modelos rápidos',
+    proxyPresetCapes: 'Modelo CAPES CAFe',
+    proxyPresetEzproxy: 'Modelo EZProxy Padrão',
+    proxyPreviewLabel: 'Prévia de abertura (ScienceDirect)',
+    proxyApplyToLabel: 'Aplicar proxy aos modelos de acesso',
+    proxyLocalNotice: 'Suas credenciais e URLs de proxy nunca saem deste navegador nem entram em arquivos de backup.',
+    byokIntro: 'Informe suas chaves pessoais ou institucionais para habilitar bases pagas (Scopus, ScienceDirect, IEEE) ou ampliar cotas gratuitas (Semantic Scholar, CORE, Springer, Lens, Fed in Print, Congress/GovInfo).',
+    byokKeyLabel: 'Chave de API',
+    byokInstTokenLabel: 'InstToken (opcional fora do campus)',
+    byokGetKeyLink: 'Obter / gerenciar chave',
+    byokStatusActive: 'Ativa',
+    byokStatusInactive: 'Inativa',
+    byokClearBtn: 'Limpar',
+    byokToggleEnable: 'Habilitar na metabusca',
+    subsIntro: 'Marque as bases às quais você já possui acesso pela universidade ou assinatura pessoal para destacá-las e filtrá-las no diretório.',
+    subsSelectCapesBtn: 'Marcar pacote CAPES CAFe',
+    subsClearAllBtn: 'Limpar seleções',
+    subsCountLabel: 'assinaturas marcadas',
+    closeModalBtn: 'Fechar',
 
     thematicAreasTitle: 'Área Temática',
     areaAll: 'Todas as Áreas',
@@ -418,11 +955,26 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaEconomiaPoliticas: 'Economia & Políticas Públicas',
     areaPatentesNormas: 'Patentes & Normas Técnicas',
     areaMultidisciplinar: 'Multidisciplinar',
+
+    areaShortMulti: 'Multi',
+    areaShortTech: 'Tech',
+    areaShortIa: 'IA',
+    areaShortSaude: 'Saúde',
+    areaShortExatas: 'Exatas',
+    areaShortBio: 'Bio/Agro',
+    areaShortGeo: 'Geo',
+    areaShortEcon: 'Econ',
+    areaShortPatentes: 'Patentes',
+    areaShortArte: 'Arte',
+    areaShortGames: 'Games',
+    areaShortSoftware: 'Software',
+    areaShortHardware: 'Hardware',
   },
 
   en: {
     appName: 'CARTOGRAPH',
     appTagline: 'Academic Metasearch',
+    brandTitle: 'Cartograph — Scientific Metasearch Hub',
     systemBarSubtitle: 'Unified search across scientific journals and open repositories',
     bridgeActive: 'Native Bridge Active ({osName})',
     bridgeOffline: 'Running in browser',
@@ -432,13 +984,26 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     heroSubtitle:
       'Search across open repositories, preprints, and scientific databases with a single query.',
     searchPlaceholder: 'Search by topic, author, paper title, or keywords...',
+    clearSearchTitle: 'Clear search',
+    shareSearchTitle: 'Copy shareable search link',
+    shareLinkCopied: 'Shareable search link copied to clipboard.',
+    shareLinkError: 'Could not copy link automatically.',
+    translateTitle: 'Translate Portuguese terms to academic English',
+    searchBtn: 'Search',
     btnSearchApis: 'Search Papers',
     btnLaunchTabs: 'Open in Portals ({count})',
+    openPortalsCount: 'Open {count} portals',
+    openPortalsTitle: 'Open search in tabs across selected portals (Shift + Enter)',
     btnTotalSearch: 'Complete Search',
     translateBtn: 'Translate PT → EN',
     booleanBuilderBtn: 'Boolean Query Builder',
+    toggleThemeTitle: 'Switch Light / Dark mode',
+    languageAutoSystem: 'Auto (System)',
+    languageSystemHint: 'Detected from system',
+    languageMenuLabel: 'Interface language',
     platformsOpenedBridge: '{count} academic portals opened in browser.',
     platformsOpenedBrowser: '{count} tabs opened by browser.',
+    assistedLaunchNotice: '• Assisted launch panel shown to bypass browser pop-up limits.',
     termTranslatedBanner: 'Search term translated: "{term}"',
     booleanAppliedBanner: 'Boolean filters applied to search bar.',
 
@@ -454,6 +1019,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     feedbackTitle: 'Feedback & Contributions',
     feedbackSubtitle:
       'Suggest new scientific sources, report broken links or issues, and help improve Cartograph.',
+    feedbackBadge: 'Cartograph · Open Science',
     feedbackTypeLabel: 'Contribution Type',
     feedbackTypeSuggestion: 'Suggest New Database / Portal',
     feedbackTypeCorrection: 'Report Broken Link / Issue',
@@ -470,12 +1036,61 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     feedbackEmailLabel: 'Email for Follow-up (optional)',
     feedbackEmailPlaceholder: 'your.email@university.edu',
     feedbackRatingLabel: 'Experience Rating',
+    feedbackRatingOutOf: '{star} of 5',
+    feedbackFooterHint: 'Your feedback helps improve the catalog and precision of Cartograph.',
     feedbackSubmitBtn: 'Submit Feedback',
+    feedbackSubmittingBtn: 'Submitting...',
     feedbackSuccessBanner: 'Feedback recorded successfully. Thank you for your contribution.',
+    feedbackLocalNotice:
+      '(saved to local browser history — copy as Markdown for manual submission if needed).',
     feedbackHistoryTitle: 'Contribution History',
     feedbackHistoryEmpty: 'No feedback submitted in this browser yet.',
+    feedbackCopyMarkdownTitle: 'Copy as Markdown',
+    feedbackCopyBtn: 'Copy',
+    feedbackRemoveHistoryTitle: 'Remove from history',
+    feedbackInstitutionPrefix: 'Institution:',
+    feedbackFooterNote: 'Scientific metasearch and systematic literature review in open science.',
+    feedbackMarkdownHeader: '### [Cartograph Feedback]',
+    feedbackMarkdownType: 'Type:',
+    feedbackMarkdownRating: 'Rating:',
+    feedbackMarkdownDate: 'Date:',
+    feedbackMarkdownInstitution: 'Institution:',
+    feedbackMarkdownUrl: 'URL/Portal:',
+    feedbackMarkdownContact: 'Contact:',
+
     filterStrictlyFree: 'Open Access Only',
     allCategories: 'All Categories ({count})',
+
+    sidebarAriaLabel: 'Platform filters and navigation',
+    filtersNavTitle: 'Filters & Navigation',
+    collapseAll: 'Collapse all',
+    expandAll: 'Expand all',
+    collapseAllTitle: 'Collapse all sections',
+    expandAllTitle: 'Expand all sections',
+    clearFilter: 'Clear',
+    accessModelTitle: 'Access Model',
+    accessModelAll: 'All models',
+    accessModelFree: '100% Free & Open',
+    accessModelPaid: 'Paid / Subscription',
+    accessModelInstitutional: 'Open Access + Institutional',
+    accessModelFreemium: 'Free w/ AI Quota',
+    accessShortFree: 'Free',
+    accessShortPaid: 'Subscription',
+    accessShortInst: 'Institutional',
+    accessShortFreemium: 'Freemium',
+    quickSelectionTitle: 'Quick Selection',
+    quickSelectionTitleAttr: '{selected} of {total} platforms selected',
+    quickSelectionActiveCount: '{selected} of {total} active',
+    quickSelectionAllBtn: 'All',
+    platformTypeTitle: 'Platform Type',
+    platformTypeAll: 'All categories',
+    directoryResultsSummary: '{visible} matching portals · {selected} selected for batch launch',
+    gridViewTitle: 'Grid view',
+    listViewTitle: 'Academic list view',
+    includeInBatchTitle: 'Include in batch launch',
+    cardSearchAction: 'Search ↗',
+    cardOpenAction: 'Open ↗',
+    cardOpenPortalAction: 'Open portal ↗',
 
     platformSearchBtn: 'Search on {name}',
     enterTopicAbove: 'Enter search terms above',
@@ -484,6 +1099,59 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
 
     federatedTitle: 'Scientific Papers Found',
     federatedCount: '{displayed} of {total} papers',
+    federatedSidebarAria: 'Found papers filters and navigation',
+    saveToSlotTitle: 'Save to Slot / Group',
+    createNewSlotTitle: 'Create new research slot',
+    newBtn: 'New',
+    ungroupedOption: 'Ungrouped (General)',
+    slotPrefix: 'Slot:',
+    slotPlaceholder: 'e.g. AI Games, Pharmacology...',
+    cancelBtn: 'Cancel',
+    createSlotBtn: 'Create Slot',
+    slotHelperPrefix: 'Choose a group to organize this search or keep in',
+    slotHelperUngrouped: 'Ungrouped',
+    sortShortCitations: 'Citations',
+    sortShortYear: 'Year',
+    availabilityTitle: 'Availability',
+    availabilityOpenAccessOnly: 'Open Access only',
+    queriedSourcesTitle: 'Queried Databases',
+    allSourcesOption: 'All sources',
+    progressAriaLabel: 'Federated metasearch progress across scientific sources',
+    queryingAllProgress: 'Querying databases ({completed} of {total})',
+    queryingSourceProgress: 'Querying {label}... ({completed} of {total} sources)',
+    papersDisplayedSuffix: '· {count} papers displayed',
+    showingResultsSummary: 'Showing {displayed} of {total} scientific papers found',
+    duplicatesMergedCount: '{count} duplicates merged',
+    duplicatesMergedTitle:
+      '{doi} by canonical DOI, {ids} by persistent ID (PMID/arXiv), {fuzzy} by title (Jaro-Winkler)',
+    loadingResultsAria: 'Loading results',
+    sourceErrorTitle: 'Query did not complete on {label}',
+    sourceTimeoutFallback: 'The database response timeout was reached.',
+    backToAllSources: 'Back to "All sources"',
+    noPapersInViewTitle: 'No papers found in this view',
+    noOpenAccessMatchDesc:
+      'No papers with direct open access match the current filters. Uncheck "Open Access only" to expand results.',
+    noSourceMatchDesc: '{label} completed with no matches for this query.',
+    noSourceFallbackName: 'This database',
+    noAllSourcesMatchDesc: 'None of the queried databases returned matches for the entered terms.',
+    hideStructuredSections: 'Hide Structured Sections',
+    viewStructuredAbstract: 'View Structured Abstract',
+    labelObjective: 'Objective:',
+    labelMethodsSample: 'Methods / Sample:',
+    labelMethodsDesign: 'Methods / Study Design:',
+    labelSampleParticipants: 'Sample / Participants:',
+    labelResults: 'Results:',
+    labelConclusion: 'Conclusion:',
+    savedShort: 'Saved',
+    saveShort: 'Save',
+    saveIntoGroup: 'Save to "{name}"',
+    changePaperGroupTitle: 'Change group / slot for this paper',
+    ungroupedShort: 'Ungrouped',
+    citedByCount: 'Cited by {count}',
+    citePrefix: 'Cite:',
+    waitingMoreSourcesSingular: 'Waiting for 1 more scientific source...',
+    waitingMoreSourcesPlural: 'Waiting for {count} more scientific sources...',
+
     querying: 'Searching papers...',
     itemsLatency: '{count} papers ({latency}ms)',
     unavailable: 'Unavailable',
@@ -494,6 +1162,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     sortRelevance: 'Relevance',
     sortCitations: 'Most cited',
     sortYear: 'Most recent',
+    relevanceMethodCaption: 'BM25F text + RRF consensus + citations/yr + recency',
+    relevanceScoreBadge: 'Relevance {score}%',
+    relevanceBreakdownTitle:
+      'Text (BM25F): {lexical}% · RRF Consensus ({sources} {sourcesLabel}): {consensus}% · Impact/Recency: {impact}% · Evidence/Access: {quality}%',
+    sourceCountSingular: 'source',
+    sourceCountPlural: 'sources',
+    corroboratedSourcesBadge: '{count} sources',
     savedInMatrix: 'Saved to Library',
     savePaperBtn: 'Save Paper',
     noAuthors: 'Authors not listed',
@@ -514,6 +1189,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     downloadBib: 'Export BibTeX (.bib)',
     copyAll: 'Copy Citations ({format})',
     clearAll: 'Clear Library',
+    clearSlot: 'Clear Slot',
+    clearAllTitle: 'Remove all papers from the library',
+    clearSlotTitle: 'Remove papers from this slot',
     priorityHigh: 'High',
     priorityMedium: 'Medium',
     priorityReview: 'Review',
@@ -524,20 +1202,111 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     downloadFullPdf: 'Download PDF',
     emptySavedTitle: 'No papers saved yet',
     emptySavedDesc:
-      'Click "Save Paper" in search results to organize your references and export citations in ABNT, APA, or BibTeX.',
+      'Click "Save" in search results to organize your references and export citations in ABNT, APA, or BibTeX.',
+
+    savedSidebarAria: 'Research groups and slots management',
+    newResearchGroupTitle: 'New Research Slot / Group',
+    groupColorAria: 'Group color',
+    colorPrefix: 'Color:',
+    createSlotPlusBtn: '+ Create Slot',
+    defaultSaveTargetTitle: 'Default Save Destination',
+    defaultSaveTargetDescPrefix: 'Papers saved in the',
+    defaultSaveTargetDescSuffix: 'tab will automatically go to this destination.',
+    librarySlotsTitle: 'Library Slots',
+    allPapersSlot: 'All Papers',
+    activeBadge: 'Active',
+    researchGroupsCount: 'Research Groups ({count})',
+    noGroupsHint:
+      'No groups created yet. Create slots above (e.g., AI Games, Drugs) to organize your reviews.',
+    saveNameTitle: 'Save name',
+    renameGroupTitle: 'Rename group',
+    deleteGroupTitle: 'Delete group (papers are kept in Ungrouped)',
+    localBackupTitle: 'Local Backup & Import',
+    localBackupDesc:
+      'Export the entire library to JSON or import .bib, .ris (Zotero/Mendeley) files, or previous backups.',
+    restoreModeLabel: 'On JSON restore:',
+    restoreModeMerge: 'Merge with current',
+    restoreModeReplace: 'Replace all',
+    importBtn: 'Import',
+    backupJsonBtn: 'JSON Backup',
+    backupJsonTitle: 'Export library, groups, and selected platforms to JSON',
+    backupExportedFeedback: 'JSON backup exported with groups, papers, and platform selection.',
+    backupFailedFeedback: 'JSON backup failed: {error}',
+    backupRestoredFeedback: 'Session restored: {papers} papers and {groups} groups.',
+    backupMergedFeedback: 'Backup merged: +{papers} papers and +{groups} groups.',
+    importInvalidFeedback:
+      'No valid references found. Use .bib (BibTeX), .ris, or .json backup files.',
+    importSuccessFeedback:
+      '{format} import: +{added} papers added ({skipped} duplicates skipped).',
+    importReadErrorFeedback: 'Could not read the selected file.',
+    allLibraryPapersTitle: 'All Library Papers',
+    groupFallbackName: 'Group',
+    slotAllDesc: 'Showing all saved papers across all groups and ungrouped items.',
+    slotUngroupedDesc: 'Showing ungrouped papers not assigned to any specific research slot.',
+    slotGroupDesc: 'Isolated literature review and PRISMA 2020 matrix for group "{name}".',
+    exportCsvCount: 'Export CSV ({count})',
+    exportCsvTitle: 'Download CSV spreadsheet for this slot',
+    subTabMatrix: 'Screening Matrix ({count})',
+    subTabPrisma: 'PRISMA 2020 Flow Diagram',
+    emptyUngroupedTitle: 'No ungrouped papers saved',
+    emptyGroupTitle: 'Group "{name}" has no papers yet',
+    emptySlotDesc:
+      'Run a search in the "Papers Found" tab to save new studies directly to this slot, or move existing papers using the group selector on each card.',
+    systematicScreeningLabel: 'Systematic Screening ({title}):',
+    filterAllCount: 'All ({count})',
+    filterIncludedCount: 'Included ({count})',
+    filterExcludedCount: 'Excluded ({count})',
+    filterPendingCount: 'Pending ({count})',
+    movePaperGroupTitle: 'Move paper to another slot or keep ungrouped',
+    prismaDecisionLabel: 'PRISMA Decision:',
+    decisionInclude: 'Include',
+    decisionExclude: 'Exclude',
+    decisionPending: 'Pending',
+    hideExtractedVars: 'Hide Extracted Methodological Variables',
+    showExtractedVars: 'View Extracted Methodological Variables (Objective, Methods, Results)',
+    noStructuredSectionsNotice: 'No canonical structured abstract section markers detected.',
+
+    webLaunchTitle: 'Assisted Portal Launch ({count})',
+    webLaunchBlockedDesc:
+      'Browsers block multiple simultaneous tabs without the local Bridge. Click each portal below to open directly with your search:',
+    webLaunchDirectDesc: 'Direct access to selected portals for the current query:',
+    webLaunchCloseAria: 'Close panel',
+    webLaunchQueryLabel: 'Query:',
+    webLaunchCopiedAll: 'URLs copied',
+    webLaunchCopyAll: 'Copy all URLs',
+    webLaunchOpenedBadge: 'Opened',
+    webLaunchOpenBtn: 'Open',
+    webLaunchTip:
+      'Tip: allow pop-ups for cartographsearch.com or use the Tauri desktop app to open all at once.',
+    webLaunchCloseBtn: 'Close',
+
+    footerBrandTitle: 'About Cartograph — Architecture & Methodology',
+    footerNavAria: 'Footer institutional and legal links',
+    footerAbout: 'About Cartograph',
+    footerApis: '15 Open APIs',
+    footerCitation: 'How to Cite',
+    footerCopyright: 'Copyright & Licenses',
+    footerPrivacy: 'Privacy (GDPR / LGPD) & Terms',
+    footerRightsReserved: 'v2.4. All rights reserved.',
+    footerEngineeringNote: 'Deterministic engineering · Local-First · PRISMA 2020',
+    analyticsConsentAria: 'Anonymous telemetry preference',
+    analyticsConsentText:
+      'Cartograph uses optional aggregated metrics (without search terms or personal data) to improve scientific sources.',
+    analyticsDeclineBtn: 'Decline',
+    analyticsAcceptBtn: 'Accept anonymous',
 
     bbTitle: 'Boolean Expression Builder',
     bbSubtitle: 'Combine keywords to refine search results.',
     bbClear: 'Clear',
     bbMainConcept: 'Primary Topic',
     bbMainConceptPh: 'Central research topic',
-    bbAndTerms: 'Required Terms (AND)',
+    bbAndTerms: 'Required Terms',
     bbAndTermsPh: 'Words that must also be present',
-    bbOrTerms: 'Alternative Terms (OR)',
+    bbOrTerms: 'Alternative Terms',
     bbOrTermsPh: 'Synonyms or accepted variants',
     bbExactPhrase: 'Exact Phrase',
     bbExactPhrasePh: 'Exact phrase in quotes',
-    bbNotTerms: 'Exclude Terms (NOT)',
+    bbNotTerms: 'Exclude Terms',
     bbNotTermsPh: 'Words to exclude',
     bbStartYear: 'Starting Year',
     bbAnyYear: 'Any year',
@@ -613,6 +1382,55 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS, and OSTI.GOV.',
     presetGenomicsMaterials: 'Genomics, Proteomics & Bioinformatics',
     presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC, and bioRxiv.',
+    presetEconEmpirical: 'Empirical Economics & Working Papers',
+    presetEconEmpiricalDesc: 'NBER, IDEAS/RePEc, SSRN, World Bank WDS, BIS Working Papers, and EconStor.',
+    presetEconGlobalPolicy: 'Public Policy & Global IGOs',
+    presetEconGlobalPolicyDesc: 'World Bank OKR, IPEA, CEPAL, OECD iLibrary, IMF eLibrary, UNDL, and J-PAL.',
+    presetEconPoliticalScience: 'Political Science & Governance',
+    presetEconPoliticalScienceDesc: 'SocArXiv, APSA Preprints, JSTOR, Brookings, GovInfo, and SPELL.',
+
+    scopeLabel: 'Metasearch Scope',
+    scopeAll: 'All Sources',
+    scopeGeneral: 'General & Multi',
+    scopeEconPolicy: 'Economics & Policy',
+    scopeHealth: 'Health & Life Sci',
+    scopeExactTech: 'Exact, Tech & Data',
+
+    proxyDoiButton: '[Institutional Proxy]',
+    activeSubscriptionBadge: 'Active Subscription',
+    filterOwnedOnly: 'Only my subscriptions',
+
+    accessSettingsBtn: 'My Access & APIs',
+    accessModalTitle: 'Institutional Access, BYOK Keys & Subscriptions',
+    accessModalSubtitle: 'Stored strictly locally in your browser so you can use existing university access and API keys without Cartograph limits.',
+    accessTabProxy: 'Institutional Proxy',
+    accessTabByok: 'API Keys (BYOK)',
+    accessTabSubscriptions: 'My Subscriptions',
+    proxyEnableLabel: 'Enable automatic Institutional Proxy rewriting (EZProxy / CAPES CAFe)',
+    proxyModeLabel: 'Rewrite mode',
+    proxyModePrefix: 'Prefix / {url} Template (EZProxy / OpenAthens)',
+    proxyModeCapesCafe: 'Domain suffix (CAPES CAFe .ezXX)',
+    proxyTemplateLabel: 'University proxy URL or domain suffix',
+    proxyTemplatePlaceholder: 'e.g. https://ezproxy.university.edu/login?url={url}',
+    proxyPresetsLabel: 'Quick templates',
+    proxyPresetCapes: 'CAPES CAFe Template',
+    proxyPresetEzproxy: 'Standard EZProxy Template',
+    proxyPreviewLabel: 'Live link preview (ScienceDirect)',
+    proxyApplyToLabel: 'Apply proxy to access tiers',
+    proxyLocalNotice: 'Proxy settings and API keys never leave this browser and are excluded from exported backup files.',
+    byokIntro: 'Add personal or institutional API keys to unlock subscribed databases (Scopus, ScienceDirect, IEEE) or raise free rate quotas (Semantic Scholar, CORE, Springer, Lens, Fed in Print, GovInfo).',
+    byokKeyLabel: 'API Key',
+    byokInstTokenLabel: 'InstToken (optional off-campus)',
+    byokGetKeyLink: 'Get / manage key',
+    byokStatusActive: 'Active',
+    byokStatusInactive: 'Inactive',
+    byokClearBtn: 'Clear',
+    byokToggleEnable: 'Enable in metasearch',
+    subsIntro: 'Mark platforms covered by your university or personal subscription to highlight them with an active badge and filter quickly.',
+    subsSelectCapesBtn: 'Select CAPES CAFe bundle',
+    subsClearAllBtn: 'Clear all',
+    subsCountLabel: 'active subscriptions',
+    closeModalBtn: 'Close',
 
     thematicAreasTitle: 'Thematic Field',
     areaAll: 'All Fields',
@@ -629,427 +1447,19 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaEconomiaPoliticas: 'Economics & Public Policy',
     areaPatentesNormas: 'Patents & Tech Standards',
     areaMultidisciplinar: 'Multidisciplinary',
-  },
 
-  es: {
-    appName: 'CARTOGRAPH',
-    appTagline: 'Metabúsqueda Académica',
-    systemBarSubtitle: 'Búsqueda integrada en revistas científicas y repositorios abiertos',
-    bridgeActive: 'Bridge nativo activo ({osName})',
-    bridgeOffline: 'Ejecutando en navegador',
-    keyboardShortcut: 'Ctrl/Cmd + K',
-
-    heroTitle: 'Búsqueda Académica Unificada',
-    heroSubtitle:
-      'Consulte artículos, preprints y publicaciones en bases científicas abiertas e institucionales.',
-    searchPlaceholder: 'Buscar por tema, autor, artículo o palabras clave...',
-    btnSearchApis: 'Buscar Artículos',
-    btnLaunchTabs: 'Abrir Portales ({count})',
-    btnTotalSearch: 'Búsqueda Completa',
-    translateBtn: 'Traducir ES → EN',
-    booleanBuilderBtn: 'Filtros Booleanos',
-    platformsOpenedBridge: '{count} portales académicos abiertos en el navegador.',
-    platformsOpenedBrowser: '{count} pestañas abiertas por el navegador.',
-    termTranslatedBanner: 'Término traducido para búsqueda internacional: "{term}"',
-    booleanAppliedBanner: 'Filtros booleanos aplicados a la búsqueda.',
-
-    presetsTitle: 'Perfiles de Búsqueda:',
-    selectAll: 'Marcar Todas ({count})',
-    clearSelection: 'Desmarcar Todas',
-
-    tabPlatforms: 'Bases & Portales ({count})',
-    tabFederated: 'Artículos Encontrados ({count})',
-    tabSaved: 'Biblioteca ({count})',
-    tabFeedback: 'Comentarios & Sugerencias',
-    tabAbout: 'Acerca de & Legal',
-    feedbackTitle: 'Contribuciones & Valoración',
-    feedbackSubtitle:
-      'Sugiera nuevas fuentes científicas, reporte enlaces caídos o proponga mejoras para Cartograph.',
-    feedbackTypeLabel: 'Tipo de Contribución',
-    feedbackTypeSuggestion: 'Sugerir Nueva Base / Portal',
-    feedbackTypeCorrection: 'Reportar Enlace Caído o Error',
-    feedbackTypeFeature: 'Sugerencia Funcional',
-    feedbackTypeGeneral: 'Valoración General',
-    feedbackSubjectLabel: 'Título',
-    feedbackSubjectPlaceholder: 'Ej: Añadir repositorio SciELO Libros',
-    feedbackMessageLabel: 'Descripción',
-    feedbackMessagePlaceholder: 'Describa su sugerencia o comentario con claridad...',
-    feedbackUrlLabel: 'URL o Portal Relacionado (opcional)',
-    feedbackUrlPlaceholder: 'https://ejemplo.org o nombre de la base',
-    feedbackInstitutionLabel: 'Campo o Institución (opcional)',
-    feedbackInstitutionPlaceholder: 'Ej: UBA / Ciencias de la Computación',
-    feedbackEmailLabel: 'Correo Electrónico (opcional)',
-    feedbackEmailPlaceholder: 'su.correo@universidad.edu',
-    feedbackRatingLabel: 'Valoración de la Experiencia',
-    feedbackSubmitBtn: 'Enviar Comentario',
-    feedbackSuccessBanner: 'Comentario registrado con éxito. Gracias por su contribución.',
-    feedbackHistoryTitle: 'Historial de Contribuciones',
-    feedbackHistoryEmpty: 'No hay comentarios enviados en este navegador aún.',
-    filterStrictlyFree: 'Solo Acceso Abierto',
-    allCategories: 'Todas las Categorías ({count})',
-
-    platformSearchBtn: 'Buscar en {name}',
-    enterTopicAbove: 'Escriba un tema para buscar',
-    coverageLabel: 'Campo:',
-    categoryLabel: 'Categoría:',
-
-    federatedTitle: 'Artículos Científicos Encontrados',
-    federatedCount: '{displayed} de {total} artículos',
-    querying: 'Buscando artículos...',
-    itemsLatency: '{count} artículos ({latency}ms)',
-    unavailable: 'No disponible',
-    filtersLabel: 'Filtros:',
-    filterOnlyOa: 'Solo texto completo (Open Access)',
-    showAllSources: 'Mostrar todas las fuentes ✕',
-    sortByLabel: 'Ordenar por:',
-    sortRelevance: 'Relevancia',
-    sortCitations: 'Más citados',
-    sortYear: 'Más recientes',
-    savedInMatrix: 'Guardado en Biblioteca',
-    savePaperBtn: 'Guardar Artículo',
-    noAuthors: 'Autores no informados',
-    collapseAbstract: 'Plegar resumen',
-    readFullAbstract: 'Leer resumen completo',
-    openPage: 'Ver página',
-    freePdf: 'PDF Abierto',
-    copyCitation: 'Copiar cita:',
-    emptyFederatedTitle: 'Búsqueda Académica Lista',
-    emptyFederatedDesc:
-      'Escriba términos de búsqueda arriba para consultar repositorios abiertos, ver resúmenes y acceder a textos completos.',
-
-    savedTitle: 'Artículos Guardados ({count} {label})',
-    savedSubtitle: 'Artículos guardados localmente para consulta y exportación de referencias.',
-    studySingular: 'artículo',
-    studyPlural: 'artículos',
-    downloadCsv: 'Exportar Tabla (CSV)',
-    downloadBib: 'Exportar BibTeX (.bib)',
-    copyAll: 'Copiar Referencias ({format})',
-    clearAll: 'Limpiar Biblioteca',
-    priorityHigh: 'Alta',
-    priorityMedium: 'Media',
-    priorityReview: 'Revisar',
-    removeTooltip: 'Eliminar artículo',
-    notesLabel: 'Notas de investigación:',
-    notesPlaceholder: 'Añada notas sobre metodología, hallazgos o comentarios...',
-    openSource: 'Ver Artículo',
-    downloadFullPdf: 'Descargar PDF',
-    emptySavedTitle: 'Ningún artículo guardado',
-    emptySavedDesc:
-      'Haga clic en "Guardar Artículo" en los resultados para organizar su revisión y exportar citas en ABNT, APA o BibTeX.',
-
-    bbTitle: 'Constructor de Expresión Booleana',
-    bbSubtitle: 'Combine palabras clave para refinar los resultados.',
-    bbClear: 'Limpiar',
-    bbMainConcept: 'Tema Principal',
-    bbMainConceptPh: 'Tema central de investigación',
-    bbAndTerms: 'Términos Requeridos (AND)',
-    bbAndTermsPh: 'Palabras que también deben estar presentes',
-    bbOrTerms: 'Términos Alternativos (OR)',
-    bbOrTermsPh: 'Sinónimos o variantes aceptadas',
-    bbExactPhrase: 'Frase Exacta',
-    bbExactPhrasePh: 'Frase exacta entre comillas',
-    bbNotTerms: 'Excluir Términos (NOT)',
-    bbNotTermsPh: 'Palabras a desestimar',
-    bbStartYear: 'A Partir del Año',
-    bbAnyYear: 'Cualquier año',
-    bbFromYear: 'Desde {year}',
-    bbStudyDesign: 'Tipo de Estudio',
-    bbAllDesigns: 'Todos los estudios',
-    bbSystematicReview: 'Revisión Sistemática',
-    bbRct: 'Ensayo Clínico',
-    bbEmpiricalCausal: 'Estudio Empírico',
-    bbCompiledString: 'Expresión generada:',
-    bbCompiledEmpty: 'Complete los campos para armar la búsqueda',
-    bbApplyBtn: 'Aplicar en Búsqueda',
-
-    catGlobalIndex: 'Bases Globales & Repositorios',
-    catGlobalIndexSub: 'Grandes índices académicos mundiales y servidores de preprints.',
-    catCommercialPublishers: 'Editoriales Científicas',
-    catCommercialPublishersSub: 'Revistas con acceso por suscripción o convenio institucional.',
-    catRegionalLatam: 'América Latina & Península Ibérica',
-    catRegionalLatamSub: 'Literatura científica regional, revistas públicas y tesis.',
-    catAiSynthesis: 'Bases con Análisis Semántico',
-    catAiSynthesisSub: 'Plataformas con síntesis de evidencia y contexto de citas.',
-    catCitationGraph: 'Redes de Citación',
-    catCitationGraphSub: 'Mapeo visual de conexiones bibliográficas entre estudios.',
-    catEvidenceHealth: 'Salud & Medicina',
-    catEvidenceHealthSub: 'Literatura biomédica, revisiones de salud y ensayos clínicos.',
-    catTechPatents: 'Patentes, Normas & Ingeniería',
-    catTechPatentsSub: 'Propiedad intelectual, RFCs, estándares técnicos, ciberseguridad e I+D industrial.',
-    catNicheScience: 'Ciencia Aplicada & Nichos',
-    catNicheScienceSub: 'Laboratorios nacionales, física, espacio, química, biodiversidad y datos empíricos.',
-
-    accessGratuito: 'Acceso Abierto',
-    accessAbertoInst: 'Acceso Institucional',
-    accessFreemium: 'Gratuito con Límite',
-    accessPago: 'Suscripción',
-
-    presetCoreGold: 'Núcleo Principal (6 Bases)',
-    presetCoreGoldDesc: 'Google Scholar, OpenAlex, Semantic Scholar, PubMed, SciELO y Consensus.',
-    presetGlobalPublishers: 'Editoriales Internacionales (8 Bases)',
-    presetGlobalPublishersDesc: 'Web of Science, Scopus, ScienceDirect, IEEE Xplore, ACM, Springer, Wiley y JSTOR.',
-    presetStemTech: 'Ciencias Exactas & Tecnología (6 Bases)',
-    presetStemTechDesc: 'IEEE Xplore, ACM DL, arXiv, ScienceDirect, SpringerLink y DBLP.',
-    preset100Free: 'Acceso Abierto (10 Bases)',
-    preset100FreeDesc: 'Plataformas de libre acceso sin muros de pago.',
-    presetBrasilLatam: 'Iberoamérica & LatAm (8 Bases)',
-    presetBrasilLatamDesc: 'SciELO, Periódicos CAPES, BDTD, Oasisbr, LA Referencia, Redalyc, Dialnet y RCAAP.',
-    presetEconPolicy: 'Ciencias Sociales & Economía (6 Bases)',
-    presetEconPolicyDesc: 'IDEAS/RePEc, SSRN, SPELL, OpenAlex, SciELO y Google Scholar.',
-    presetCsAi: 'Computación & Datos (6 Bases)',
-    presetCsAiDesc: 'arXiv, DBLP, Semantic Scholar, Zenodo (CERN), DataCite Commons y The Lens.',
-    presetAiCitation: 'Síntesis & Grafos (6 Bases)',
-    presetAiCitationDesc: 'Consensus, Elicit, Scite, Perplexity Academic, Connected Papers y Open Knowledge Maps.',
-    presetBiomed: 'Salud & Medicina (7 Bases)',
-    presetBiomedDesc: 'PubMed, Europe PMC, Cochrane Library, Epistemonikos, ClinicalTrials.gov, medRxiv y LILACS.',
-    presetAi: 'Inteligencia Artificial & Aprendizaje Automático',
-    presetAiDesc: 'Hugging Face Papers, Papers With Code, OpenReview, ACL Anthology y arXiv.',
-    presetHealth: 'Salud, Medicina & Farmacología',
-    presetHealthDesc: 'PubMed, Europe PMC, Cochrane Library, bioRxiv, medRxiv y ClinicalTrials.gov.',
-    presetGames: 'Juegos, Ludología & Medios Interactivos',
-    presetGamesDesc: 'DiGRA Digital Library, Game Studies, GDC Vault e IEEE Transactions on Games.',
-    presetArt: 'Arte, Diseño & Cultura Visual',
-    presetArtDesc: 'Getty Research Portal, Smithsonian Open Access, Met Museum y AIGA Design Archives.',
-    presetSoftware: 'Ingeniería de Software & Desarrollo',
-    presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage y ACM SIGSOFT.',
-    presetHardware: 'Hardware, Semiconductores & Arquitectura',
-    presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips y arXiv Hardware Architecture.',
-    presetTechPatents: 'Patentes, Normas & Ciberseguridad',
-    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFCs y NIST/NVD.',
-    presetAppliedLabs: 'Laboratorios, Física & Espacio',
-    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv y Zenodo.',
-    presetBioClimate: 'Química, Biodiversidad & Agro',
-    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare y Dryad.',
-    presetGeoClimate: 'Geociencias, Clima & Materiales',
-    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS y OSTI.GOV.',
-    presetGenomicsMaterials: 'Genómica, Proteómica & Bioinformática',
-    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC y bioRxiv.',
-
-    thematicAreasTitle: 'Área Temática',
-    areaAll: 'Todas las Áreas',
-    areaTecnologia: 'Tecnología & Innovación',
-    areaIa: 'Inteligencia Artificial',
-    areaSaude: 'Salud & Medicina',
-    areaArte: 'Arte & Diseño',
-    areaGames: 'Juegos & Game Studies',
-    areaSoftware: 'Desarrollo & Software',
-    areaHardware: 'Hardware & Chips',
-    areaCienciasExatas: 'Física, Química & Espacio',
-    areaBiociencias: 'Biociencias, Agro & Clima',
-    areaGeociencias: 'Geociencias & Oceanografía',
-    areaEconomiaPoliticas: 'Economía & Políticas Públicas',
-    areaPatentesNormas: 'Patentes & Normas Técnicas',
-    areaMultidisciplinar: 'Multidisciplinar',
-  },
-
-  fr: {
-    appName: 'CARTOGRAPH',
-    appTagline: 'Métarecherche Académique',
-    systemBarSubtitle: 'Recherche unifiée dans les revues scientifiques et les archives ouvertes',
-    bridgeActive: 'Bridge natif actif ({osName})',
-    bridgeOffline: 'Exécution locale dans le navigateur',
-    keyboardShortcut: 'Ctrl/Cmd + K',
-
-    heroTitle: 'Recherche Académique Unifiée',
-    heroSubtitle:
-      'Consultez articles, prépublications et revues scientifiques dans les bases ouvertes et institutionnelles.',
-    searchPlaceholder: 'Rechercher par thème, auteur, titre ou mots-clés...',
-    btnSearchApis: 'Rechercher des Articles',
-    btnLaunchTabs: 'Ouvrir les Portails ({count})',
-    btnTotalSearch: 'Recherche Complète',
-    translateBtn: 'Traduire en Anglais',
-    booleanBuilderBtn: 'Filtres Booléens',
-    platformsOpenedBridge: '{count} portails ouverts dans le navigateur.',
-    platformsOpenedBrowser: '{count} onglets ouverts par le navigateur.',
-    termTranslatedBanner: 'Terme traduit pour la recherche : "{term}"',
-    booleanAppliedBanner: 'Filtres booléens appliqués à la recherche.',
-
-    presetsTitle: 'Profils de Recherche :',
-    selectAll: 'Tout Sélectionner ({count})',
-    clearSelection: 'Tout Désélectionner',
-
-    tabPlatforms: 'Bases & Portails ({count})',
-    tabFederated: 'Articles Trouvés ({count})',
-    tabSaved: 'Bibliothèque ({count})',
-    tabFeedback: 'Retours & Suggestions',
-    tabAbout: 'À propos & Mentions légales',
-    feedbackTitle: 'Contributions & Avis',
-    feedbackSubtitle:
-      'Proposez de nouvelles sources scientifiques, signalez un lien brisé ou suggérez des améliorations.',
-    feedbackTypeLabel: 'Type de Contribution',
-    feedbackTypeSuggestion: 'Suggérer une Nouvelle Base / Portail',
-    feedbackTypeCorrection: 'Signaler un Lien Brisé ou Problème',
-    feedbackTypeFeature: 'Suggestion Fonctionnelle',
-    feedbackTypeGeneral: 'Avis Général',
-    feedbackSubjectLabel: 'Titre',
-    feedbackSubjectPlaceholder: 'Ex : Ajouter le dépôt SciELO Livres',
-    feedbackMessageLabel: 'Description',
-    feedbackMessagePlaceholder: 'Décrivez clairement votre suggestion ou remarque...',
-    feedbackUrlLabel: 'URL ou Portail Associé (facultatif)',
-    feedbackUrlPlaceholder: 'https://exemple.org ou nom de la plateforme',
-    feedbackInstitutionLabel: 'Discipline ou Établissement (facultatif)',
-    feedbackInstitutionPlaceholder: 'Ex : Sorbonne / Informatique',
-    feedbackEmailLabel: 'Courriel de Contact (facultatif)',
-    feedbackEmailPlaceholder: 'votre.courriel@universite.edu',
-    feedbackRatingLabel: "Évaluation de l'Expérience",
-    feedbackSubmitBtn: 'Envoyer le Retour',
-    feedbackSuccessBanner: 'Retour enregistré avec succès. Merci pour votre contribution.',
-    feedbackHistoryTitle: 'Historique des Contributions',
-    feedbackHistoryEmpty: 'Aucun retour envoyé dans ce navigateur pour le moment.',
-    filterStrictlyFree: 'Accès Ouvert Uniquement',
-    allCategories: 'Toutes les Catégories ({count})',
-
-    platformSearchBtn: 'Rechercher sur {name}',
-    enterTopicAbove: 'Saisissez un terme de recherche',
-    coverageLabel: 'Domaine :',
-    categoryLabel: 'Catégorie :',
-
-    federatedTitle: 'Articles Scientifiques Trouvés',
-    federatedCount: '{displayed} sur {total} articles',
-    querying: "Recherche d'articles...",
-    itemsLatency: '{count} articles ({latency}ms)',
-    unavailable: 'Non disponible',
-    filtersLabel: 'Filtres :',
-    filterOnlyOa: 'Texte intégral uniquement (Open Access)',
-    showAllSources: 'Afficher toutes les sources ✕',
-    sortByLabel: 'Trier par :',
-    sortRelevance: 'Pertinence',
-    sortCitations: 'Plus cités',
-    sortYear: 'Plus récents',
-    savedInMatrix: 'Enregistré dans la Bibliothèque',
-    savePaperBtn: "Enregistrer l'Article",
-    noAuthors: 'Auteurs non précisés',
-    collapseAbstract: 'Masquer le résumé',
-    readFullAbstract: 'Lire le résumé complet',
-    openPage: 'Voir la page',
-    freePdf: 'PDF Ouvert',
-    copyCitation: 'Copier la citation :',
-    emptyFederatedTitle: 'Recherche Académique Prête',
-    emptyFederatedDesc:
-      'Saisissez des termes de recherche ci-dessus pour interroger les archives ouvertes, consulter les résumés et accéder aux textes intégraux.',
-
-    savedTitle: 'Articles Enregistrés ({count} {label})',
-    savedSubtitle: 'Articles conservés localement pour consultation et exportation de références.',
-    studySingular: 'article',
-    studyPlural: 'articles',
-    downloadCsv: 'Exporter Tableau (CSV)',
-    downloadBib: 'Exporter BibTeX (.bib)',
-    copyAll: 'Copier Références ({format})',
-    clearAll: 'Vider la Bibliothèque',
-    priorityHigh: 'Haute',
-    priorityMedium: 'Moyenne',
-    priorityReview: 'À évaluer',
-    removeTooltip: "Retirer l'article",
-    notesLabel: 'Notes de recherche :',
-    notesPlaceholder: "Ajoutez des observations, la méthodologie ou des notes d'analyse...",
-    openSource: "Consulter l'Article",
-    downloadFullPdf: 'Télécharger le PDF',
-    emptySavedTitle: 'Aucun article enregistré',
-    emptySavedDesc:
-      "Cliquez sur \"Enregistrer l'Article\" dans les résultats pour organiser vos références et exporter en ABNT, APA ou BibTeX.",
-
-    bbTitle: "Constructeur d'Expression Booléenne",
-    bbSubtitle: 'Combinez des mots-clés pour affiner la recherche.',
-    bbClear: 'Effacer',
-    bbMainConcept: 'Thème Principal',
-    bbMainConceptPh: 'Sujet central de recherche',
-    bbAndTerms: 'Termes Requis (AND)',
-    bbAndTermsPh: 'Termes qui doivent être présents',
-    bbOrTerms: 'Termes Alternatifs (OR)',
-    bbOrTermsPh: 'Synonymes ou variantes admises',
-    bbExactPhrase: 'Expression Exacte',
-    bbExactPhrasePh: 'Expression exacte entre guillemets',
-    bbNotTerms: 'Exclure des Termes (NOT)',
-    bbNotTermsPh: 'Mots à écarter',
-    bbStartYear: "À Partir de l'Année",
-    bbAnyYear: 'Toute année',
-    bbFromYear: 'Depuis {year}',
-    bbStudyDesign: "Type d'Étude",
-    bbAllDesigns: "Tous les types d'étude",
-    bbSystematicReview: 'Revue Systématique',
-    bbRct: 'Essai Clinique',
-    bbEmpiricalCausal: 'Étude Empirique',
-    bbCompiledString: 'Expression générée :',
-    bbCompiledEmpty: 'Remplissez les champs pour composer la recherche',
-    bbApplyBtn: 'Appliquer à la Recherche',
-
-    catGlobalIndex: 'Bases Mondiales & Archives',
-    catGlobalIndexSub: 'Grands index universitaires et serveurs de prépublications.',
-    catCommercialPublishers: 'Éditeurs Scientifiques',
-    catCommercialPublishersSub: 'Revues accessibles par abonnement ou licence institutionnelle.',
-    catRegionalLatam: 'Amérique Latine & Péninsule Ibérique',
-    catRegionalLatamSub: 'Littérature scientifique régionale, revues publiques et thèses.',
-    catAiSynthesis: 'Bases avec Analyse Sémantique',
-    catAiSynthesisSub: 'Plateformes offrant des synthèses de résultats et le contexte des citations.',
-    catCitationGraph: 'Réseaux de Citations',
-    catCitationGraphSub: 'Représentation visuelle des liens bibliographiques entre études.',
-    catEvidenceHealth: 'Santé & Médecine',
-    catEvidenceHealthSub: 'Littérature biomédicale, revues en santé et essais cliniques.',
-    catTechPatents: 'Brevets, Normes & Ingénierie',
-    catTechPatentsSub: 'Propriété intellectuelle, RFC, normes techniques, cybersécurité et R&D industrielle.',
-    catNicheScience: 'Science Appliquée & Niches',
-    catNicheScienceSub: 'Laboratoires nationaux, physique, espace, chimie, biodiversité et données empiriques.',
-
-    accessGratuito: 'Accès Ouvert',
-    accessAbertoInst: 'Accès Institutionnel',
-    accessFreemium: 'Gratuit avec Limite',
-    accessPago: 'Abonnement',
-
-    presetCoreGold: 'Noyau Standard (6 Bases)',
-    presetCoreGoldDesc: 'Google Scholar, OpenAlex, Semantic Scholar, PubMed, SciELO et Consensus.',
-    presetGlobalPublishers: 'Grands Éditeurs (8 Bases)',
-    presetGlobalPublishersDesc: 'Web of Science, Scopus, ScienceDirect, IEEE Xplore, ACM, Springer, Wiley et JSTOR.',
-    presetStemTech: 'Sciences Exactes & Technologie (6 Bases)',
-    presetStemTechDesc: 'IEEE Xplore, ACM DL, arXiv, ScienceDirect, SpringerLink et DBLP.',
-    preset100Free: 'Accès Ouvert (10 Bases)',
-    preset100FreeDesc: 'Plateformes librement accessibles sans péage.',
-    presetBrasilLatam: 'Ibéro-Amérique & LatAm (8 Bases)',
-    presetBrasilLatamDesc: 'SciELO, CAPES, BDTD, Oasisbr, LA Referencia, Redalyc, Dialnet et RCAAP.',
-    presetEconPolicy: 'Sciences Sociales & Économie (6 Bases)',
-    presetEconPolicyDesc: 'IDEAS/RePEc, SSRN, SPELL, OpenAlex, SciELO et Google Scholar.',
-    presetCsAi: 'Informatique & Données (6 Bases)',
-    presetCsAiDesc: 'arXiv, DBLP, Semantic Scholar, Zenodo (CERN), DataCite Commons et The Lens.',
-    presetAiCitation: 'Synthèse & Graphes (6 Bases)',
-    presetAiCitationDesc: 'Consensus, Elicit, Scite, Perplexity Academic, Connected Papers et Open Knowledge Maps.',
-    presetBiomed: 'Santé & Médecine (7 Bases)',
-    presetBiomedDesc: 'PubMed, Europe PMC, Cochrane Library, Epistemonikos, ClinicalTrials.gov, medRxiv et LILACS.',
-    presetAi: 'Intelligence Artificielle & Machine Learning',
-    presetAiDesc: 'Hugging Face Papers, Papers With Code, OpenReview, ACL Anthology et arXiv.',
-    presetHealth: 'Santé, Médecine & Pharmacologie',
-    presetHealthDesc: 'PubMed, Europe PMC, Cochrane Library, bioRxiv, medRxiv et ClinicalTrials.gov.',
-    presetGames: 'Jeux Vidéo & Études Ludiques',
-    presetGamesDesc: 'DiGRA Digital Library, Game Studies, GDC Vault et IEEE Transactions on Games.',
-    presetArt: 'Art, Design & Culture Visuelle',
-    presetArtDesc: 'Getty Research Portal, Smithsonian Open Access, Met Museum et AIGA Design Archives.',
-    presetSoftware: 'Génie Logiciel & Développement',
-    presetSoftwareDesc: 'DBLP, GitHub Research, Software Heritage et ACM SIGSOFT.',
-    presetHardware: 'Matériel, Semi-conducteurs & Architecture',
-    presetHardwareDesc: 'WikiChip, IEEE Micro, Hot Chips et arXiv Hardware Architecture.',
-    presetTechPatents: 'Brevets, Normes & Cybersécurité',
-    presetTechPatentsDesc: 'Google Patents, Espacenet, USPTO, INPI, IETF RFC et NIST/NVD.',
-    presetAppliedLabs: 'Laboratoires, Physique & Espace',
-    presetAppliedLabsDesc: 'OSTI.GOV, NASA NTRS, NASA ADS, INSPIRE-HEP, arXiv et Zenodo.',
-    presetBioClimate: 'Chimie, Biodiversité & Agro',
-    presetBioClimateDesc: 'PubChem, ChEMBL, GBIF, BDPA Embrapa, Figshare et Dryad.',
-    presetGeoClimate: 'Géosciences, Climat & Matériaux',
-    presetGeoClimateDesc: 'PANGAEA, NOAA IR, EarthArXiv, Materials Project, IAEA INIS et OSTI.GOV.',
-    presetGenomicsMaterials: 'Génomique, Protéomique & Bioinformatique',
-    presetGenomicsMaterialsDesc: 'NCBI GEO, UniProt, RCSB PDB, PubMed, Europe PMC et bioRxiv.',
-
-    thematicAreasTitle: 'Domaine Thématique',
-    areaAll: 'Tous les Domaines',
-    areaTecnologia: 'Technologie & Innovation',
-    areaIa: 'Intelligence Artificielle',
-    areaSaude: 'Santé & Médecine',
-    areaArte: 'Art & Design',
-    areaGames: 'Jeux & Ludologie',
-    areaSoftware: 'Développement & Logiciel',
-    areaHardware: 'Matériel & Puces',
-    areaCienciasExatas: 'Physique, Chimie & Espace',
-    areaBiociencias: 'Biosciences, Agro & Climat',
-    areaGeociencias: 'Géosciences & Océanographie',
-    areaEconomiaPoliticas: 'Économie & Politiques Publiques',
-    areaPatentesNormas: 'Brevets & Normes Techniques',
-    areaMultidisciplinar: 'Multidisciplinaire',
+    areaShortMulti: 'Multi',
+    areaShortTech: 'Tech',
+    areaShortIa: 'AI',
+    areaShortSaude: 'Health',
+    areaShortExatas: 'STEM',
+    areaShortBio: 'Bio/Agri',
+    areaShortGeo: 'Geo',
+    areaShortEcon: 'Econ',
+    areaShortPatentes: 'Patents',
+    areaShortArte: 'Art',
+    areaShortGames: 'Games',
+    areaShortSoftware: 'Software',
+    areaShortHardware: 'Hardware',
   },
 };

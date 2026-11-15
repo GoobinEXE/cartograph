@@ -1,25 +1,25 @@
 # Graph Report - SUPER PESQUISADOR 2000  (2026-11-15)
 
 ## Corpus Check
-- 61 files · ~57,241 words
+- 78 files · ~80,678 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: .xml 3, (none) 2, .command 2)
 
 ## Summary
-- 548 nodes · 1112 edges · 37 communities (30 shown, 7 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 137 edges (avg confidence: 0.91)
+- 678 nodes · 1615 edges · 35 communities (29 shown, 6 thin omitted)
+- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 148 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8337e9b8`
+- Built from commit: `14425a3e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- AboutView.tsx
+- AccessSettingsModal.tsx
 - Federated Results & PRISMA Views
 - Tauri Multi-Platform App Icons
-- Federated Academic Search Aggregator
+- academicAggregator.ts
 - Tauri Desktop Window Configuration
 - Architecture Docs & HTML Shell
 - TypeScript Compiler Configuration
@@ -41,27 +41,25 @@
 - CI Platform Build Matrix
 - Tauri Default Capabilities
 - _security.ts
+- relevanceRanker.ts
 - App.tsx
-- AcademicCommandCenter
 - context.tsx
-- seo.ts
-- BooleanBuilderDrawer.tsx
 - Linux Desktop Launcher Script
 - Linux Web Bridge Script
 - Rust Cargo Crate Manifest
-- ErrorBoundary
+- deduplication.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `Cartograph Master App Icon (512x512 PNG)` - 55 edges
-2. `AcademicCommandCenter()` - 31 edges
-3. `runFederatedSearch()` - 21 edges
-4. `sanitizeExternalUrl()` - 19 edges
-5. `AppIcon-512@2x.png (Tauri iOS App Store Icon 512@2x)` - 18 edges
-6. `applyCorsHeaders()` - 16 edges
-7. `react` - 16 edges
-8. `cleanDoi()` - 16 edges
-9. `compilerOptions` - 16 edges
-10. `SavedLiteratureDrawer()` - 15 edges
+2. `AcademicCommandCenter()` - 36 edges
+3. `runFederatedSearch()` - 32 edges
+4. `cleanDoi()` - 30 edges
+5. `useI18n()` - 21 edges
+6. `crossPlatformFetch()` - 21 edges
+7. `sanitizeExternalUrl()` - 21 edges
+8. `applyCorsHeaders()` - 20 edges
+9. `enforceRateLimit()` - 18 edges
+10. `AppIcon-512@2x.png (Tauri iOS App Store Icon 512@2x)` - 18 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `HTTP 404 Static Fallback Page` --conceptually_related_to--> `Cartograph Web SPA Entry Shell (index.html)`  [INFERRED]
@@ -83,23 +81,23 @@
 - **Cartograph Deterministic Metasearch & PRISMA Pipeline** — agents_boolean_query_engine, agents_federated_aggregator, agents_platform_catalog, agents_deterministic_pro_pipeline [EXTRACTED 1.00]
 - **Cartograph Public Web Entry, SEO & Fallback Surface** — index_spa_entry, index_schema_org_graph, public_404_error_page, public_robots_crawler_policy [INFERRED 0.85]
 
-## Communities (37 total, 7 thin omitted)
+## Communities (35 total, 6 thin omitted)
 
-### Community 0 - "AboutView.tsx"
-Cohesion: 0.18
-Nodes (16): lucide-react, AboutView, AboutView(), AboutViewProps, CITATION_FORMATS, FEDERATED_APIS_LIST, SECTIONS_META, FeedbackView() (+8 more)
+### Community 0 - "AccessSettingsModal.tsx"
+Cohesion: 0.11
+Nodes (28): AccessSettingsModal(), AccessSettingsModalProps, ModalTab, API_SOURCE_AUTHORITY_WEIGHTS, API_SOURCE_REGISTRY, ApiSourceMetadata, BYOK_PROVIDER_MAP, BYOK_PROVIDERS (+20 more)
 
 ### Community 1 - "Federated Results & PRISMA Views"
-Cohesion: 0.09
-Nodes (48): FederatedResultsPanel(), FederatedSidebarSectionKey, PrismaFlowDiagram(), PrismaFlowDiagramProps, GROUP_COLORS, LibrarySlotView, SavedLiteratureDrawer(), SavedLiteratureDrawerProps (+40 more)
+Cohesion: 0.07
+Nodes (62): lucide-react, react, AboutView(), AboutViewProps, FEDERATED_APIS_LIST, FederatedApiDoc, FederatedResultsPanel(), FederatedResultsPanelProps (+54 more)
 
 ### Community 2 - "Tauri Multi-Platform App Icons"
 Cohesion: 0.07
 Nodes (56): Tauri App Icon 128x128@2x (256x256 PNG), Tauri App Icon 128x128 PNG, Tauri App Icon 32x32 PNG, Tauri App Icon 64x64 PNG, Android Adaptive Foreground Icon Variant (ic_launcher_foreground), Android Round Launcher Icon Variant (ic_launcher_round), Android Launcher Icon Variant (ic_launcher), Android HDPI Density Bucket (mipmap-hdpi) (+48 more)
 
-### Community 3 - "Federated Academic Search Aggregator"
-Cohesion: 0.10
-Nodes (43): FederatedResultsPanelProps, cleanDoi(), crossPlatformFetch(), deduplicatePapers(), diagnoseSourceError(), federatedSearchCache, FederatedSearchProgress, FederatedSearchResult (+35 more)
+### Community 3 - "academicAggregator.ts"
+Cohesion: 0.09
+Nodes (67): sourceMatchesScope(), BYOK_ONLY_SOURCES, diagnoseSourceError(), federatedSearchCache, PROXY_SOURCES, reconstructOpenAlexAbstract(), runFederatedSearch(), runWithSourceAbortAndTimeout() (+59 more)
 
 ### Community 4 - "Tauri Desktop Window Configuration"
 Cohesion: 0.10
@@ -182,48 +180,44 @@ Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
 
 ### Community 24 - "_security.ts"
-Cohesion: 0.22
-Nodes (24): handler(), ALLOWED_TYPES, handler(), sanitizeHttpUrl(), handler(), handler(), ALLOWED_EXACT_ORIGINS, applyCorsHeaders() (+16 more)
-
-### Community 25 - "App.tsx"
-Cohesion: 0.14
-Nodes (17): SidebarSectionKey, WebLaunchDrawer(), WebLaunchDrawerProps, WebLaunchTarget, ACCESS_BADGES, CATEGORY_META, getLocalizedAccessBadges(), getLocalizedCategoryMeta() (+9 more)
-
-### Community 26 - "AcademicCommandCenter"
 Cohesion: 0.16
-Nodes (16): AcademicCommandCenter(), FeedbackView, renderAreaIcon(), SavedLiteratureDrawer, launchUrlsCrossPlatform(), ANALYTICS_CONSENT_STORAGE_KEY, AnalyticsConsentState, AnalyticsEventName (+8 more)
+Nodes (34): buildFreeUpstreamUrl(), FreeProxyProvider, handler(), VALID_PROVIDERS, handler(), buildByokUpstreamSpec(), ByokUpstreamId, handler() (+26 more)
+
+### Community 25 - "relevanceRanker.ts"
+Cohesion: 0.18
+Nodes (21): RankedPaperResult, extractGlossaryEnglishEquivalents(), buildFrequencyMaps(), clamp(), computeConsensusMetrics(), computeImpactRecencyMetrics(), computeLexicalMetrics(), computePaperRelevance() (+13 more)
+
+### Community 26 - "App.tsx"
+Cohesion: 0.06
+Nodes (52): AboutView, AcademicCommandCenter(), AccessSettingsModal, BooleanBuilderDrawer, FeedbackView, renderAreaIcon(), SavedLiteratureDrawer, SidebarSectionKey (+44 more)
 
 ### Community 27 - "context.tsx"
-Cohesion: 0.20
-Nodes (11): react, ErrorBoundaryState, AVAILABLE_LANGUAGES, detectBrowserLanguage(), I18nContext, I18nContextType, I18nProvider(), LanguageOption (+3 more)
+Cohesion: 0.11
+Nodes (20): ErrorBoundary, ErrorBoundaryState, getLocalizedPlatformInfo(), PLATFORM_TRANSLATIONS_EN, PlatformEnTranslation, AVAILABLE_LANGUAGES, detectBrowserLanguage(), detectSystemLanguage() (+12 more)
 
-### Community 28 - "seo.ts"
-Cohesion: 0.16
-Nodes (14): AboutSectionId, ABOUT_SECTIONS_BY_PATH, AppTab, buildCanonicalPath(), CANONICAL_ORIGIN, CANONICAL_PATH_BY_ABOUT_SECTION, HTML_LANG_MAP, OG_LOCALE_MAP (+6 more)
-
-### Community 29 - "BooleanBuilderDrawer.tsx"
-Cohesion: 0.31
-Nodes (7): BooleanBuilderDrawer, BooleanBuilderDrawer(), BooleanBuilderDrawerProps, BooleanQueryState, ACADEMIC_PT_EN_GLOSSARY, compileBooleanQuery(), translateAcademicQueryPtToEn()
+### Community 36 - "deduplication.ts"
+Cohesion: 0.13
+Nodes (25): deduplicatePapers(), ExtractedPaperMetadata, detectStudyDesign(), extractSampleSize(), parseAbstractMetadata(), SAMPLE_SIZE_REGEXES, SECTION_PATTERNS, STUDY_DESIGN_PATTERNS (+17 more)
 
 ## Knowledge Gaps
 - **21 isolated node(s):** `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)`, `Tauri App Icon 128x128@2x (256x256 PNG)`, `Tauri App Icon 128x128 PNG` (+16 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 203 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 212 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `context.tsx` to `AboutView.tsx`, `Federated Results & PRISMA Views`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`, `App.tsx`, `seo.ts`, `BooleanBuilderDrawer.tsx`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `react` connect `Federated Results & PRISMA Views` to `AccessSettingsModal.tsx`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`, `App.tsx`, `context.tsx`?**
+  _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Are the 55 inferred relationships involving `Cartograph Master App Icon (512x512 PNG)` (e.g. with `Tauri App Icon 128x128@2x (256x256 PNG)` and `Tauri App Icon 128x128 PNG`) actually correct?**
   _`Cartograph Master App Icon (512x512 PNG)` has 55 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)` to the rest of the system?**
   _21 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `AccessSettingsModal.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.10931174089068826 - nodes in this community are weakly interconnected._
+- **Why does `lucide-react` connect `Federated Results & PRISMA Views` to `AccessSettingsModal.tsx`, `App.tsx`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Are the 14 inferred relationships involving `runFederatedSearch()` (e.g. with `searchArxiv()` and `searchCrossref()`) actually correct?**
+  _`runFederatedSearch()` has 14 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Federated Results & PRISMA Views` be split into smaller, more focused modules?**
-  _Cohesion score 0.08999122036874452 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `AboutView.tsx` to `Federated Results & PRISMA Views`, `Runtime & Tauri Dependencies`, `Package Manifest Metadata`, `App.tsx`, `BooleanBuilderDrawer.tsx`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
-- **Are the 15 inferred relationships involving `runFederatedSearch()` (e.g. with `searchArxiv()` and `searchCrossref()`) actually correct?**
-  _`runFederatedSearch()` has 15 INFERRED edges - model-reasoned connections that need verification._
-- **Should `Tauri Multi-Platform App Icons` be split into smaller, more focused modules?**
-  _Cohesion score 0.06623376623376623 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0728395061728395 - nodes in this community are weakly interconnected._

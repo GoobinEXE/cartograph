@@ -56,7 +56,61 @@ export type ApiSourceId =
   | 'figshare'
   | 'gbif'
   | 'osti'
-  | 'ntrs';
+  | 'ntrs'
+  | 'openaire'
+  | 'osf'
+  | 'eric'
+  | 'plos'
+  | 'oasisbr'
+  | 'dataverse'
+  | 'core'
+  | 'worldbank_wds'
+  | 'worldbank_okr'
+  | 'socarxiv'
+  | 'ipea'
+  | 'undl'
+  | 'scopus'
+  | 'sciencedirect'
+  | 'ieeexplore'
+  | 'springer'
+  | 'lens'
+  | 'fedinprint'
+  | 'govinfo';
+
+export type SearchScopeId = 'all' | 'general' | 'econ-policy' | 'health' | 'exact-tech';
+
+export type SourceCategoryTag = 'general' | 'econ-policy' | 'health' | 'exact-tech' | 'datasets';
+
+export type ByokProviderId =
+  | 'semanticscholar'
+  | 'core'
+  | 'springer'
+  | 'scopus'
+  | 'sciencedirect'
+  | 'ieeexplore'
+  | 'lens'
+  | 'fedinprint'
+  | 'govinfo';
+
+export interface InstitutionalProxyConfig {
+  enabled: boolean;
+  mode: 'prefix' | 'suffix-domain';
+  proxyTemplate: string;
+  presetId: 'custom' | 'capes-cafe' | 'ezproxy-prefix';
+  applyToModels: Array<'pago' | 'aberto-institucional' | 'freemium'>;
+}
+
+export interface ByokCredentialEntry {
+  apiKey: string;
+  secondaryToken?: string;
+  enabled: boolean;
+}
+
+export interface UserAccessConfig {
+  institutionalProxy: InstitutionalProxyConfig;
+  ownedPlatformIds: string[];
+  byokKeys: Partial<Record<ByokProviderId, ByokCredentialEntry>>;
+}
 
 export interface NormalizedPaper {
   id: string;
@@ -74,7 +128,28 @@ export interface NormalizedPaper {
   sourceLabel: string;
   /** All API sources that returned this record when merged during deduplication */
   sources?: ApiSourceId[];
+  /** 1-based retrieval rank per API source, used for Reciprocal Rank Fusion (RRF) */
+  sourceRanks?: Partial<Record<ApiSourceId, number>>;
   publicationType?: string;
+}
+
+export interface RelevanceBreakdown {
+  totalScore: number;
+  lexicalScore: number;
+  consensusScore: number;
+  impactRecencyScore: number;
+  qualityAccessScore: number;
+  matchedTermsCount: number;
+  totalQueryTerms: number;
+  citationVelocity: number;
+  sourcesCount: number;
+  hasExactPhraseMatch: boolean;
+  hasExcludedTermHit: boolean;
+}
+
+export interface RankedPaperResult {
+  paper: NormalizedPaper;
+  breakdown: RelevanceBreakdown;
 }
 
 export interface SourceFetchStatus {

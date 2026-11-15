@@ -66,7 +66,10 @@ export function applyCorsHeaders(
   if (origin && isAllowedOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', allowedMethods);
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, X-Cartograph-Key, X-Cartograph-Inst-Token'
+    );
   }
 
   if (req.method === 'OPTIONS') {

@@ -1,3 +1,4 @@
+import { SupportedLanguage } from '../i18n/translations';
 import { LibraryGroup, SavedPaperItem } from '../types/academic';
 import { parseAbstractMetadata } from './abstractParser';
 import { sanitizeExternalUrl } from './urlSafety';
@@ -12,6 +13,7 @@ export interface CartographBackupPayload {
   groups: LibraryGroup[];
   selectedPlatformIds: string[];
   activeSaveGroupId?: string | null;
+  ownedPlatformIds?: string[];
 }
 
 export type BackupParseResult =
@@ -24,7 +26,10 @@ export function exportWorkspaceBackup(params: {
   groups: LibraryGroup[];
   selectedPlatformIds: string[];
   activeSaveGroupId?: string | null;
+  ownedPlatformIds?: string[];
 }): string {
+  // Note: personal API keys (BYOK) and institutional proxy credentials are intentionally excluded
+  // from workspace backups so researchers can safely share review files without leaking secrets.
   const payload: CartographBackupPayload = {
     schema: CARTOGRAPH_BACKUP_SCHEMA,
     exportedAt: new Date().toISOString(),
@@ -33,6 +38,7 @@ export function exportWorkspaceBackup(params: {
     groups: params.groups,
     selectedPlatformIds: params.selectedPlatformIds,
     activeSaveGroupId: params.activeSaveGroupId ?? null,
+    ...(params.ownedPlatformIds?.length ? { ownedPlatformIds: params.ownedPlatformIds } : {}),
   };
 
   return JSON.stringify(payload, null, 2);
@@ -118,29 +124,49 @@ function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
   };
 }
 
-export function parseWorkspaceBackup(rawJson: string): BackupParseResult {
+export function parseWorkspaceBackup(
+  rawJson: string,
+  language: SupportedLanguage = 'pt'
+): BackupParseResult {
+  const isEn = language === 'en';
   if (!rawJson || !rawJson.trim()) {
-    return { ok: false, error: 'Arquivo JSON vazio.' };
+    return { ok: false, error: isEn ? 'Empty JSON file.' : 'Arquivo JSON vazio.' };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawJson);
   } catch {
-    return { ok: false, error: 'JSON inválido ou corrompido.' };
+    return {
+      ok: false,
+      error: isEn ? 'Invalid or corrupted JSON.' : 'JSON inválido ou corrompido.',
+    };
   }
 
   if (!parsed || typeof parsed !== 'object') {
-    return { ok: false, error: 'Estrutura de backup inválida.' };
+    return {
+      ok: false,
+      error: isEn ? 'Invalid backup structure.' : 'Estrutura de backup inválida.',
+    };
   }
 
   const obj = parsed as Record<string, unknown>;
   if (obj.schema !== CARTOGRAPH_BACKUP_SCHEMA) {
-    return { ok: false, error: 'Formato de schema não reconhecido pelo Cartograph.' };
+    return {
+      ok: false,
+      error: isEn
+        ? 'Backup schema format not recognized by Cartograph.'
+        : 'Formato de schema não reconhecido pelo Cartograph.',
+    };
   }
 
   if (!Array.isArray(obj.savedPapers)) {
-    return { ok: false, error: 'Lista de artigos ausente no arquivo de backup.' };
+    return {
+      ok: false,
+      error: isEn
+        ? 'Missing papers list in backup file.'
+        : 'Lista de artigos ausente no arquivo de backup.',
+    };
   }
 
   const groups = Array.isArray(obj.groups)
@@ -155,6 +181,10 @@ export function parseWorkspaceBackup(rawJson: string): BackupParseResult {
     ? obj.selectedPlatformIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
     : [];
 
+  const ownedPlatformIds = Array.isArray(obj.ownedPlatformIds)
+    ? obj.ownedPlatformIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
+    : undefined;
+
   return {
     ok: true,
     payload: {
@@ -165,6 +195,7 @@ export function parseWorkspaceBackup(rawJson: string): BackupParseResult {
       groups,
       selectedPlatformIds,
       activeSaveGroupId: typeof obj.activeSaveGroupId === 'string' ? obj.activeSaveGroupId : null,
+      ...(ownedPlatformIds ? { ownedPlatformIds } : {}),
     },
   };
 }

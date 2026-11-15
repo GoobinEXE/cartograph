@@ -7,6 +7,7 @@ import {
   getLocalizedLaunchPresets,
   getLocalizedThematicAreas,
 } from './data/platforms';
+import { getLocalizedPlatformInfo } from './data/platformsEn';
 import {
   BooleanQueryState,
   DeduplicationSummary,
@@ -15,8 +16,10 @@ import {
   PlatformCategory,
   SavedPaperItem,
   ScreeningStatus,
+  SearchScopeId,
   SourceFetchStatus,
   ThematicArea,
+  UserAccessConfig,
 } from './types/academic';
 import {
   launchUrlsCrossPlatform,
@@ -24,6 +27,8 @@ import {
 } from './services/academicAggregator';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
+import { loadUserAccessConfig, saveUserAccessConfig } from './utils/accessConfig';
+import { rewriteUrlWithInstitutionalProxy } from './utils/institutionalProxy';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
 import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
@@ -59,6 +64,7 @@ import {
   Gamepad2,
   Globe,
   HardDrive,
+  KeyRound,
   Landmark,
   LayoutGrid,
   Leaf,
@@ -86,6 +92,9 @@ const FeedbackView = lazy(() =>
 const AboutView = lazy(() =>
   import('./components/AboutView').then((m) => ({ default: m.AboutView }))
 );
+const AccessSettingsModal = lazy(() =>
+  import('./components/AccessSettingsModal').then((m) => ({ default: m.AccessSettingsModal }))
+);
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
 const STORAGE_KEY_GROUPS = 'cartograph_library_groups_v1';
@@ -93,6 +102,7 @@ const STORAGE_KEY_ACTIVE_GROUP = 'cartograph_active_save_group_v1';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
 const STORAGE_KEY_THEME = 'cartograph_theme_v1';
 const STORAGE_KEY_SIDEBAR_DRAWERS = 'cartograph_sidebar_drawers_v2';
+const STORAGE_KEY_SEARCH_SCOPE = 'cartograph_search_scope_v1';
 
 type SidebarSectionKey = 'areas' | 'access' | 'presets' | 'categories';
 
@@ -129,7 +139,7 @@ function renderAreaIcon(area: ThematicArea, className: string = 'w-3.5 h-3.5') {
 }
 
 export default function AcademicCommandCenter() {
-  const { language, setLanguage, t, availableLanguages } = useI18n();
+  const { language, isAutoLanguage, setLanguage, resetToSystemLanguage, t, availableLanguages } = useI18n();
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
@@ -208,6 +218,28 @@ export default function AcademicCommandCenter() {
   const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [accessFilter, setAccessFilter] = useState<'all' | 'gratuito' | 'pago' | 'aberto-institucional' | 'freemium'>('all');
+  const [ownedOnlyFilter, setOwnedOnlyFilter] = useState(false);
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [userAccessConfig, setUserAccessConfig] = useState<UserAccessConfig>(() =>
+    loadUserAccessConfig()
+  );
+  const [searchScope, setSearchScope] = useState<SearchScopeId>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SEARCH_SCOPE);
+      if (
+        saved === 'all' ||
+        saved === 'general' ||
+        saved === 'econ-policy' ||
+        saved === 'health' ||
+        saved === 'exact-tech'
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'all';
+  });
   const [showBooleanDrawer, setShowBooleanDrawer] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
@@ -342,6 +374,7 @@ export default function AcademicCommandCenter() {
   });
 
   const [federatedPapers, setFederatedPapers] = useState<NormalizedPaper[]>([]);
+  const [federatedQuery, setFederatedQuery] = useState<string>('');
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
   const [dedupSummary, setDedupSummary] = useState<DeduplicationSummary | null>(null);
   const [isSearchingApis, setIsSearchingApis] = useState(false);
@@ -447,7 +480,7 @@ export default function AcademicCommandCenter() {
     try {
       const params = new URLSearchParams(window.location.search);
       const langParam = params.get('lang')?.toLowerCase();
-      if (langParam === 'pt' || langParam === 'en' || langParam === 'es' || langParam === 'fr') {
+      if (langParam === 'pt' || langParam === 'en') {
         setLanguage(langParam);
       }
     } catch {
@@ -493,14 +526,44 @@ export default function AcademicCommandCenter() {
   const isValidQuery = trimmedQuery.length > 0;
   const yearStartNum = booleanState.yearFrom ? Number(booleanState.yearFrom) : undefined;
 
+  const ownedPlatformSet = useMemo(
+    () => new Set(userAccessConfig.ownedPlatformIds),
+    [userAccessConfig.ownedPlatformIds]
+  );
+
+  const hasActiveAccessEnhancement = useMemo(
+    () =>
+      userAccessConfig.institutionalProxy.enabled ||
+      Object.values(userAccessConfig.byokKeys).some(
+        (entry) => Boolean(entry?.enabled && entry?.apiKey?.trim())
+      ) ||
+      userAccessConfig.ownedPlatformIds.length > 0,
+    [userAccessConfig]
+  );
+
+  const handleUpdateUserAccessConfig = (next: UserAccessConfig) => {
+    setUserAccessConfig(next);
+    saveUserAccessConfig(next);
+  };
+
+  const handleSelectSearchScope = (scope: SearchScopeId) => {
+    setSearchScope(scope);
+    try {
+      localStorage.setItem(STORAGE_KEY_SEARCH_SCOPE, scope);
+    } catch {
+      // ignore
+    }
+  };
+
   const visiblePlatforms = useMemo(() => {
     return PLATFORMS.filter((p) => {
       if (activeCategory !== 'all' && p.category !== activeCategory) return false;
       if (accessFilter !== 'all' && p.accessModel !== accessFilter) return false;
+      if (ownedOnlyFilter && !ownedPlatformSet.has(p.id)) return false;
       if (selectedArea !== 'all' && !p.thematicAreas.includes(selectedArea)) return false;
       return true;
     });
-  }, [activeCategory, accessFilter, selectedArea]);
+  }, [activeCategory, accessFilter, ownedOnlyFilter, ownedPlatformSet, selectedArea]);
 
   const savedIdsSet = useMemo(
     () => new Set(savedPapers.map((s) => s.id)),
@@ -560,10 +623,10 @@ export default function AcademicCommandCenter() {
     try {
       const shareUrl = `${window.location.origin}/federated?q=${encodeURIComponent(trimmedQuery)}`;
       await navigator.clipboard.writeText(shareUrl);
-      setStatusBanner('Link compartilhável da busca copiado para a área de transferência.');
+      setStatusBanner(t('shareLinkCopied'));
       setTimeout(() => setStatusBanner(null), 4000);
     } catch {
-      setStatusBanner('Não foi possível copiar o link automaticamente.');
+      setStatusBanner(t('shareLinkError'));
       setTimeout(() => setStatusBanner(null), 3500);
     }
   };
@@ -580,6 +643,7 @@ export default function AcademicCommandCenter() {
     setActiveTab('federated');
     syncBrowserHistory('federated', aboutSection, trimmedQuery);
     setIsSearchingApis(true);
+    setFederatedQuery(trimmedQuery);
     setFederatedPapers([]);
     setDedupSummary(null);
     setSourceStatuses([]);
@@ -590,6 +654,9 @@ export default function AcademicCommandCenter() {
         yearStartNum,
         {
           signal: controller.signal,
+          language,
+          scope: searchScope,
+          accessConfig: userAccessConfig,
           onProgress: (progress) => {
             if (requestId !== searchRequestIdRef.current || controller.signal.aborted) {
               return;
@@ -644,12 +711,19 @@ export default function AcademicCommandCenter() {
     try {
       const targets: WebLaunchTarget[] = PLATFORMS.filter((p) =>
         selectedPlatformIds.includes(p.id)
-      ).map((p) => ({
-        id: p.id,
-        name: p.name,
-        shortTag: p.shortTag,
-        url: p.buildUrl(encodedQuery, trimmedQuery, yearStartNum),
-      }));
+      ).map((p) => {
+        const rawUrl = p.buildUrl(encodedQuery, trimmedQuery, yearStartNum);
+        return {
+          id: p.id,
+          name: p.name,
+          shortTag: getLocalizedPlatformInfo(p, language).shortTag,
+          url: rewriteUrlWithInstitutionalProxy(
+            rawUrl,
+            userAccessConfig.institutionalProxy,
+            p.accessModel
+          ),
+        };
+      });
       const urls = targets.map((target) => target.url);
       const result = await launchUrlsCrossPlatform(urls);
       trackAcademicEvent('multi_tab_launch', {
@@ -670,9 +744,7 @@ export default function AcademicCommandCenter() {
               osName: bridgeStatus.osName,
             })
           : `${t('platformsOpenedBrowser', { count: result.launchedCount })}${
-              urls.length > 1
-                ? ' • Painel de abertura assistida exibido para contornar bloqueio de pop-ups.'
-                : ''
+              urls.length > 1 ? ` ${t('assistedLaunchNotice')}` : ''
             }`
       );
       setTimeout(() => setStatusBanner(null), 5000);
@@ -798,6 +870,13 @@ export default function AcademicCommandCenter() {
       if (validPlatforms.length > 0) {
         setSelectedPlatformIds(validPlatforms);
       }
+      if (Array.isArray(payload.ownedPlatformIds)) {
+        const validOwned = payload.ownedPlatformIds.filter((id) => validPlatformSet.has(id));
+        handleUpdateUserAccessConfig({
+          ...userAccessConfig,
+          ownedPlatformIds: validOwned,
+        });
+      }
       setActiveSaveGroupId(payload.activeSaveGroupId ?? null);
       return {
         papersAdded: payload.savedPapers.length,
@@ -815,6 +894,16 @@ export default function AcademicCommandCenter() {
       setSelectedPlatformIds((prev) =>
         Array.from(new Set([...prev, ...validPlatforms]))
       );
+    }
+
+    if (Array.isArray(payload.ownedPlatformIds) && payload.ownedPlatformIds.length > 0) {
+      const validOwned = payload.ownedPlatformIds.filter((id) => validPlatformSet.has(id));
+      handleUpdateUserAccessConfig({
+        ...userAccessConfig,
+        ownedPlatformIds: Array.from(
+          new Set([...userAccessConfig.ownedPlatformIds, ...validOwned])
+        ),
+      });
     }
 
     const paperRes = handleImportSavedPapers(payload.savedPapers, null);
@@ -839,7 +928,8 @@ export default function AcademicCommandCenter() {
       const extractedMetadata = parseAbstractMetadata(
         paper.title,
         paper.abstractText,
-        paper.publicationType
+        paper.publicationType,
+        language
       );
       const resolvedGroupId =
         targetGroupId !== undefined ? targetGroupId : activeSaveGroupId;
@@ -933,7 +1023,7 @@ export default function AcademicCommandCenter() {
                     setSelectedArea('all');
                   }}
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
-                  title="Cartograph — Hub de Metabusca Científica"
+                  title={t('brandTitle')}
                 >
                   <PrismMonogram className="h-[30px] w-auto" />
                   <div className="flex flex-col leading-none">
@@ -946,8 +1036,32 @@ export default function AcademicCommandCenter() {
                 <div className="flex items-center gap-1.5 sm:hidden">
                   <button
                     type="button"
+                    onClick={() => setShowAccessModal(true)}
+                    className={`p-2 rounded-full transition-colors cursor-pointer ${
+                      hasActiveAccessEnhancement
+                        ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                    }`}
+                    title={t('accessSettingsBtn')}
+                    aria-label={t('accessSettingsBtn')}
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage(language === 'pt' ? 'en' : 'pt')}
+                    className="px-2.5 py-1.5 rounded-full text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] uppercase cursor-pointer"
+                    aria-label={t('languageMenuLabel')}
+                    title={t('languageMenuLabel')}
+                  >
+                    {language}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
                     className="p-2 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                    title={t('toggleThemeTitle')}
+                    aria-label={t('toggleThemeTitle')}
                   >
                     {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
                   </button>
@@ -983,7 +1097,8 @@ export default function AcademicCommandCenter() {
                     type="button"
                     onClick={() => setQuery('')}
                     className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-1 cursor-pointer"
-                    title="Limpar busca"
+                    title={t('clearSearchTitle')}
+                    aria-label={t('clearSearchTitle')}
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -994,7 +1109,8 @@ export default function AcademicCommandCenter() {
                     type="button"
                     onClick={handleCopySearchShareUrl}
                     className="p-1.5 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] mr-1 cursor-pointer"
-                    title="Copiar link compartilhável desta busca"
+                    title={t('shareSearchTitle')}
+                    aria-label={t('shareSearchTitle')}
                   >
                     <Share2 className="w-3.5 h-3.5" />
                   </button>
@@ -1009,7 +1125,7 @@ export default function AcademicCommandCenter() {
                       ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
                       : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
                   }`}
-                  title="Traduzir termos para inglês acadêmico"
+                  title={t('translateTitle')}
                 >
                   {isTranslating ? '...' : 'PT→EN'}
                 </button>
@@ -1038,7 +1154,7 @@ export default function AcademicCommandCenter() {
                   }`}
                 >
                   {isSearchingApis && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Buscar</span>
+                  <span>{t('searchBtn')}</span>
                 </button>
               </div>
             </div>
@@ -1054,18 +1170,32 @@ export default function AcademicCommandCenter() {
                     ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] hover:opacity-85 cursor-pointer'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed'
                 }`}
-                title="Abrir pesquisa em abas nos portais selecionados (Shift + Enter)"
+                title={t('openPortalsTitle')}
               >
-                <span>Abrir {selectedPlatformIds.length} portais</span>
+                <span>{t('openPortalsCount', { count: selectedPlatformIds.length })}</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
 
               <div className="hidden sm:flex items-center gap-1">
                 <button
                   type="button"
+                  onClick={() => setShowAccessModal(true)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[12.5px] font-medium transition-colors cursor-pointer ${
+                    hasActiveAccessEnhancement
+                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]'
+                  }`}
+                  title={t('accessSettingsBtn')}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span className="hidden xl:inline">{t('accessSettingsBtn')}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
                   className="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-                  title="Alternar modo Claro / Escuro"
+                  title={t('toggleThemeTitle')}
+                  aria-label={t('toggleThemeTitle')}
                 >
                   {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
                 </button>
@@ -1075,13 +1205,31 @@ export default function AcademicCommandCenter() {
                     type="button"
                     onClick={() => setShowLangMenu((v) => !v)}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer uppercase"
+                    aria-label={t('languageMenuLabel')}
+                    title={isAutoLanguage ? `${t('languageMenuLabel')} · ${t('languageSystemHint')}` : t('languageMenuLabel')}
                   >
                     <span>{language}</span>
                     <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                   </button>
 
                   {showLangMenu && (
-                    <div className="absolute right-0 mt-1.5 w-36 rounded-xl bg-[var(--bg-canvas)] shadow-xl py-1.5 z-50">
+                    <div className="absolute right-0 mt-1.5 w-48 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] shadow-xl py-1.5 z-50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetToSystemLanguage();
+                          setShowLangMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-1.5 text-[13px] transition-colors cursor-pointer text-left ${
+                          isAutoLanguage
+                            ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-semibold'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+                        }`}
+                      >
+                        <span className="truncate">{t('languageAutoSystem')}</span>
+                        {isAutoLanguage && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                      <div className="my-1 border-t border-[var(--divider)]" />
                       {availableLanguages.map((langOpt) => (
                         <button
                           key={langOpt.code}
@@ -1091,13 +1239,15 @@ export default function AcademicCommandCenter() {
                             setShowLangMenu(false);
                           }}
                           className={`w-full flex items-center justify-between px-3.5 py-1.5 text-[13px] transition-colors cursor-pointer text-left ${
-                            language === langOpt.code
+                            !isAutoLanguage && language === langOpt.code
                               ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-semibold'
                               : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
                           }`}
                         >
                           <span>{langOpt.nativeLabel}</span>
-                          {language === langOpt.code && <Check className="w-3.5 h-3.5" />}
+                          {!isAutoLanguage && language === langOpt.code && (
+                            <Check className="w-3.5 h-3.5 shrink-0" />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -1135,6 +1285,35 @@ export default function AcademicCommandCenter() {
               </button>
             </div>
           )}
+
+          {/* Optional Metasearch Scope Selector */}
+          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)] mr-1 shrink-0">
+              {t('scopeLabel')}:
+            </span>
+            {(
+              [
+                { id: 'all', label: t('scopeAll') },
+                { id: 'general', label: t('scopeGeneral') },
+                { id: 'econ-policy', label: t('scopeEconPolicy') },
+                { id: 'health', label: t('scopeHealth') },
+                { id: 'exact-tech', label: t('scopeExactTech') },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSelectSearchScope(opt.id)}
+                className={`px-2.5 py-1 rounded-full text-[12px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  searchScope === opt.id
+                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
 
           {/* Familiar Academic Navigation Bar (Underline Tabs like Google Scholar / Semantic Scholar) */}
           <nav className="flex items-center gap-6 mt-3 overflow-x-auto">
@@ -1196,21 +1375,21 @@ export default function AcademicCommandCenter() {
             {/* Left Sidebar — Scroll Individual com Gavetas Retráteis / Expansíveis */}
             <aside
               className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
-              aria-label="Filtros e navegação de plataformas"
+              aria-label={t('sidebarAriaLabel')}
             >
               {/* Header com Ação Rápida de Expandir / Recolher Todas */}
               <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
                 <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
                   <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                  <span>Filtros & Navegação</span>
+                  <span>{t('filtersNavTitle')}</span>
                 </div>
                 <button
                   type="button"
                   onClick={toggleAllSidebarDrawers}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
-                  title={allDrawersOpen ? 'Recolher todas as gavetas' : 'Expandir todas as gavetas'}
+                  title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
                 >
-                  {allDrawersOpen ? 'Recolher tudo' : 'Expandir tudo'}
+                  {allDrawersOpen ? t('collapseAll') : t('expandAll')}
                 </button>
               </div>
 
@@ -1249,7 +1428,7 @@ export default function AcademicCommandCenter() {
                         }}
                         className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
-                        Limpar
+                        {t('clearFilter')}
                       </button>
                     )}
                     <ChevronDown
@@ -1321,31 +1500,32 @@ export default function AcademicCommandCenter() {
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                      Modelo de Acesso
+                      {t('accessModelTitle')}
                     </span>
                     {accessFilter !== 'all' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
                         {accessFilter === 'gratuito'
-                          ? 'Gratuito'
+                          ? t('accessShortFree')
                           : accessFilter === 'pago'
-                          ? 'Assinatura'
+                          ? t('accessShortPaid')
                           : accessFilter === 'aberto-institucional'
-                          ? 'Institucional'
-                          : 'Freemium'}
+                          ? t('accessShortInst')
+                          : t('accessShortFreemium')}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {accessFilter !== 'all' && (
+                    {(accessFilter !== 'all' || ownedOnlyFilter) && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setAccessFilter('all');
+                          setOwnedOnlyFilter(false);
                         }}
                         className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
-                        Limpar
+                        {t('clearFilter')}
                       </button>
                     )}
                     <ChevronDown
@@ -1367,7 +1547,7 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>Todos os modelos</span>
+                      <span>{t('accessModelAll')}</span>
                       <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
                     </button>
 
@@ -1380,7 +1560,7 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>100% Gratuitas & Open</span>
+                      <span>{t('accessModelFree')}</span>
                       <span className="text-xs text-[var(--text-muted)]">
                         {PLATFORMS.filter((p) => p.accessModel === 'gratuito').length}
                       </span>
@@ -1395,7 +1575,7 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>Pagas / Assinatura</span>
+                      <span>{t('accessModelPaid')}</span>
                       <span className="text-xs text-[var(--text-muted)]">
                         {PLATFORMS.filter((p) => p.accessModel === 'pago').length}
                       </span>
@@ -1410,7 +1590,7 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>Acesso Aberto + CAFe</span>
+                      <span>{t('accessModelInstitutional')}</span>
                       <span className="text-xs text-[var(--text-muted)]">
                         {PLATFORMS.filter((p) => p.accessModel === 'aberto-institucional').length}
                       </span>
@@ -1425,9 +1605,24 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>Gratuito c/ Cota IA</span>
+                      <span>{t('accessModelFreemium')}</span>
                       <span className="text-xs text-[var(--text-muted)]">
                         {PLATFORMS.filter((p) => p.accessModel === 'freemium').length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOwnedOnlyFilter((prev) => !prev)}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        ownedOnlyFilter
+                          ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <span className="truncate">{t('filterOwnedOnly')}</span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {userAccessConfig.ownedPlatformIds.length}
                       </span>
                     </button>
                   </div>
@@ -1451,7 +1646,7 @@ export default function AcademicCommandCenter() {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[13px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                      Seleção Rápida
+                      {t('quickSelectionTitle')}
                     </span>
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 ${
@@ -1459,7 +1654,7 @@ export default function AcademicCommandCenter() {
                           ? 'bg-[var(--link-academic)]/15 text-[var(--link-academic)]'
                           : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
                       }`}
-                      title={`${selectedPlatformIds.length} de ${PLATFORMS.length} plataformas selecionadas`}
+                      title={t('quickSelectionTitleAttr', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
                     >
                       {selectedPlatformIds.length}
                     </span>
@@ -1476,7 +1671,7 @@ export default function AcademicCommandCenter() {
                     {/* Sub-barra de Ações da Gaveta */}
                     <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
                       <span className="text-xs text-[var(--text-muted)] font-medium">
-                        {selectedPlatformIds.length} de {PLATFORMS.length} ativas
+                        {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
                       </span>
                       <div className="flex items-center gap-2">
                         <button
@@ -1484,7 +1679,7 @@ export default function AcademicCommandCenter() {
                           onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
                           className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
                         >
-                          Todas
+                          {t('quickSelectionAllBtn')}
                         </button>
                         <span className="text-[var(--divider)] text-xs">·</span>
                         <button
@@ -1492,7 +1687,7 @@ export default function AcademicCommandCenter() {
                           onClick={() => setSelectedPlatformIds([])}
                           className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                         >
-                          Limpar
+                          {t('clearFilter')}
                         </button>
                       </div>
                     </div>
@@ -1556,7 +1751,7 @@ export default function AcademicCommandCenter() {
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                      Tipo de Plataforma
+                      {t('platformTypeTitle')}
                     </span>
                     {activeCategory !== 'all' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
@@ -1574,7 +1769,7 @@ export default function AcademicCommandCenter() {
                         }}
                         className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
-                        Limpar
+                        {t('clearFilter')}
                       </button>
                     )}
                     <ChevronDown
@@ -1596,7 +1791,7 @@ export default function AcademicCommandCenter() {
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>Todas as categorias</span>
+                      <span>{t('platformTypeAll')}</span>
                       <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
                     </button>
 
@@ -1676,7 +1871,7 @@ export default function AcademicCommandCenter() {
                     </span>
                   </h1>
                   <p className="text-[13px] text-[var(--text-muted)] mt-0.5">
-                    {visiblePlatforms.length} portais correspondentes · {selectedPlatformIds.length} marcados para abertura simultânea
+                    {t('directoryResultsSummary', { visible: visiblePlatforms.length, selected: selectedPlatformIds.length })}
                   </p>
                 </div>
 
@@ -1690,7 +1885,7 @@ export default function AcademicCommandCenter() {
                         ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
-                    title="Visualização em blocos"
+                    title={t('gridViewTitle')}
                   >
                     <LayoutGrid className="w-4 h-4" />
                   </button>
@@ -1702,7 +1897,7 @@ export default function AcademicCommandCenter() {
                         ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
-                    title="Visualização em lista acadêmica"
+                    title={t('listViewTitle')}
                   >
                     <List className="w-4 h-4" />
                   </button>
@@ -1714,11 +1909,18 @@ export default function AcademicCommandCenter() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                   {visiblePlatforms.map((platform) => {
                     const isSelected = selectedPlatformIds.includes(platform.id);
+                    const isOwned = ownedPlatformSet.has(platform.id);
                     const accessBadge = localizedAccessBadges[platform.accessModel];
-                    const targetUrl = platform.buildUrl(
+                    const localizedInfo = getLocalizedPlatformInfo(platform, language);
+                    const rawTargetUrl = platform.buildUrl(
                       encodedQuery,
                       trimmedQuery,
                       yearStartNum
+                    );
+                    const targetUrl = rewriteUrlWithInstitutionalProxy(
+                      rawTargetUrl,
+                      userAccessConfig.institutionalProxy,
+                      platform.accessModel
                     );
 
                     return (
@@ -1738,7 +1940,7 @@ export default function AcademicCommandCenter() {
                                 checked={isSelected}
                                 onChange={() => handleTogglePlatformSelection(platform.id)}
                                 className="mt-1 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
-                                title="Incluir na abertura em lote"
+                                title={t('includeInBatchTitle')}
                               />
                               <div className="min-w-0">
                                 <a
@@ -1751,14 +1953,20 @@ export default function AcademicCommandCenter() {
                                   <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </a>
                                 <div className="text-[13px] text-[var(--meta-green)] truncate">
-                                  {platform.shortTag} · {accessBadge.label.split('/')[0].trim()}
+                                  {localizedInfo.shortTag} · {accessBadge.label.split('/')[0].trim()}
                                 </div>
+                                {isOwned && (
+                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--accent-blue-tint)] text-[var(--link-academic)]">
+                                    <Check className="w-2.5 h-2.5" />
+                                    <span>{t('activeSubscriptionBadge')}</span>
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
 
                           <p className="text-sm text-[var(--text-secondary)] leading-relaxed mt-2 mb-2.5">
-                            {platform.description}
+                            {localizedInfo.description}
                           </p>
 
                           {/* Discipline Tags */}
@@ -1783,14 +1991,14 @@ export default function AcademicCommandCenter() {
                         </div>
 
                         <div className="flex items-center justify-between gap-2 text-[13px] text-[var(--text-muted)] pt-1">
-                          <span className="truncate">{platform.coverageNote}</span>
+                          <span className="truncate">{localizedInfo.coverageNote}</span>
                           <a
                             href={targetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-medium text-[var(--link-academic)] hover:underline shrink-0"
                           >
-                            {isValidQuery ? 'Pesquisar ↗' : 'Abrir ↗'}
+                            {isValidQuery ? t('cardSearchAction') : t('cardOpenAction')}
                           </a>
                         </div>
                       </div>
@@ -1804,11 +2012,18 @@ export default function AcademicCommandCenter() {
                 <div className="space-y-6 max-w-3xl">
                   {visiblePlatforms.map((platform) => {
                     const isSelected = selectedPlatformIds.includes(platform.id);
+                    const isOwned = ownedPlatformSet.has(platform.id);
                     const accessBadge = localizedAccessBadges[platform.accessModel];
-                    const targetUrl = platform.buildUrl(
+                    const localizedInfo = getLocalizedPlatformInfo(platform, language);
+                    const rawTargetUrl = platform.buildUrl(
                       encodedQuery,
                       trimmedQuery,
                       yearStartNum
+                    );
+                    const targetUrl = rewriteUrlWithInstitutionalProxy(
+                      rawTargetUrl,
+                      userAccessConfig.institutionalProxy,
+                      platform.accessModel
                     );
 
                     return (
@@ -1818,6 +2033,7 @@ export default function AcademicCommandCenter() {
                           checked={isSelected}
                           onChange={() => handleTogglePlatformSelection(platform.id)}
                           className="mt-1.5 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
+                          title={t('includeInBatchTitle')}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline justify-between gap-4">
@@ -1837,16 +2053,22 @@ export default function AcademicCommandCenter() {
                               rel="noopener noreferrer"
                               className="text-[13px] font-medium text-[var(--link-academic)] hover:underline shrink-0"
                             >
-                              {isValidQuery ? 'Pesquisar ↗' : 'Abrir portal ↗'}
+                              {isValidQuery ? t('cardSearchAction') : t('cardOpenPortalAction')}
                             </a>
                           </div>
 
-                          <div className="text-[13.5px] text-[var(--meta-green)] mt-0.5 mb-1">
-                            {platform.shortTag} - {platform.coverageNote} - {accessBadge.label}
+                          <div className="text-[13.5px] text-[var(--meta-green)] mt-0.5 mb-1 flex flex-wrap items-center gap-2">
+                            <span>{localizedInfo.shortTag} - {localizedInfo.coverageNote} - {accessBadge.label}</span>
+                            {isOwned && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--accent-blue-tint)] text-[var(--link-academic)]">
+                                <Check className="w-2.5 h-2.5" />
+                                <span>{t('activeSubscriptionBadge')}</span>
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
-                            {platform.description}
+                            {localizedInfo.description}
                           </p>
 
                           {/* Discipline Tags */}
@@ -1882,6 +2104,7 @@ export default function AcademicCommandCenter() {
         {activeTab === 'federated' && (
           <FederatedResultsPanel
             papers={federatedPapers}
+            searchQuery={federatedQuery}
             statuses={sourceStatuses}
             isSearching={isSearchingApis}
             savedIds={savedIdsSet}
@@ -1893,6 +2116,7 @@ export default function AcademicCommandCenter() {
             onAssignPaperGroup={handleAssignPaperGroup}
             onToggleSave={handleToggleSavePaper}
             deduplicationSummary={dedupSummary}
+            institutionalProxy={userAccessConfig.institutionalProxy}
           />
         )}
 
@@ -1903,6 +2127,7 @@ export default function AcademicCommandCenter() {
               items={savedPapers}
               groups={libraryGroups}
               selectedPlatformIds={selectedPlatformIds}
+              ownedPlatformIds={userAccessConfig.ownedPlatformIds}
               activeSaveGroupId={activeSaveGroupId}
               onSelectActiveSaveGroup={setActiveSaveGroupId}
               onCreateGroup={handleCreateGroup}
@@ -1958,7 +2183,7 @@ export default function AcademicCommandCenter() {
                 type="button"
                 onClick={() => navigateToAboutSection('cartograph')}
                 className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
-                title="Sobre o Cartograph — Arquitetura e Metodologia"
+                title={t('footerBrandTitle')}
               >
                 <PrismMonogram className="h-5 w-auto shrink-0" />
                 <div className="leading-tight">
@@ -1966,7 +2191,7 @@ export default function AcademicCommandCenter() {
                     Cartograph
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)]">
-                    Metabusca Científica
+                    {t('appTagline')}
                   </div>
                 </div>
               </button>
@@ -1975,7 +2200,7 @@ export default function AcademicCommandCenter() {
             {/* Direct Non-Redundant Institutional & Legal Navigation */}
             <nav
               className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]"
-              aria-label="Links institucionais e legais do rodapé"
+              aria-label={t('footerNavAria')}
             >
               <button
                 type="button"
@@ -1986,7 +2211,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                Sobre o Cartograph
+                {t('footerAbout')}
               </button>
               <button
                 type="button"
@@ -1997,7 +2222,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                15 APIs Abertas
+                {t('footerApis')}
               </button>
               <button
                 type="button"
@@ -2008,7 +2233,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                Como Citar
+                {t('footerCitation')}
               </button>
               <button
                 type="button"
@@ -2019,7 +2244,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                Direitos Autorais & Licenças
+                {t('footerCopyright')}
               </button>
               <button
                 type="button"
@@ -2030,7 +2255,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                Privacidade (LGPD) & Termos
+                {t('footerPrivacy')}
               </button>
               <button
                 type="button"
@@ -2054,10 +2279,10 @@ export default function AcademicCommandCenter() {
             <div>
               <span>©&nbsp;{new Date().getFullYear()} </span>
               <strong className="font-medium text-[var(--text-secondary)]">Cartograph</strong>
-              <span> v2.4. Todos os direitos reservados.</span>
+              <span> {t('footerRightsReserved')}</span>
             </div>
             <div>
-              Engenharia determinística · Local-First · PRISMA 2020
+              {t('footerEngineeringNote')}
             </div>
           </div>
         </div>
@@ -2070,14 +2295,25 @@ export default function AcademicCommandCenter() {
         onClose={() => setWebLaunchDrawerOpen(false)}
       />
 
+      {showAccessModal && (
+        <Suspense fallback={null}>
+          <AccessSettingsModal
+            isOpen={showAccessModal}
+            config={userAccessConfig}
+            onChange={handleUpdateUserAccessConfig}
+            onClose={() => setShowAccessModal(false)}
+          />
+        </Suspense>
+      )}
+
       {analyticsConsentPrompt && (
         <div
           className="fixed bottom-4 right-4 z-40 max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
           role="region"
-          aria-label="Preferência de telemetria anônima"
+          aria-label={t('analyticsConsentAria')}
         >
           <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            O Cartograph utiliza métricas agregadas opcionais (sem termos de busca ou dados pessoais) para aprimorar as fontes científicas.
+            {t('analyticsConsentText')}
           </p>
           <div className="flex items-center justify-end gap-2">
             <button
@@ -2088,7 +2324,7 @@ export default function AcademicCommandCenter() {
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
             >
-              Recusar
+              {t('analyticsDeclineBtn')}
             </button>
             <button
               type="button"
@@ -2098,7 +2334,7 @@ export default function AcademicCommandCenter() {
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
             >
-              Aceitar anônimo
+              {t('analyticsAcceptBtn')}
             </button>
           </div>
         </div>

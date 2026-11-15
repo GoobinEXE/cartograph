@@ -128,11 +128,11 @@ export const BooleanBuilderDrawer: React.FC<BooleanBuilderDrawerProps> = ({
               className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] cursor-pointer"
             >
               <option value="">{t('bbAnyYear')}</option>
-              <option value="2025">Desde 2025</option>
-              <option value="2024">Desde 2024</option>
-              <option value="2022">Desde 2022</option>
-              <option value="2020">Desde 2020</option>
-              <option value="2015">Desde 2015</option>
+              <option value="2025">{t('bbFromYear', { year: 2025 })}</option>
+              <option value="2024">{t('bbFromYear', { year: 2024 })}</option>
+              <option value="2022">{t('bbFromYear', { year: 2022 })}</option>
+              <option value="2020">{t('bbFromYear', { year: 2020 })}</option>
+              <option value="2015">{t('bbFromYear', { year: 2015 })}</option>
             </select>
           </div>
 

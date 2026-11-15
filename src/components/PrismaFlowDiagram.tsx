@@ -3,6 +3,7 @@ import { Prisma2020Counts } from '../types/academic';
 import { generatePrismaMethodologyText } from '../utils/prismaFlow';
 import { triggerFileDownload } from '../utils/citationExporter';
 import { trackAcademicEvent } from '../utils/analytics';
+import { useI18n } from '../i18n/context';
 import { Check, Copy, Download, FileText } from 'lucide-react';
 
 interface PrismaFlowDiagramProps {
@@ -10,10 +11,12 @@ interface PrismaFlowDiagramProps {
 }
 
 export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [copiedText, setCopiedText] = useState(false);
 
   const handleCopyMethodology = async () => {
-    const text = generatePrismaMethodologyText(counts);
+    const text = generatePrismaMethodologyText(counts, language);
     await navigator.clipboard.writeText(text);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
@@ -49,11 +52,13 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               PRISMA 2020
             </span>
             <h3 className="text-base font-semibold text-[var(--text-primary)]">
-              Fluxograma Oficial de Triagem e Elegibilidade
+              {isEn ? 'Official Screening & Eligibility Flow Diagram' : 'Fluxograma Oficial de Triagem e Elegibilidade'}
             </h3>
           </div>
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Geração determinística em conformidade com as diretrizes internacionais de síntese de evidência.
+            {isEn
+              ? 'Deterministic generation aligned with international evidence synthesis guidelines.'
+              : 'Geração determinística em conformidade com as diretrizes internacionais de síntese de evidência.'}
           </p>
         </div>
 
@@ -66,12 +71,12 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
             {copiedText ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                Copiado!
+                {isEn ? 'Copied!' : 'Copiado!'}
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                Copiar Metodologia PRISMA
+                {isEn ? 'Copy PRISMA Methods Text' : 'Copiar Metodologia PRISMA'}
               </>
             )}
           </button>
@@ -82,7 +87,7 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--link-academic)] text-white hover:opacity-95 transition-opacity cursor-pointer shadow-sm"
           >
             <Download className="w-3.5 h-3.5" />
-            Exportar SVG Vetorial
+            {isEn ? 'Export Vector SVG' : 'Exportar SVG Vetorial'}
           </button>
         </div>
       </div>
@@ -114,7 +119,7 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
             {/* Phase Label Left Ribbon */}
             <rect x="0" y="0" width="130" height="120" rx="6" fill="var(--bg-subtle)" opacity="0.8" />
             <text x="65" y="65" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor">
-              IDENTIFICAÇÃO
+              {isEn ? 'IDENTIFICATION' : 'IDENTIFICAÇÃO'}
             </text>
 
             {/* Box 1.1: Identified Studies */}
@@ -129,10 +134,12 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="1.5"
             />
             <text x="180" y="26" fontSize="13" fontWeight="700" fill="currentColor">
-              Registros identificados nas bases ({counts.identifiedTotal})
+              {isEn
+                ? `Records identified from databases (${counts.identifiedTotal})`
+                : `Registros identificados nas bases (${counts.identifiedTotal})`}
             </text>
             <text x="180" y="46" fontSize="11" fill="var(--text-secondary)">
-              Busca federada multicêntrica:
+              {isEn ? 'Multi-database federated search:' : 'Busca federada multicêntrica:'}
             </text>
             {sourceEntries.slice(0, 4).map(([src, count], idx) => (
               <text key={src} x="180" y={64 + idx * 14} fontSize="10.5" fill="var(--text-secondary)">
@@ -141,7 +148,9 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
             ))}
             {sourceEntries.length > 4 && (
               <text x="340" y="64" fontSize="10.5" fill="var(--text-secondary)">
-                + outras {sourceEntries.length - 4} bases
+                {isEn
+                  ? `+ ${sourceEntries.length - 4} other sources`
+                  : `+ outras ${sourceEntries.length - 4} bases`}
               </text>
             )}
 
@@ -160,13 +169,15 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="1.5"
             />
             <text x="610" y="42" fontSize="12.5" fontWeight="700" fill="currentColor">
-              Duplicatas removidas ({counts.duplicatesRemoved})
+              {isEn
+                ? `Duplicate records removed (${counts.duplicatesRemoved})`
+                : `Duplicatas removidas (${counts.duplicatesRemoved})`}
             </text>
             <text x="610" y="62" fontSize="11" fill="var(--text-secondary)">
-              Deduplicação multicritério determinística
+              {isEn ? 'Deterministic multi-criteria deduplication' : 'Deduplicação multicritério determinística'}
             </text>
             <text x="610" y="78" fontSize="10.5" fill="var(--text-secondary)">
-              (DOI canônico + similaridade Jaro-Winkler)
+              {isEn ? '(Canonical DOI + Jaro-Winkler similarity)' : '(DOI canônico + similaridade Jaro-Winkler)'}
             </text>
           </g>
 
@@ -177,7 +188,7 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
           <g transform="translate(20, 190)">
             <rect x="0" y="0" width="130" height="130" rx="6" fill="var(--bg-subtle)" opacity="0.8" />
             <text x="65" y="70" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor">
-              TRIAGEM
+              {isEn ? 'SCREENING' : 'TRIAGEM'}
             </text>
 
             {/* Box 2.1: Screened Records */}
@@ -192,13 +203,17 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="1.5"
             />
             <text x="180" y="40" fontSize="13" fontWeight="700" fill="currentColor">
-              Registros triados por título e resumo ({counts.screenedTotal})
+              {isEn
+                ? `Records screened by title & abstract (${counts.screenedTotal})`
+                : `Registros triados por título e resumo (${counts.screenedTotal})`}
             </text>
             <text x="180" y="62" fontSize="11" fill="var(--text-secondary)">
-              Avaliação de elegibilidade temática inicial
+              {isEn ? 'Initial thematic eligibility assessment' : 'Avaliação de elegibilidade temática inicial'}
             </text>
             <text x="180" y="80" fontSize="11" fill="var(--text-secondary)">
-              Pendentes de triagem: {Math.max(0, counts.screenedTotal - counts.excludedScreening - counts.includedStudies)}
+              {isEn
+                ? `Pending screening: ${Math.max(0, counts.screenedTotal - counts.excludedScreening - counts.includedStudies)}`
+                : `Pendentes de triagem: ${Math.max(0, counts.screenedTotal - counts.excludedScreening - counts.includedStudies)}`}
             </text>
 
             {/* Arrow to Excluded */}
@@ -216,11 +231,13 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="1.5"
             />
             <text x="610" y="28" fontSize="12.5" fontWeight="700" fill="currentColor">
-              Registros excluídos ({counts.excludedScreening})
+              {isEn
+                ? `Records excluded (${counts.excludedScreening})`
+                : `Registros excluídos (${counts.excludedScreening})`}
             </text>
             {reasonEntries.length === 0 ? (
               <text x="610" y="52" fontSize="11" fill="var(--text-secondary)">
-                Nenhum estudo excluído até o momento
+                {isEn ? 'No studies excluded so far' : 'Nenhum estudo excluído até o momento'}
               </text>
             ) : (
               reasonEntries.slice(0, 4).map(([reason, count], idx) => (
@@ -238,7 +255,7 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
           <g transform="translate(20, 370)">
             <rect x="0" y="0" width="130" height="90" rx="6" fill="var(--bg-subtle)" opacity="0.8" />
             <text x="65" y="50" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor">
-              ELEGIBILIDADE
+              {isEn ? 'ELIGIBILITY' : 'ELEGIBILIDADE'}
             </text>
 
             {/* Box 3.1: Full text assessed */}
@@ -253,10 +270,14 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="1.5"
             />
             <text x="180" y="32" fontSize="13" fontWeight="700" fill="currentColor">
-              Relatórios avaliados na íntegra ({counts.fullTextAssessed})
+              {isEn
+                ? `Reports assessed for eligibility (${counts.fullTextAssessed})`
+                : `Relatórios avaliados na íntegra (${counts.fullTextAssessed})`}
             </text>
             <text x="180" y="54" fontSize="11" fill="var(--text-secondary)">
-              Recuperação de texto completo e análise metodológica
+              {isEn
+                ? 'Full-text retrieval and methodological appraisal'
+                : 'Recuperação de texto completo e análise metodológica'}
             </text>
           </g>
 
@@ -267,7 +288,7 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
           <g transform="translate(20, 510)">
             <rect x="0" y="0" width="130" height="90" rx="6" fill="var(--bg-subtle)" opacity="0.8" />
             <text x="65" y="50" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor">
-              INCLUSÃO
+              {isEn ? 'INCLUDED' : 'INCLUSÃO'}
             </text>
 
             {/* Box 4.1: Studies Included */}
@@ -282,10 +303,14 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
               strokeWidth="2"
             />
             <text x="180" y="32" fontSize="13.5" fontWeight="700" fill="var(--link-academic)">
-              Estudos incluídos na revisão final ({counts.includedStudies})
+              {isEn
+                ? `Studies included in review (${counts.includedStudies})`
+                : `Estudos incluídos na revisão final (${counts.includedStudies})`}
             </text>
             <text x="180" y="54" fontSize="11" fill="var(--text-secondary)">
-              Estudos que atendem integralmente aos critérios de inclusão
+              {isEn
+                ? 'Studies meeting all inclusion criteria'
+                : 'Estudos que atendem integralmente aos critérios de inclusão'}
             </text>
           </g>
         </svg>
@@ -295,9 +320,11 @@ export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) 
       <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] leading-relaxed space-y-1.5">
         <div className="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
           <FileText className="w-4 h-4 text-[var(--link-academic)]" />
-          Síntese Metodológica Pré-Formatada (Diretriz PRISMA 2020):
+          {isEn
+            ? 'Pre-formatted Methods Summary (PRISMA 2020 Guideline):'
+            : 'Síntese Metodológica Pré-Formatada (Diretriz PRISMA 2020):'}
         </div>
-        <p className="italic">{generatePrismaMethodologyText(counts)}</p>
+        <p className="italic">{generatePrismaMethodologyText(counts, language)}</p>
       </div>
     </div>
   );

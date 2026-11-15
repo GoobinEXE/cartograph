@@ -44,7 +44,12 @@ test('exportWorkspaceBackup and parseWorkspaceBackup round-trip groups, papers, 
     groups,
     selectedPlatformIds: ['openalex', 'pubmed'],
     activeSaveGroupId: 'grp-ia',
+    ownedPlatformIds: ['scopus', 'sciencedirect'],
   });
+
+  // Never leak BYOK / secret keywords into backups
+  assert.equal(json.includes('byokKeys'), false);
+  assert.equal(json.includes('apiKey'), false);
 
   const parsed = parseWorkspaceBackup(json);
   assert.equal(parsed.ok, true);
@@ -55,6 +60,7 @@ test('exportWorkspaceBackup and parseWorkspaceBackup round-trip groups, papers, 
     assert.equal(parsed.payload.savedPapers[0].url, 'https://doi.org/10.1016/test');
     assert.equal(parsed.payload.savedPapers[0].pdfUrl, 'https://example.org/p1.pdf');
     assert.deepEqual(parsed.payload.selectedPlatformIds, ['openalex', 'pubmed']);
+    assert.deepEqual(parsed.payload.ownedPlatformIds, ['scopus', 'sciencedirect']);
   }
 });
 
