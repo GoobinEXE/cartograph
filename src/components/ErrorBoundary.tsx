@@ -1,5 +1,6 @@
 import React from 'react';
 import { detectBrowserLanguage } from '../i18n/context';
+import { workspaceStorageEngine } from '../utils/storageEngine';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -27,12 +28,17 @@ export class ErrorBoundary extends React.Component<
     console.error('[Cartograph ErrorBoundary]', error, info.componentStack);
   }
 
-  private handleExportEmergencyBackup = (): void => {
+  private handleExportEmergencyBackup = async (): Promise<void> => {
     try {
       const snapshot: Record<string, unknown> = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         emergencyBackupAt: new Date().toISOString(),
       };
+      try {
+        snapshot.indexedDb = await workspaceStorageEngine.exportAllRawRecords();
+      } catch {
+        // ignore idb errors
+      }
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
         if (key && key.startsWith('cartograph_')) {

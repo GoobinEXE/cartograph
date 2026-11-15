@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BYOK_PROVIDERS, BYOK_PROVIDER_MAP } from '../src/data/byokProviders.ts';
-import { API_SOURCE_REGISTRY, sourceMatchesScope } from '../src/data/apiSources.ts';
+import {
+  API_SOURCE_REGISTRY,
+  countSourcesForScope,
+  mapAreaToSearchScope,
+  sourceMatchesScope,
+} from '../src/data/apiSources.ts';
 import {
   buildByokCacheSignature,
   createDefaultUserAccessConfig,
@@ -75,4 +80,25 @@ test('sourceMatchesScope routes econ-policy and health sources properly', () => 
   assert.equal(sourceMatchesScope('pubmed', 'health'), true);
   assert.equal(sourceMatchesScope('openaire', 'general'), true);
   assert.equal(sourceMatchesScope('ieeexplore', 'exact-tech'), true);
+});
+
+test('mapAreaToSearchScope and countSourcesForScope map thematic areas consistently', () => {
+  assert.equal(mapAreaToSearchScope('all'), 'all');
+  assert.equal(mapAreaToSearchScope('economia-politicas'), 'econ-policy');
+  assert.equal(mapAreaToSearchScope('saude'), 'health');
+  assert.equal(mapAreaToSearchScope('biociencias'), 'health');
+  assert.equal(mapAreaToSearchScope('ia'), 'exact-tech');
+  assert.equal(mapAreaToSearchScope('software'), 'exact-tech');
+  assert.equal(mapAreaToSearchScope('arte'), 'general');
+
+  const base = createDefaultUserAccessConfig();
+  const baseAllCount = countSourcesForScope('all', base);
+  const withScopus = sanitizeUserAccessConfig({
+    ...base,
+    byokKeys: {
+      scopus: { apiKey: 'test-key-123', enabled: true },
+    },
+  });
+  assert.equal(countSourcesForScope('all', withScopus), baseAllCount + 1);
+  assert.ok(countSourcesForScope('econ-policy', base) > 0);
 });

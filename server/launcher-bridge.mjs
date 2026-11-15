@@ -583,6 +583,85 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && reqUrl.pathname === '/api/unpaywall') {
+    const rawDoi = (reqUrl.searchParams.get('doi') || '')
+      .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
+      .replace(/^doi:\s*/i, '')
+      .trim();
+    if (!/^10\.\d{4,9}\/[^\s]+$/i.test(rawDoi)) {
+      sendJson(res, 400, { ok: false, error: 'DOI inválido' }, req);
+      return;
+    }
+    const rawEmail = (reqUrl.searchParams.get('email') || '').trim();
+    const politeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+      ? rawEmail
+      : 'researcher@cartographsearch.com';
+
+    try {
+      const upstreamUrl = `https://api.unpaywall.org/v2/${encodeURIComponent(
+        rawDoi
+      )}?email=${encodeURIComponent(politeEmail)}`;
+      const response = await fetch(upstreamUrl, {
+        headers: {
+          'User-Agent': CARTOGRAPH_USER_AGENT,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(8_000),
+      });
+
+      if (response.status === 404) {
+        sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            doi: rawDoi,
+            isOa: false,
+            oaStatus: 'closed',
+            bestPdfUrl: null,
+            bestLandingUrl: null,
+            hostType: null,
+          },
+          req
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        sendJson(res, response.status, { ok: false, error: `Unpaywall HTTP ${response.status}` }, req);
+        return;
+      }
+
+      const data = await response.json();
+      const bestLoc = data?.best_oa_location || null;
+      sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          doi: rawDoi,
+          isOa: Boolean(data?.is_oa),
+          oaStatus: typeof data?.oa_status === 'string' ? data.oa_status : 'unknown',
+          bestPdfUrl: typeof bestLoc?.url_for_pdf === 'string' ? bestLoc.url_for_pdf : null,
+          bestLandingUrl:
+            typeof bestLoc?.url_for_landing_page === 'string'
+              ? bestLoc.url_for_landing_page
+              : null,
+          hostType: typeof bestLoc?.host_type === 'string' ? bestLoc.host_type : null,
+        },
+        req
+      );
+    } catch (err) {
+      sendJson(
+        res,
+        502,
+        { ok: false, error: err instanceof Error ? err.message : 'Falha ao consultar Unpaywall' },
+        req
+      );
+    }
+    return;
+  }
+
   if (req.method === 'POST' && reqUrl.pathname === '/api/feedback') {
     let rawBody = '';
     req.on('data', (chunk) => {

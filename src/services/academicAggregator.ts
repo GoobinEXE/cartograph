@@ -102,6 +102,7 @@ export async function searchOpenAlex(
       source: 'openalex',
       sourceLabel: 'OpenAlex',
       publicationType: item.type || undefined,
+      isRetracted: Boolean(item.is_retracted),
     };
   });
 }
@@ -211,6 +212,13 @@ export async function searchCrossref(
         ? item.abstract.replace(/<\/?[^>]+(>|$)/g, '').trim()
         : null;
 
+    const updateList = Array.isArray(item['update-to']) ? item['update-to'] : [];
+    const retractionEntry = updateList.find(
+      (u: Record<string, unknown>) =>
+        String(u?.type || '').toLowerCase() === 'retraction' ||
+        String(u?.label || '').toLowerCase().includes('retract')
+    );
+
     return {
       id: `crossref-${doi || idx}`,
       title,
@@ -229,6 +237,10 @@ export async function searchCrossref(
       source: 'crossref',
       sourceLabel: 'Crossref DOI',
       publicationType: item.type || undefined,
+      isRetracted: Boolean(retractionEntry),
+      retractionNoticeUrl: retractionEntry?.DOI
+        ? `https://doi.org/${cleanDoi(String(retractionEntry.DOI)) || retractionEntry.DOI}`
+        : null,
     };
   });
 }
@@ -940,6 +952,7 @@ export function deduplicatePapers(papers: NormalizedPaper[]): NormalizedPaper[] 
 
 export interface FederatedSearchResult {
   papers: NormalizedPaper[];
+  rawPapers: NormalizedPaper[];
   statuses: SourceFetchStatus[];
   deduplicationSummary: DeduplicationSummary;
 }
@@ -1361,9 +1374,11 @@ export async function runFederatedSearch(
 
   const emitProgressSnapshot = () => {
     if (signal?.aborted || !onProgress) return;
-    const { papers, summary } = deduplicatePapersAdvanced(allPapers);
+    const rawSnapshot = [...allPapers];
+    const { papers, summary } = deduplicatePapersAdvanced(rawSnapshot);
     onProgress({
       papers,
+      rawPapers: rawSnapshot,
       statuses: [...statuses],
       deduplicationSummary: summary,
       completedCount,
@@ -1468,9 +1483,11 @@ export async function runFederatedSearch(
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(allPapers);
+  const rawPapers = [...allPapers];
+  const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(rawPapers);
   const finalResult: FederatedSearchResult = {
     papers: dedupedPapers,
+    rawPapers,
     statuses,
     deduplicationSummary: summary,
   };

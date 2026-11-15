@@ -7,6 +7,7 @@ export const SCREENING_REASON_LABELS: Record<ScreeningExclusionReason, string> =
   desfecho_irrelevante: 'Desfecho de interesse não avaliado',
   texto_completo_inacessivel: 'Texto completo não recuperado/indisponível',
   duplicata_residual: 'Duplicata residual de outra base',
+  retracao_identificada: 'Artigo retratado pelo periódico/editora',
   outro: 'Outro critério metodológico específico',
 };
 
@@ -16,6 +17,7 @@ export const SCREENING_REASON_LABELS_EN: Record<ScreeningExclusionReason, string
   desfecho_irrelevante: 'Outcome of interest not assessed',
   texto_completo_inacessivel: 'Full text unavailable/unretrieved',
   duplicata_residual: 'Residual duplicate from another database',
+  retracao_identificada: 'Retracted publication / erratum notice',
   outro: 'Other specific methodological criterion',
 };
 

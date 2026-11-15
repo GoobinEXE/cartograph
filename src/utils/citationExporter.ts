@@ -1,5 +1,10 @@
 import { SupportedLanguage } from '../i18n/translations';
-import { NormalizedPaper, SavedPaperItem } from '../types/academic';
+import {
+  CustomExtractionColumn,
+  NormalizedPaper,
+  SavedPaperItem,
+} from '../types/academic';
+import { getQualityRatingLabel } from './qualityChecklists';
 
 function formatAuthorAbnt(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -94,10 +99,11 @@ function escapeCsvCell(value: string | number | null | undefined): string {
 export function exportSavedPapersCsv(
   items: SavedPaperItem[],
   groupNameMap?: Record<string, string>,
-  language: SupportedLanguage = 'pt'
+  language: SupportedLanguage = 'pt',
+  customColumns: CustomExtractionColumn[] = []
 ): string {
   const isEn = language === 'en';
-  const headers = isEn
+  const baseHeaders = isEn
     ? [
         'Group_Slot',
         'Title',
@@ -151,6 +157,13 @@ export function exportSavedPapersCsv(
         'Referencia_APA',
       ];
 
+  const headers = [
+    ...baseHeaders,
+    isEn ? 'Quality_Tool' : 'Ferramenta_Qualidade',
+    isEn ? 'Quality_Overall' : 'Avaliacao_Qualidade',
+    ...customColumns.map((col) => escapeCsvCell(col.label)),
+  ];
+
   const rows = items.map((item) => {
     const meta = item.extractedMetadata;
     const screeningLabel = isEn
@@ -203,11 +216,262 @@ export function exportSavedPapersCsv(
       escapeCsvCell(item.abstractText ?? ''),
       escapeCsvCell(formatAbntCitation(item)),
       escapeCsvCell(formatApaCitation(item)),
+      escapeCsvCell(item.qualityAppraisal?.tool ?? ''),
+      escapeCsvCell(
+        item.qualityAppraisal
+          ? getQualityRatingLabel(item.qualityAppraisal.overall, language)
+          : ''
+      ),
+      ...customColumns.map((col) =>
+        escapeCsvCell(item.customFields?.[col.id] ?? '')
+      ),
     ];
   });
 
   // Prepend UTF-8 BOM (\uFEFF) for seamless opening in Microsoft Excel (Windows/macOS) and LibreOffice (Linux)
   return '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+}
+
+function extractSurname(fullName: string): string {
+  const cleaned = fullName.trim();
+  if (!cleaned) return 'Unknown';
+  if (cleaned.includes(',')) {
+    return cleaned.split(',')[0].trim() || 'Unknown';
+  }
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  return parts[parts.length - 1] || 'Unknown';
+}
+
+function formatRisAuthorName(fullName: string): string {
+  const cleaned = fullName.trim();
+  if (!cleaned) return 'Unknown';
+  if (cleaned.includes(',')) return cleaned;
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0];
+  const last = parts[parts.length - 1];
+  const rest = parts.slice(0, -1).join(' ');
+  return `${last}, ${rest}`;
+}
+
+export function formatInTextCitation(
+  paper: NormalizedPaper,
+  style: 'abnt' | 'apa',
+  mode: 'parenthetical' | 'narrative' = 'parenthetical'
+): string {
+  const yearLabel = paper.year ?? (style === 'abnt' ? 's.d.' : 'n.d.');
+  const surnames = paper.authors.map(extractSurname).filter(Boolean);
+
+  if (style === 'abnt') {
+    if (surnames.length === 0) {
+      return mode === 'narrative'
+        ? `Autor Desconhecido (${yearLabel})`
+        : `(AUTOR DESCONHECIDO, ${yearLabel})`;
+    }
+    if (mode === 'parenthetical') {
+      if (surnames.length > 3) {
+        return `(${surnames[0].toUpperCase()} et al., ${yearLabel})`;
+      }
+      return `(${surnames.map((s) => s.toUpperCase()).join('; ')}, ${yearLabel})`;
+    }
+    if (surnames.length === 1) return `${surnames[0]} (${yearLabel})`;
+    if (surnames.length === 2) return `${surnames[0]} e ${surnames[1]} (${yearLabel})`;
+    if (surnames.length === 3) return `${surnames[0]}, ${surnames[1]} e ${surnames[2]} (${yearLabel})`;
+    return `${surnames[0]} et al. (${yearLabel})`;
+  }
+
+  // APA 7th edition
+  if (surnames.length === 0) {
+    return mode === 'narrative' ? `Unknown (${yearLabel})` : `(Unknown, ${yearLabel})`;
+  }
+  if (mode === 'parenthetical') {
+    if (surnames.length === 1) return `(${surnames[0]}, ${yearLabel})`;
+    if (surnames.length === 2) return `(${surnames[0]} & ${surnames[1]}, ${yearLabel})`;
+    return `(${surnames[0]} et al., ${yearLabel})`;
+  }
+  if (surnames.length === 1) return `${surnames[0]} (${yearLabel})`;
+  if (surnames.length === 2) return `${surnames[0]} and ${surnames[1]} (${yearLabel})`;
+  return `${surnames[0]} et al. (${yearLabel})`;
+}
+
+export function formatRisEntry(paper: NormalizedPaper): string {
+  const lines: string[] = [
+    'TY  - JOUR',
+    `TI  - ${paper.title.replace(/[\r\n]+/g, ' ').trim()}`,
+  ];
+  for (const author of paper.authors) {
+    if (author.trim()) {
+      lines.push(`AU  - ${formatRisAuthorName(author)}`);
+    }
+  }
+  if (paper.year) {
+    lines.push(`PY  - ${paper.year}`);
+  }
+  if (paper.venue) {
+    lines.push(`JO  - ${paper.venue.replace(/[\r\n]+/g, ' ').trim()}`);
+  }
+  if (paper.doi) {
+    lines.push(`DO  - ${paper.doi}`);
+  }
+  if (paper.url) {
+    lines.push(`UR  - ${paper.url}`);
+  }
+  if (paper.pdfUrl) {
+    lines.push(`L1  - ${paper.pdfUrl}`);
+  }
+  if (paper.abstractText) {
+    lines.push(`AB  - ${paper.abstractText.replace(/[\r\n]+/g, ' ').trim()}`);
+  }
+  lines.push(`DB  - ${paper.sourceLabel}`);
+  lines.push('ER  - ');
+  return lines.join('\n');
+}
+
+export function exportSavedPapersRis(items: NormalizedPaper[]): string {
+  if (items.length === 0) return '';
+  return `${items.map(formatRisEntry).join('\n\n')}\n`;
+}
+
+export function escapeLatex(value: string | number | null | undefined): string {
+  const raw = value == null ? '' : String(value);
+  return raw
+    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/&/g, '\\&')
+    .replace(/%/g, '\\%')
+    .replace(/\$/g, '\\$')
+    .replace(/#/g, '\\#')
+    .replace(/_/g, '\\_')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/~/g, '\\textasciitilde{}')
+    .replace(/\^/g, '\\textasciicircum{}');
+}
+
+export function exportSynthesisLatexTable(
+  items: SavedPaperItem[],
+  language: SupportedLanguage = 'pt'
+): string {
+  const isEn = language === 'en';
+  const colStudy = isEn ? 'Study (Author, Year)' : 'Estudo (Autor, Ano)';
+  const colDesign = isEn ? 'Design' : 'Delineamento';
+  const colSample = isEn ? 'Sample ($N$)' : 'Amostra ($N$)';
+  const colFindings = isEn ? 'Findings / Notes' : 'Achados / Notas';
+  const caption = isEn
+    ? 'Synthesis matrix of selected studies'
+    : 'Matriz de sintese dos estudos selecionados';
+
+  const rows = items.map((item) => {
+    const firstAuthor = item.authors[0] ? extractSurname(item.authors[0]) : 'N/A';
+    const etAl = item.authors.length > 1 ? ' et al.' : '';
+    const studyLabel = `${firstAuthor}${etAl} (${item.year ?? 's.d.'})`;
+    const design = item.extractedMetadata?.studyDesign || item.publicationType || '-';
+    const sample = item.extractedMetadata?.sampleSize || '-';
+    const summary =
+      item.researcherNotes.trim() ||
+      item.extractedMetadata?.conclusion ||
+      item.extractedMetadata?.results ||
+      item.title;
+    return `    ${escapeLatex(studyLabel)} & ${escapeLatex(design)} & ${escapeLatex(sample)} & ${escapeLatex(summary.slice(0, 140))} \\\\`;
+  });
+
+  return [
+    '\\begin{table}[htbp]',
+    '  \\centering',
+    `  \\caption{${escapeLatex(caption)}}`,
+    '  \\label{tab:cartograph_synthesis}',
+    '  \\begin{tabular}{lllp{6.5cm}}',
+    '    \\toprule',
+    `    \\textbf{${colStudy}} & \\textbf{${colDesign}} & \\textbf{${colSample}} & \\textbf{${colFindings}} \\\\`,
+    '    \\midrule',
+    ...rows,
+    '    \\bottomrule',
+    '  \\end{tabular}',
+    '\\end{table}',
+  ].join('\n');
+}
+
+export function exportSynthesisMarkdown(
+  items: SavedPaperItem[],
+  groupNameMap?: Record<string, string>,
+  language: SupportedLanguage = 'pt',
+  customColumns: CustomExtractionColumn[] = []
+): string {
+  const isEn = language === 'en';
+  const today = new Date().toISOString().slice(0, 10);
+  const escapeMdCell = (val: string | number | null | undefined) =>
+    String(val ?? '-')
+      .replace(/\|/g, '\\|')
+      .replace(/[\r\n]+/g, ' ')
+      .trim();
+
+  const extraHeaders = [
+    isEn ? 'Quality Appraisal' : 'Qualidade (RoB/JBI)',
+    ...customColumns.map((col) => escapeMdCell(col.label)),
+  ];
+  const baseHeaderRow = isEn
+    ? ['Study', 'Year', 'Design', 'Sample (N)', 'Status', 'Citation']
+    : ['Estudo', 'Ano', 'Delineamento', 'Amostra (N)', 'Triagem', 'Citação'];
+  const allHeaders = [...baseHeaderRow, ...extraHeaders];
+
+  const headerLines = [
+    '---',
+    'type: literature-synthesis',
+    `generated: ${today}`,
+    `studies_count: ${items.length}`,
+    'generator: Cartograph',
+    '---',
+    '',
+    `# ${isEn ? 'Literature Synthesis Matrix' : 'Matriz de Síntese Bibliográfica'} (${items.length})`,
+    '',
+    `| ${allHeaders.join(' | ')} |`,
+    `| ${allHeaders.map(() => '---').join(' | ')} |`,
+  ];
+
+  const tableRows = items.map((item) => {
+    const cite = formatInTextCitation(item, isEn ? 'apa' : 'abnt', 'narrative');
+    const design = item.extractedMetadata?.studyDesign || '-';
+    const sample = item.extractedMetadata?.sampleSize || '-';
+    const status = item.screeningStatus || 'unscreened';
+    const qualityCell = item.qualityAppraisal
+      ? `${item.qualityAppraisal.tool.toUpperCase()}: ${getQualityRatingLabel(item.qualityAppraisal.overall, language)}`
+      : '-';
+    const customCells = customColumns.map((col) =>
+      escapeMdCell(item.customFields?.[col.id] || '-')
+    );
+    return `| ${escapeMdCell(item.title)} | ${item.year ?? '-'} | ${escapeMdCell(design)} | ${escapeMdCell(sample)} | ${status} | ${escapeMdCell(cite)} | ${escapeMdCell(qualityCell)} |${customCells.length > 0 ? ` ${customCells.join(' | ')} |` : ''}`;
+  });
+
+  const detailBlocks = items.flatMap((item, idx) => {
+    const groupLabel =
+      item.groupId && groupNameMap?.[item.groupId]
+        ? groupNameMap[item.groupId]
+        : isEn
+        ? 'Ungrouped'
+        : 'Sem Grupo';
+    const meta = item.extractedMetadata;
+    const lines = [
+      '',
+      `## ${idx + 1}. ${item.title}`,
+      `- **${isEn ? 'Slot' : 'Grupo'}:** ${groupLabel} | **${isEn ? 'Source' : 'Base'}:** ${item.sourceLabel} | **${isEn ? 'Year' : 'Ano'}:** ${item.year ?? '-'}`,
+      `- **ABNT:** ${formatAbntCitation(item)}`,
+      `- **APA:** ${formatApaCitation(item)}`,
+    ];
+    if (item.doi) {
+      lines.push(`- **DOI:** https://doi.org/${item.doi}`);
+    }
+    if (item.pdfUrl) {
+      lines.push(`- **PDF:** ${item.pdfUrl}`);
+    }
+    if (meta?.objective) lines.push(`- **${isEn ? 'Objective' : 'Objetivo'}:** ${meta.objective}`);
+    if (meta?.methods) lines.push(`- **${isEn ? 'Methods' : 'Métodos'}:** ${meta.methods}`);
+    if (meta?.results) lines.push(`- **${isEn ? 'Results' : 'Resultados'}:** ${meta.results}`);
+    if (meta?.conclusion) lines.push(`- **${isEn ? 'Conclusion' : 'Conclusão'}:** ${meta.conclusion}`);
+    if (item.researcherNotes.trim()) {
+      lines.push(`- **${isEn ? 'Notes' : 'Notas'}:** ${item.researcherNotes.trim()}`);
+    }
+    return lines;
+  });
+
+  return [...headerLines, ...tableRows, ...detailBlocks].join('\n');
 }
 
 export function triggerFileDownload(filename: string, content: string, mimeType: string): void {

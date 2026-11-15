@@ -1,4 +1,12 @@
-import { ApiSourceId, DeduplicationSummary, NormalizedPaper } from '../types/academic';
+import {
+  ApiSourceId,
+  DeduplicationSummary,
+  DedupOverrideRule,
+  MergeClusterEntry,
+  MergeRuleMatched,
+  NormalizedPaper,
+  SavedPaperItem,
+} from '../types/academic';
 
 /**
  * Normalizes a DOI string to a standard lowercase prefix-free representation.
@@ -165,6 +173,8 @@ function mergePaperRecords(primary: NormalizedPaper, secondary: NormalizedPaper)
     venue: primary.venue !== 'Periódico Científico' ? primary.venue : secondary.venue,
     year: primary.year || secondary.year,
     publicationType: primary.publicationType || secondary.publicationType,
+    isRetracted: Boolean(primary.isRetracted || secondary.isRetracted),
+    retractionNoticeUrl: primary.retractionNoticeUrl || secondary.retractionNoticeUrl,
     sources: mergeSourceIds(primary, secondary),
     sourceRanks: mergeSourceRanks(primary, secondary),
   };
@@ -173,16 +183,61 @@ function mergePaperRecords(primary: NormalizedPaper, secondary: NormalizedPaper)
 interface IndexedRecord {
   paper: NormalizedPaper;
   firstIdx: number;
+  constituents: NormalizedPaper[];
+  ruleMatched?: MergeRuleMatched;
+  similarityScore?: number;
+}
+
+export function makePairKey(idA: string, idB: string): string {
+  return idA <= idB ? `${idA}::${idB}` : `${idB}::${idA}`;
+}
+
+function hasSplitConflict(
+  a: IndexedRecord,
+  b: IndexedRecord,
+  splitSet: Set<string>
+): boolean {
+  if (splitSet.size === 0) return false;
+  for (const cA of a.constituents) {
+    for (const cB of b.constituents) {
+      if (splitSet.has(makePairKey(cA.id, cB.id))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function combineIndexedRecords(
+  primary: IndexedRecord,
+  secondary: IndexedRecord,
+  rule: MergeRuleMatched,
+  score: number
+): IndexedRecord {
+  return {
+    paper: mergePaperRecords(primary.paper, secondary.paper),
+    firstIdx: Math.min(primary.firstIdx, secondary.firstIdx),
+    constituents: [...primary.constituents, ...secondary.constituents],
+    ruleMatched: primary.ruleMatched ?? rule,
+    similarityScore:
+      primary.similarityScore !== undefined
+        ? Math.min(primary.similarityScore, score)
+        : score,
+  };
 }
 
 /**
  * Multi-criteria deterministic deduplication engine for academic records.
  * Preserves first-seen insertion order so incremental/streaming arrivals enrich in-place
- * without reordering already rendered results.
+ * without reordering already rendered results, while retaining merge clusters for audit.
  */
-export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
+export function deduplicatePapersAdvanced(
+  papers: NormalizedPaper[],
+  overrides?: DedupOverrideRule
+): {
   papers: NormalizedPaper[];
   summary: DeduplicationSummary;
+  mergeClusters: MergeClusterEntry[];
 } {
   const originalCount = papers.length;
   if (originalCount <= 1) {
@@ -199,44 +254,55 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
         mergedByPmidOrArxiv: 0,
         mergedByFuzzyTitle: 0,
       },
+      mergeClusters: [],
     };
   }
 
+  const splitSet = new Set<string>(overrides?.splitPairs ?? []);
   let mergedByDoi = 0;
   let mergedByPmidOrArxiv = 0;
   let mergedByFuzzyTitle = 0;
 
   // Step 1: Group by exact Canonical DOI while retaining earliest arrival index
-  const doiMap = new Map<string, IndexedRecord>();
+  const doiBuckets = new Map<string, IndexedRecord[]>();
   const nonDoiPapers: IndexedRecord[] = [];
 
   papers.forEach((rawPaper, idx) => {
-    const paper: NormalizedPaper = {
+    const normalizedPaper: NormalizedPaper = {
       ...rawPaper,
-      sources: rawPaper.sources?.length ? rawPaper.sources : [rawPaper.source],
+      sources: rawPaper.sources?.length ? [...rawPaper.sources] : [rawPaper.source],
+      sourceRanks: rawPaper.sourceRanks ? { ...rawPaper.sourceRanks } : undefined,
     };
-    const cleanDoi = normalizeDoi(paper.doi);
+    const cleanDoi = normalizeDoi(normalizedPaper.doi);
+    const candidate: IndexedRecord = {
+      paper: cleanDoi ? { ...normalizedPaper, doi: cleanDoi } : normalizedPaper,
+      firstIdx: idx,
+      constituents: [normalizedPaper],
+    };
+
     if (cleanDoi) {
-      const existing = doiMap.get(cleanDoi);
-      if (existing) {
-        existing.paper = mergePaperRecords(existing.paper, paper);
+      const bucket = doiBuckets.get(cleanDoi) ?? [];
+      const targetIdx = bucket.findIndex((rec) => !hasSplitConflict(rec, candidate, splitSet));
+      if (targetIdx >= 0) {
+        bucket[targetIdx] = combineIndexedRecords(bucket[targetIdx], candidate, 'doi', 1.0);
         mergedByDoi++;
       } else {
-        doiMap.set(cleanDoi, { paper: { ...paper, doi: cleanDoi }, firstIdx: idx });
+        bucket.push(candidate);
       }
+      doiBuckets.set(cleanDoi, bucket);
     } else {
-      nonDoiPapers.push({ paper, firstIdx: idx });
+      nonDoiPapers.push(candidate);
     }
   });
 
   // Intermediate list after DOI dedup, restored to arrival order
   const phase1List: IndexedRecord[] = [
-    ...Array.from(doiMap.values()),
+    ...Array.from(doiBuckets.values()).flat(),
     ...nonDoiPapers,
   ].sort((a, b) => a.firstIdx - b.firstIdx);
 
   // Step 2: Group by secondary exact persistent IDs (arXiv ID or PMID)
-  const idMap = new Map<string, IndexedRecord>();
+  const idBuckets = new Map<string, IndexedRecord[]>();
   const remainingPapers: IndexedRecord[] = [];
 
   for (const item of phase1List) {
@@ -245,13 +311,15 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
     const persistentKey = arxivId ? `arxiv:${arxivId}` : pmid ? `pmid:${pmid}` : null;
 
     if (persistentKey) {
-      const existing = idMap.get(persistentKey);
-      if (existing) {
-        existing.paper = mergePaperRecords(existing.paper, item.paper);
+      const bucket = idBuckets.get(persistentKey) ?? [];
+      const targetIdx = bucket.findIndex((rec) => !hasSplitConflict(rec, item, splitSet));
+      if (targetIdx >= 0) {
+        bucket[targetIdx] = combineIndexedRecords(bucket[targetIdx], item, 'pmid-arxiv', 1.0);
         mergedByPmidOrArxiv++;
       } else {
-        idMap.set(persistentKey, item);
+        bucket.push(item);
       }
+      idBuckets.set(persistentKey, bucket);
     } else {
       remainingPapers.push(item);
     }
@@ -259,26 +327,28 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
 
   // Intermediate list after persistent ID dedup, restored to arrival order
   const candidates: IndexedRecord[] = [
-    ...Array.from(idMap.values()),
+    ...Array.from(idBuckets.values()).flat(),
     ...remainingPapers,
   ].sort((a, b) => a.firstIdx - b.firstIdx);
 
   // Step 3: Fuzzy title + First Author + Year matching (preserving earliest index order)
-  const finalUniqueList: NormalizedPaper[] = [];
+  const finalRecords: IndexedRecord[] = [];
   const processedIndices = new Set<number>();
 
   for (let i = 0; i < candidates.length; i++) {
     if (processedIndices.has(i)) continue;
 
-    let current = candidates[i].paper;
-    const currentNormTitle = normalizeTitleForComparison(current.title);
-    const currentAuthor = getFirstAuthorSurname(current.authors);
+    let current = candidates[i];
+    const currentNormTitle = normalizeTitleForComparison(current.paper.title);
+    const currentAuthor = getFirstAuthorSurname(current.paper.authors);
 
     for (let j = i + 1; j < candidates.length; j++) {
       if (processedIndices.has(j)) continue;
 
-      const compare = candidates[j].paper;
-      const compareNormTitle = normalizeTitleForComparison(compare.title);
+      const compare = candidates[j];
+      if (hasSplitConflict(current, compare, splitSet)) continue;
+
+      const compareNormTitle = normalizeTitleForComparison(compare.paper.title);
 
       // Fast preliminary length check: if length difference > 35%, skip
       const lenDiff = Math.abs(currentNormTitle.length - compareNormTitle.length);
@@ -291,22 +361,35 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
       if (similarity >= 0.90) {
         // Confirm with Year tolerance (+/- 1 year) or Author match
         const yearDiff =
-          current.year && compare.year ? Math.abs(current.year - compare.year) : 0;
-        const compareAuthor = getFirstAuthorSurname(compare.authors);
+          current.paper.year && compare.paper.year
+            ? Math.abs(current.paper.year - compare.paper.year)
+            : 0;
+        const compareAuthor = getFirstAuthorSurname(compare.paper.authors);
         const authorMatches =
           !currentAuthor || !compareAuthor || currentAuthor === compareAuthor;
 
         if (yearDiff <= 1 && authorMatches) {
-          current = mergePaperRecords(current, compare);
+          current = combineIndexedRecords(current, compare, 'fuzzy-title', similarity);
           processedIndices.add(j);
           mergedByFuzzyTitle++;
         }
       }
     }
 
-    finalUniqueList.push(current);
+    finalRecords.push(current);
     processedIndices.add(i);
   }
+
+  const finalUniqueList = finalRecords.map((r) => r.paper);
+  const mergeClusters: MergeClusterEntry[] = finalRecords
+    .filter((r) => r.constituents.length > 1)
+    .map((r) => ({
+      clusterId: `cluster-${r.paper.id}`,
+      mergedPaperId: r.paper.id,
+      ruleMatched: r.ruleMatched ?? 'doi',
+      similarityScore: Number((r.similarityScore ?? 1.0).toFixed(4)),
+      constituents: r.constituents,
+    }));
 
   const uniqueCount = finalUniqueList.length;
   const duplicatesRemoved = originalCount - uniqueCount;
@@ -321,6 +404,103 @@ export function deduplicatePapersAdvanced(papers: NormalizedPaper[]): {
       mergedByPmidOrArxiv,
       mergedByFuzzyTitle,
     },
+    mergeClusters,
   };
+}
+
+export interface LibraryDiffResult {
+  unseen: NormalizedPaper[];
+  matched: Array<{ paper: NormalizedPaper; existingItem: SavedPaperItem }>;
+}
+
+/**
+ * Partitions search results into unseen papers and papers already present
+ * in the active saved library (Living Review Diff).
+ */
+export function partitionResultsAgainstLibrary(
+  results: NormalizedPaper[],
+  savedItems: SavedPaperItem[]
+): LibraryDiffResult {
+  if (results.length === 0 || savedItems.length === 0) {
+    return { unseen: [...results], matched: [] };
+  }
+
+  const savedById = new Map<string, SavedPaperItem>();
+  const savedByDoi = new Map<string, SavedPaperItem>();
+  const savedByPersistentId = new Map<string, SavedPaperItem>();
+  const savedFuzzyEntries: Array<{
+    normTitle: string;
+    authorSurname: string;
+    year: number | null;
+    item: SavedPaperItem;
+  }> = [];
+
+  for (const item of savedItems) {
+    savedById.set(item.id, item);
+    const cleanDoi = normalizeDoi(item.doi);
+    if (cleanDoi && !savedByDoi.has(cleanDoi)) {
+      savedByDoi.set(cleanDoi, item);
+    }
+    const arxivId = extractArxivId(item.url) || extractArxivId(item.id);
+    const pmid = extractPmid(item.url) || extractPmid(item.id);
+    if (arxivId && !savedByPersistentId.has(`arxiv:${arxivId}`)) {
+      savedByPersistentId.set(`arxiv:${arxivId}`, item);
+    }
+    if (pmid && !savedByPersistentId.has(`pmid:${pmid}`)) {
+      savedByPersistentId.set(`pmid:${pmid}`, item);
+    }
+    const normTitle = normalizeTitleForComparison(item.title);
+    if (normTitle) {
+      savedFuzzyEntries.push({
+        normTitle,
+        authorSurname: getFirstAuthorSurname(item.authors),
+        year: item.year,
+        item,
+      });
+    }
+  }
+
+  const unseen: NormalizedPaper[] = [];
+  const matched: Array<{ paper: NormalizedPaper; existingItem: SavedPaperItem }> = [];
+
+  for (const paper of results) {
+    let existing = savedById.get(paper.id);
+    if (!existing) {
+      const cleanDoi = normalizeDoi(paper.doi);
+      if (cleanDoi) existing = savedByDoi.get(cleanDoi);
+    }
+    if (!existing) {
+      const arxivId = extractArxivId(paper.url) || extractArxivId(paper.id);
+      const pmid = extractPmid(paper.url) || extractPmid(paper.id);
+      if (arxivId) existing = savedByPersistentId.get(`arxiv:${arxivId}`);
+      if (!existing && pmid) existing = savedByPersistentId.get(`pmid:${pmid}`);
+    }
+    if (!existing) {
+      const paperNormTitle = normalizeTitleForComparison(paper.title);
+      const paperAuthor = getFirstAuthorSurname(paper.authors);
+      for (const entry of savedFuzzyEntries) {
+        const lenDiff = Math.abs(paperNormTitle.length - entry.normTitle.length);
+        const maxLen = Math.max(paperNormTitle.length, entry.normTitle.length);
+        if (maxLen > 0 && lenDiff / maxLen > 0.35) continue;
+        if (jaroWinklerSimilarity(paperNormTitle, entry.normTitle) >= 0.90) {
+          const yearDiff = paper.year && entry.year ? Math.abs(paper.year - entry.year) : 0;
+          const authorMatches =
+            !paperAuthor || !entry.authorSurname || paperAuthor === entry.authorSurname;
+          if (yearDiff <= 1 && authorMatches) {
+            existing = entry.item;
+            break;
+          }
+        }
+      }
+    }
+
+    if (existing) {
+      matched.push({ paper, existingItem: existing });
+    } else {
+      unseen.push(paper);
+    }
+  }
+
+  return { unseen, matched };
 }
 

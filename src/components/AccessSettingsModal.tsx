@@ -12,29 +12,35 @@ import {
 import { BYOK_PROVIDERS } from '../data/byokProviders';
 import { PLATFORMS } from '../data/platforms';
 import { useI18n } from '../i18n/context';
-import { ByokProviderId, UserAccessConfig } from '../types/academic';
+import { AccessSettingsTab, ByokProviderId, UserAccessConfig } from '../types/academic';
 import { CAPES_CAFE_COVERED_PLATFORM_IDS } from '../utils/accessConfig';
 import { rewriteUrlWithInstitutionalProxy } from '../utils/institutionalProxy';
 
 interface AccessSettingsModalProps {
   isOpen: boolean;
   config: UserAccessConfig;
+  initialTab?: AccessSettingsTab;
   onChange: (next: UserAccessConfig) => void;
   onClose: () => void;
 }
-
-type ModalTab = 'proxy' | 'byok' | 'subscriptions';
 
 const PREVIEW_SAMPLE_URL = 'https://www.sciencedirect.com/search?qs=monetary+policy';
 
 export const AccessSettingsModal: React.FC<AccessSettingsModalProps> = ({
   isOpen,
   config,
+  initialTab = 'proxy',
   onChange,
   onClose,
 }) => {
   const { language, t } = useI18n();
-  const [activeTab, setActiveTab] = useState<ModalTab>('proxy');
+  const [activeTab, setActiveTab] = useState<AccessSettingsTab>(initialTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -463,6 +469,29 @@ export const AccessSettingsModal: React.FC<AccessSettingsModalProps> = ({
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--divider)] space-y-1.5">
+                <label
+                  htmlFor="unpaywall-email-input"
+                  className="block text-xs font-semibold text-[var(--text-primary)]"
+                >
+                  {t('unpaywallEmailLabel')}
+                </label>
+                <input
+                  id="unpaywall-email-input"
+                  type="email"
+                  value={config.unpaywallEmail ?? ''}
+                  onChange={(e) =>
+                    onChange({
+                      ...config,
+                      unpaywallEmail: e.target.value,
+                    })
+                  }
+                  placeholder={t('unpaywallEmailPlaceholder')}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--text-primary)]"
+                />
+                <p className="text-[11px] text-[var(--text-muted)]">{t('unpaywallEmailHint')}</p>
               </div>
             </div>
           )}

@@ -4,9 +4,11 @@ import {
   normalizeDoi,
   extractArxivId,
   extractPmid,
+  makePairKey,
   deduplicatePapersAdvanced,
+  partitionResultsAgainstLibrary,
 } from '../src/utils/deduplication.ts';
-import type { NormalizedPaper } from '../src/types/academic.ts';
+import type { NormalizedPaper, SavedPaperItem } from '../src/types/academic.ts';
 
 function makePaper(overrides: Partial<NormalizedPaper> = {}): NormalizedPaper {
   return {
@@ -100,4 +102,74 @@ test('deduplicatePapersAdvanced merges by DOI, arXiv/PMID, and fuzzy title while
   assert.equal(unique[0].citationCount, 120000);
   assert.equal(unique[0].isOpenAccess, true);
   assert.deepEqual(unique[0].sources, ['openalex', 'crossref']);
+});
+
+test('deduplicatePapersAdvanced exposes mergeClusters, preserves sourceRanks, and respects splitPairs', () => {
+  const oa = makePaper({
+    id: 'oa-10',
+    title: 'Federated Causal Discovery',
+    authors: ['Clara Mendes'],
+    year: 2024,
+    doi: '10.1000/causal-10',
+    source: 'openalex',
+    sourceRanks: { openalex: 2 },
+  });
+  const cr = makePaper({
+    id: 'cr-10',
+    title: 'Federated Causal Discovery',
+    authors: ['Clara Mendes'],
+    year: 2024,
+    doi: '10.1000/causal-10',
+    source: 'crossref',
+    sourceRanks: { crossref: 1 },
+  });
+
+  const mergedRes = deduplicatePapersAdvanced([oa, cr]);
+  assert.equal(mergedRes.papers.length, 1);
+  assert.deepEqual(mergedRes.papers[0].sourceRanks, { openalex: 2, crossref: 1 });
+  assert.equal(mergedRes.mergeClusters.length, 1);
+  assert.equal(mergedRes.mergeClusters[0].ruleMatched, 'doi');
+  assert.equal(mergedRes.mergeClusters[0].constituents.length, 2);
+
+  const splitRes = deduplicatePapersAdvanced([oa, cr], {
+    splitPairs: [makePairKey('oa-10', 'cr-10')],
+  });
+  assert.equal(splitRes.papers.length, 2);
+  assert.equal(splitRes.mergeClusters.length, 0);
+  assert.equal(splitRes.summary.duplicatesRemoved, 0);
+});
+
+test('partitionResultsAgainstLibrary separates unseen results from already saved items', () => {
+  const saved: SavedPaperItem[] = [
+    {
+      ...makePaper({
+        id: 'saved-1',
+        title: 'Bayesian Structural Time Series for Policy Evaluation',
+        doi: '10.1234/bsts.2024',
+        url: 'https://arxiv.org/abs/2402.99999',
+      }),
+      savedAt: '2026-01-01T00:00:00.000Z',
+      researcherNotes: '',
+      relevanceTag: 'alta',
+      screeningStatus: 'included',
+    },
+  ];
+
+  const unseen = makePaper({
+    id: 'res-new',
+    title: 'Novel Synthetic Controls in Municipal Spending',
+    doi: '10.9999/new-paper',
+  });
+  const matchedByDoi = makePaper({
+    id: 'res-dup-doi',
+    title: 'Different Title Wrapper',
+    doi: 'https://doi.org/10.1234/BSTS.2024',
+  });
+
+  const partition = partitionResultsAgainstLibrary([unseen, matchedByDoi], saved);
+  assert.equal(partition.unseen.length, 1);
+  assert.equal(partition.unseen[0].id, 'res-new');
+  assert.equal(partition.matched.length, 1);
+  assert.equal(partition.matched[0].existingItem.id, 'saved-1');
+  assert.equal(partition.matched[0].existingItem.screeningStatus, 'included');
 });

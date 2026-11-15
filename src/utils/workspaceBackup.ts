@@ -1,12 +1,25 @@
 import { SupportedLanguage } from '../i18n/translations';
-import { LibraryGroup, SavedPaperItem } from '../types/academic';
+import {
+  CustomExtractionColumn,
+  DedupOverrideRule,
+  LibraryGroup,
+  QualityAppraisalResult,
+  QualityRating,
+  QualityToolId,
+  RelatedPaperUrl,
+  SavedPaperItem,
+  SearchLogEntry,
+  SearchScopeId,
+} from '../types/academic';
+import { computeOverallQuality } from './qualityChecklists';
 import { parseAbstractMetadata } from './abstractParser';
 import { sanitizeExternalUrl } from './urlSafety';
 
 export const CARTOGRAPH_BACKUP_SCHEMA = 'cartograph-backup-v1' as const;
+export const CARTOGRAPH_BACKUP_SCHEMA_V2 = 'cartograph-backup-v2' as const;
 
 export interface CartographBackupPayload {
-  schema: typeof CARTOGRAPH_BACKUP_SCHEMA;
+  schema: typeof CARTOGRAPH_BACKUP_SCHEMA | typeof CARTOGRAPH_BACKUP_SCHEMA_V2;
   exportedAt: string;
   version: string;
   savedPapers: SavedPaperItem[];
@@ -14,6 +27,9 @@ export interface CartographBackupPayload {
   selectedPlatformIds: string[];
   activeSaveGroupId?: string | null;
   ownedPlatformIds?: string[];
+  searchLogs?: SearchLogEntry[];
+  dedupOverrides?: DedupOverrideRule;
+  customColumns?: CustomExtractionColumn[];
 }
 
 export type BackupParseResult =
@@ -27,11 +43,21 @@ export function exportWorkspaceBackup(params: {
   selectedPlatformIds: string[];
   activeSaveGroupId?: string | null;
   ownedPlatformIds?: string[];
+  searchLogs?: SearchLogEntry[];
+  dedupOverrides?: DedupOverrideRule;
+  customColumns?: CustomExtractionColumn[];
+  schemaVersion?: 1 | 2;
 }): string {
   // Note: personal API keys (BYOK) and institutional proxy credentials are intentionally excluded
   // from workspace backups so researchers can safely share review files without leaking secrets.
+  const useV2 =
+    params.schemaVersion === 2 ||
+    params.searchLogs !== undefined ||
+    params.dedupOverrides !== undefined ||
+    params.customColumns !== undefined;
+
   const payload: CartographBackupPayload = {
-    schema: CARTOGRAPH_BACKUP_SCHEMA,
+    schema: useV2 ? CARTOGRAPH_BACKUP_SCHEMA_V2 : CARTOGRAPH_BACKUP_SCHEMA,
     exportedAt: new Date().toISOString(),
     version: params.version || '2.4.0',
     savedPapers: params.savedPapers,
@@ -39,12 +65,15 @@ export function exportWorkspaceBackup(params: {
     selectedPlatformIds: params.selectedPlatformIds,
     activeSaveGroupId: params.activeSaveGroupId ?? null,
     ...(params.ownedPlatformIds?.length ? { ownedPlatformIds: params.ownedPlatformIds } : {}),
+    ...(params.searchLogs ? { searchLogs: params.searchLogs } : {}),
+    ...(params.dedupOverrides ? { dedupOverrides: params.dedupOverrides } : {}),
+    ...(params.customColumns?.length ? { customColumns: params.customColumns } : {}),
   };
 
   return JSON.stringify(payload, null, 2);
 }
 
-function sanitizeGroup(raw: unknown): LibraryGroup | null {
+export function sanitizeGroup(raw: unknown): LibraryGroup | null {
   if (!raw || typeof raw !== 'object') return null;
   const g = raw as Record<string, unknown>;
   if (typeof g.id !== 'string' || !g.id.trim()) return null;
@@ -59,7 +88,7 @@ function sanitizeGroup(raw: unknown): LibraryGroup | null {
   };
 }
 
-function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
+export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const p = raw as Record<string, unknown>;
   if (typeof p.id !== 'string' || !p.id.trim()) return null;
@@ -89,6 +118,26 @@ function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
     p.screeningStatus === 'unscreened'
       ? p.screeningStatus
       : 'unscreened';
+
+  const relatedUrls: RelatedPaperUrl[] | undefined = Array.isArray(p.relatedUrls)
+    ? p.relatedUrls
+        .map((entry): RelatedPaperUrl | null => {
+          if (!entry || typeof entry !== 'object') return null;
+          const rec = entry as Record<string, unknown>;
+          const safeEntryUrl = sanitizeExternalUrl(typeof rec.url === 'string' ? rec.url : null);
+          if (!safeEntryUrl) return null;
+          const kind =
+            rec.kind === 'preprint' || rec.kind === 'published' || rec.kind === 'supplementary'
+              ? rec.kind
+              : 'supplementary';
+          return {
+            label: typeof rec.label === 'string' && rec.label.trim() ? rec.label.trim().slice(0, 120) : 'Link',
+            url: safeEntryUrl,
+            kind,
+          };
+        })
+        .filter((e): e is RelatedPaperUrl => e !== null)
+    : undefined;
 
   return {
     id: p.id.trim(),
@@ -121,6 +170,93 @@ function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
         ? (p.extractedMetadata as SavedPaperItem['extractedMetadata'])
         : parseAbstractMetadata(title, abstractText),
     groupId: typeof p.groupId === 'string' ? p.groupId : null,
+    ...(relatedUrls && relatedUrls.length > 0 ? { relatedUrls } : {}),
+    ...(p.customFields && typeof p.customFields === 'object'
+      ? { customFields: sanitizeCustomFields(p.customFields) }
+      : {}),
+    ...(sanitizeQualityAppraisal(p.qualityAppraisal)
+      ? { qualityAppraisal: sanitizeQualityAppraisal(p.qualityAppraisal)! }
+      : {}),
+  };
+}
+
+function sanitizeCustomFields(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof key === 'string' && key.trim() && typeof val === 'string') {
+      out[key.slice(0, 64)] = val.slice(0, 1000);
+    }
+  }
+  return out;
+}
+
+function sanitizeQualityAppraisal(raw: unknown): QualityAppraisalResult | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const tool: QualityToolId | null =
+    r.tool === 'rob2' || r.tool === 'jbi_quasi' || r.tool === 'casp_qual'
+      ? r.tool
+      : null;
+  if (!tool || !r.criteria || typeof r.criteria !== 'object') return null;
+
+  const validRatings = new Set<QualityRating>([
+    'low',
+    'some_concerns',
+    'high',
+    'unclear',
+  ]);
+  const criteria: Record<string, QualityRating> = {};
+  for (const [k, v] of Object.entries(r.criteria as Record<string, unknown>)) {
+    if (typeof k === 'string' && validRatings.has(v as QualityRating)) {
+      criteria[k.slice(0, 64)] = v as QualityRating;
+    }
+  }
+  return {
+    tool,
+    criteria,
+    overall: computeOverallQuality(criteria),
+    updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : new Date().toISOString(),
+  };
+}
+
+function sanitizeCustomColumn(raw: unknown): CustomExtractionColumn | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'string' || !r.id.trim()) return null;
+  if (typeof r.label !== 'string' || !r.label.trim()) return null;
+  return {
+    id: r.id.trim().slice(0, 64),
+    label: r.label.trim().slice(0, 80),
+    ...(typeof r.placeholder === 'string' && r.placeholder.trim()
+      ? { placeholder: r.placeholder.trim().slice(0, 120) }
+      : {}),
+  };
+}
+
+function sanitizeSearchLogEntry(raw: unknown): SearchLogEntry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'string' || !r.id.trim()) return null;
+  if (typeof r.query !== 'string' || !r.query.trim()) return null;
+  const validScopes = new Set<SearchScopeId>(['all', 'general', 'econ-policy', 'health', 'exact-tech']);
+  const scope = validScopes.has(r.scope as SearchScopeId)
+    ? (r.scope as SearchScopeId)
+    : 'all';
+
+  return {
+    id: r.id.slice(0, 80),
+    executedAt: typeof r.executedAt === 'string' ? r.executedAt : new Date().toISOString(),
+    query: r.query.slice(0, 1000),
+    yearFrom: typeof r.yearFrom === 'number' && Number.isFinite(r.yearFrom) ? r.yearFrom : null,
+    scope,
+    dedupEnabled: typeof r.dedupEnabled === 'boolean' ? r.dedupEnabled : true,
+    totalRaw: typeof r.totalRaw === 'number' && Number.isFinite(r.totalRaw) ? r.totalRaw : 0,
+    totalUnique: typeof r.totalUnique === 'number' && Number.isFinite(r.totalUnique) ? r.totalUnique : 0,
+    bySource:
+      r.bySource && typeof r.bySource === 'object'
+        ? (r.bySource as SearchLogEntry['bySource'])
+        : {},
   };
 }
 
@@ -151,7 +287,10 @@ export function parseWorkspaceBackup(
   }
 
   const obj = parsed as Record<string, unknown>;
-  if (obj.schema !== CARTOGRAPH_BACKUP_SCHEMA) {
+  if (
+    obj.schema !== CARTOGRAPH_BACKUP_SCHEMA &&
+    obj.schema !== CARTOGRAPH_BACKUP_SCHEMA_V2
+  ) {
     return {
       ok: false,
       error: isEn
@@ -185,10 +324,35 @@ export function parseWorkspaceBackup(
     ? obj.ownedPlatformIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
     : undefined;
 
+  const searchLogs = Array.isArray(obj.searchLogs)
+    ? obj.searchLogs
+        .map(sanitizeSearchLogEntry)
+        .filter((e): e is SearchLogEntry => e !== null)
+    : undefined;
+
+  let dedupOverrides: DedupOverrideRule | undefined;
+  if (obj.dedupOverrides && typeof obj.dedupOverrides === 'object') {
+    const rawSplit = (obj.dedupOverrides as Record<string, unknown>).splitPairs;
+    if (Array.isArray(rawSplit)) {
+      dedupOverrides = {
+        splitPairs: rawSplit.filter((x): x is string => typeof x === 'string' && Boolean(x.trim())),
+      };
+    }
+  }
+
+  const customColumns = Array.isArray(obj.customColumns)
+    ? obj.customColumns
+        .map(sanitizeCustomColumn)
+        .filter((c): c is CustomExtractionColumn => c !== null)
+    : undefined;
+
   return {
     ok: true,
     payload: {
-      schema: CARTOGRAPH_BACKUP_SCHEMA,
+      schema:
+        obj.schema === CARTOGRAPH_BACKUP_SCHEMA_V2
+          ? CARTOGRAPH_BACKUP_SCHEMA_V2
+          : CARTOGRAPH_BACKUP_SCHEMA,
       exportedAt: typeof obj.exportedAt === 'string' ? obj.exportedAt : new Date().toISOString(),
       version: typeof obj.version === 'string' ? obj.version : '2.4.0',
       savedPapers,
@@ -196,6 +360,9 @@ export function parseWorkspaceBackup(
       selectedPlatformIds,
       activeSaveGroupId: typeof obj.activeSaveGroupId === 'string' ? obj.activeSaveGroupId : null,
       ...(ownedPlatformIds ? { ownedPlatformIds } : {}),
+      ...(searchLogs ? { searchLogs } : {}),
+      ...(dedupOverrides ? { dedupOverrides } : {}),
+      ...(customColumns ? { customColumns } : {}),
     },
   };
 }

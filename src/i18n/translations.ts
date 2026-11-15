@@ -187,6 +187,18 @@ export interface Translations {
   sortRelevance: string;
   sortCitations: string;
   sortYear: string;
+  platformSortCurated: string;
+  platformSortTrust: string;
+  platformSortName: string;
+  platformSortAccess: string;
+  platformSortShortTrust: string;
+  platformSortShortName: string;
+  platformSortShortAccess: string;
+  savedSortRecent: string;
+  savedSortYear: string;
+  savedSortCitations: string;
+  savedSortTitle: string;
+  savedSortShortTitle: string;
   relevanceMethodCaption: string;
   relevanceScoreBadge: string;
   relevanceBreakdownTitle: string;
@@ -446,6 +458,19 @@ export interface Translations {
   subsCountLabel: string;
   closeModalBtn: string;
 
+  userWorkspaceTitle: string;
+  userAccountBadge: string;
+  userWorkspaceManageBtn: string;
+  userProxyRowLabel: string;
+  userByokRowLabel: string;
+  userSubsRowLabel: string;
+  userProxyActive: string;
+  userProxyOff: string;
+  userByokActiveCount: string;
+  userSubsCount: string;
+  scopeActiveApisHint: string;
+  thematicScopeDrawerTitle: string;
+
   thematicAreasTitle: string;
   areaAll: string;
   areaTecnologia: string;
@@ -475,6 +500,128 @@ export interface Translations {
   areaShortGames: string;
   areaShortSoftware: string;
   areaShortHardware: string;
+
+  dedupToggleLabel: string;
+  dedupToggleTitle: string;
+  dedupDisabledBanner: string;
+  inspectMergesBtn: string;
+  mergeInspectorTitle: string;
+  mergeInspectorSubtitle: string;
+  mergeRuleDoi: string;
+  mergeRulePersistentId: string;
+  mergeRuleFuzzyTitle: string;
+  splitPairBtn: string;
+  mergeClusterCount: string;
+  livingDiffTitle: string;
+  hideAlreadySavedLabel: string;
+  alreadyInLibraryCount: string;
+  libraryMatchIncluded: string;
+  libraryMatchExcluded: string;
+  libraryMatchUnscreened: string;
+  noUnseenMatchDesc: string;
+  linkPreprintAction: string;
+  relatedLinksTitle: string;
+
+  downloadRis: string;
+  exportMarkdownBtn: string;
+  exportLatexBtn: string;
+  copyInTextAbnt: string;
+  copyInTextApa: string;
+  inTextCopiedLabel: string;
+  searchHistoryBtn: string;
+  searchHistoryTitle: string;
+  searchHistorySubtitle: string;
+  searchHistoryEmpty: string;
+  searchHistoryRerun: string;
+  searchHistoryExportMd: string;
+  searchHistoryClear: string;
+  searchHistorySourcesToggle: string;
+  searchHistoryScopeLabel: string;
+  searchHistoryDedupOn: string;
+  searchHistoryDedupOff: string;
+  searchHistoryStats: string;
+
+  retractedBadge: string;
+  retractionNoticeLink: string;
+  chaseCitationsBtn: string;
+  citationChaserTitle: string;
+  citationChaserRefsTab: string;
+  citationChaserCitedByTab: string;
+  citationChaserLoading: string;
+  citationChaserEmpty: string;
+  findOaPdfBtn: string;
+  unpaywallFoundBadge: string;
+  unpaywallNotFoundMsg: string;
+  unpaywallEmailLabel: string;
+  unpaywallEmailPlaceholder: string;
+  unpaywallEmailHint: string;
+  batchDoiBtn: string;
+  batchDoiTitle: string;
+  batchDoiPlaceholder: string;
+  batchDoiResolveAction: string;
+  batchDoiResolving: string;
+  batchDoiResultFeedback: string;
+
+  blindScreeningBtn: string;
+  blindScreeningTitle: string;
+  blindFocusTab: string;
+  blindDualTab: string;
+  blindShortcutsHint: string;
+  blindQueueProgress: string;
+  blindIncludeKey: string;
+  blindExcludeKey: string;
+  blindPendingKey: string;
+  blindPrevBtn: string;
+  blindNextBtn: string;
+  blindNoStudies: string;
+  blindExportPkgBtn: string;
+  blindImportPkgBtn: string;
+  blindKappaLabel: string;
+  blindAgreementLabel: string;
+  blindConflictsTitle: string;
+  blindNoConflicts: string;
+  blindResolveKeep: string;
+  blindResolveDrop: string;
+  picoBuilderTab: string;
+  picoPopulationLabel: string;
+  picoInterventionLabel: string;
+  picoExposureLabel: string;
+  picoConceptLabel: string;
+  picoComparisonLabel: string;
+  picoOutcomeLabel: string;
+  picoContextLabel: string;
+  picoApplyBtn: string;
+  dialectTranslatorLabel: string;
+  dialectCopyBtn: string;
+  customColsBtn: string;
+  customColsManagerTitle: string;
+  customColNamePlaceholder: string;
+  customColAddBtn: string;
+  customColEmpty: string;
+  qualityAppraisalBtn: string;
+  qualityToolLabel: string;
+  qualityOverallLabel: string;
+  qualityScoreLow: string;
+  qualityScoreSome: string;
+  qualityScoreHigh: string;
+  qualityScoreUnclear: string;
+  subTabBibliometrics: string;
+  biblioTitle: string;
+  biblioSubtitle: string;
+  biblioExportSvgBtn: string;
+  biblioKpiStudies: string;
+  biblioKpiOpenAccess: string;
+  biblioKpiTotalCitations: string;
+  biblioKpiMedianCitations: string;
+  biblioChartYearTitle: string;
+  biblioChartSourcesTitle: string;
+  biblioChartVenuesTitle: string;
+  biblioChartAuthorsTitle: string;
+  biblioKeywordsTitle: string;
+  meshSuggesterTitle: string;
+  meshSuggesterPh: string;
+  meshSuggestBtn: string;
+  meshEmptyResult: string;
 }
 
 export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
@@ -670,6 +817,18 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     sortRelevance: 'Relevância',
     sortCitations: 'Mais citados',
     sortYear: 'Mais recentes',
+    platformSortCurated: 'Ordem curada (padrão)',
+    platformSortTrust: 'Maior confiabilidade',
+    platformSortName: 'Nome (A–Z)',
+    platformSortAccess: 'Acesso gratuito primeiro',
+    platformSortShortTrust: 'Confiabilidade',
+    platformSortShortName: 'A–Z',
+    platformSortShortAccess: 'Acesso',
+    savedSortRecent: 'Ordem de salvamento',
+    savedSortYear: 'Ano (mais recentes)',
+    savedSortCitations: 'Mais citados',
+    savedSortTitle: 'Título (A–Z)',
+    savedSortShortTitle: 'A–Z',
     relevanceMethodCaption: 'BM25F textual + consenso RRF + citações/ano + recência',
     relevanceScoreBadge: 'Relevância {score}%',
     relevanceBreakdownTitle:
@@ -940,6 +1099,19 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     subsCountLabel: 'assinaturas marcadas',
     closeModalBtn: 'Fechar',
 
+    userWorkspaceTitle: 'Área do Usuário',
+    userAccountBadge: 'Usuário',
+    userWorkspaceManageBtn: 'Gerenciar acessos e APIs',
+    userProxyRowLabel: 'Proxy institucional',
+    userByokRowLabel: 'Chaves BYOK',
+    userSubsRowLabel: 'Assinaturas',
+    userProxyActive: 'Ativo',
+    userProxyOff: 'Desativado',
+    userByokActiveCount: '{count} ativa(s)',
+    userSubsCount: '{count} marcada(s)',
+    scopeActiveApisHint: '{count} fontes',
+    thematicScopeDrawerTitle: 'Área & Escopo',
+
     thematicAreasTitle: 'Área Temática',
     areaAll: 'Todas as Áreas',
     areaTecnologia: 'Tecnologia & Inovação',
@@ -969,6 +1141,133 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaShortGames: 'Games',
     areaShortSoftware: 'Software',
     areaShortHardware: 'Hardware',
+
+    dedupToggleLabel: 'Mesclar duplicatas',
+    dedupToggleTitle: 'Alternar entre registros consolidados e resultados brutos de cada base',
+    dedupDisabledBanner: 'Mesclagem desativada ({count} duplicatas latentes)',
+    inspectMergesBtn: 'Inspecionar ({count})',
+    mergeInspectorTitle: 'Inspetor de Mesclagens e Redundância',
+    mergeInspectorSubtitle:
+      'Audite quais registros foram consolidados pelo algoritmo determinístico e separe eventuais falsos positivos.',
+    mergeRuleDoi: 'DOI Canônico (100%)',
+    mergeRulePersistentId: 'ID Persistente (PMID/arXiv)',
+    mergeRuleFuzzyTitle: 'Similaridade Textual ({score}%)',
+    splitPairBtn: 'Separar como estudos distintos',
+    mergeClusterCount: '{count} registros consolidados',
+    livingDiffTitle: 'Revisão Viva (Diff)',
+    hideAlreadySavedLabel: 'Ocultar já salvos no grupo',
+    alreadyInLibraryCount: '{count} já avaliados',
+    libraryMatchIncluded: 'Na biblioteca: Incluído',
+    libraryMatchExcluded: 'Na biblioteca: Excluído',
+    libraryMatchUnscreened: 'Na biblioteca: Pendente',
+    noUnseenMatchDesc:
+      'Todos os artigos retornados nesta visão já constam no grupo selecionado. Desative o filtro "Ocultar já salvos no grupo" para visualizá-los.',
+    linkPreprintAction: 'Vincular Preprint ↔ Publicado',
+    relatedLinksTitle: 'Versões Vinculadas:',
+
+    downloadRis: 'Baixar .RIS',
+    exportMarkdownBtn: 'Síntese .MD',
+    exportLatexBtn: 'Tabela LaTeX',
+    copyInTextAbnt: 'Copiar (ABNT)',
+    copyInTextApa: 'Copiar (APA)',
+    inTextCopiedLabel: 'Citação copiada!',
+    searchHistoryBtn: 'Histórico PRISMA-S ({count})',
+    searchHistoryTitle: 'Log Auditável de Estratégias de Busca (PRISMA-S)',
+    searchHistorySubtitle:
+      'Registro cronológico determinístico das buscas executadas, escopos, parâmetros e rendimento por base de dados.',
+    searchHistoryEmpty: 'Nenhuma busca federada registrada nesta sessão ou workspace ainda.',
+    searchHistoryRerun: 'Reexecutar busca',
+    searchHistoryExportMd: 'Exportar Apêndice PRISMA-S (.MD)',
+    searchHistoryClear: 'Limpar histórico',
+    searchHistorySourcesToggle: 'Detalhar rendimento por base ({count})',
+    searchHistoryScopeLabel: 'Escopo',
+    searchHistoryDedupOn: 'Dedup: Ligada',
+    searchHistoryDedupOff: 'Dedup: Desligada',
+    searchHistoryStats: '{raw} brutos → {unique} únicos',
+
+    retractedBadge: 'Retratado / Errata',
+    retractionNoticeLink: 'Ver aviso de retratação',
+    chaseCitationsBtn: 'Rastrear Citações',
+    citationChaserTitle: 'Rastreamento em Bola de Neve (Citações)',
+    citationChaserRefsTab: 'Referências Citadas ({count})',
+    citationChaserCitedByTab: 'Citado Por ({count})',
+    citationChaserLoading: 'Consultando grafo acadêmico (OpenAlex / Semantic Scholar)...',
+    citationChaserEmpty: 'Nenhuma referência ou citação retornada para este registro.',
+    findOaPdfBtn: 'Buscar PDF (Unpaywall)',
+    unpaywallFoundBadge: 'PDF Unpaywall',
+    unpaywallNotFoundMsg: 'Sem versão aberta no Unpaywall',
+    unpaywallEmailLabel: 'E-mail Polite Pool (Unpaywall)',
+    unpaywallEmailPlaceholder: 'pesquisador@universidade.edu.br',
+    unpaywallEmailHint:
+      'Opcional: identifica contato recomendado para consultas diretas à API pública Unpaywall.',
+    batchDoiBtn: 'Importar DOIs / PMIDs',
+    batchDoiTitle: 'Resolução em Lote por DOI, PMID ou arXiv ID',
+    batchDoiPlaceholder:
+      'Cole um ou mais DOIs, URLs doi.org, PMID:12345678 ou arXiv:2401.12345 (separados por linha ou vírgula)...',
+    batchDoiResolveAction: 'Resolver e Importar',
+    batchDoiResolving: 'Resolvendo identificadores...',
+    batchDoiResultFeedback: '{added} artigo(s) importado(s); {unresolved} não encontrado(s).',
+
+    blindScreeningBtn: 'Triagem Focada & Cega (κ)',
+    blindScreeningTitle: 'Triagem em Foco & Revisão Cega por Pares (Cohen’s κ)',
+    blindFocusTab: 'Modo Foco (Atalhos)',
+    blindDualTab: 'Revisão Dupla Cega & Kappa',
+    blindShortcutsHint: 'Atalhos de teclado: [I] Incluir · [E] Excluir · [U] Pendente · [←/→] Navegar · [Esc] Fechar',
+    blindQueueProgress: 'Estudo {current} de {total}',
+    blindIncludeKey: '[I] Incluir',
+    blindExcludeKey: '[E] Excluir',
+    blindPendingKey: '[U] Pendente',
+    blindPrevBtn: 'Anterior',
+    blindNextBtn: 'Próximo',
+    blindNoStudies: 'Nenhum estudo pendente ou salvo neste grupo para triagem.',
+    blindExportPkgBtn: 'Exportar Pacote Cego (Revisor 2)',
+    blindImportPkgBtn: 'Importar Retorno do Revisor 2 (.json)',
+    blindKappaLabel: 'Kappa de Cohen (κ)',
+    blindAgreementLabel: 'Concordância observada ({n} pares avaliados)',
+    blindConflictsTitle: 'Divergências a Resolver ({count})',
+    blindNoConflicts: 'Sem divergências entre Revisor 1 e Revisor 2.',
+    blindResolveKeep: 'Consenso: Incluir',
+    blindResolveDrop: 'Consenso: Excluir',
+    picoBuilderTab: 'Construtor PICO / PECO / PCC',
+    picoPopulationLabel: 'P — População / Problema',
+    picoInterventionLabel: 'I — Intervenção',
+    picoExposureLabel: 'E — Exposição',
+    picoConceptLabel: 'C — Conceito Central',
+    picoComparisonLabel: 'C — Comparação / Controle',
+    picoOutcomeLabel: 'O — Desfecho (Outcome)',
+    picoContextLabel: 'C — Contexto',
+    picoApplyBtn: 'Aplicar PICO/PCC à Busca',
+    dialectTranslatorLabel: 'Tradutor de Sintaxe por Base',
+    dialectCopyBtn: 'Copiar sintaxe',
+    customColsBtn: 'Colunas Extras ({count})',
+    customColsManagerTitle: 'Colunas Personalizadas de Extração (PICO / Métricas)',
+    customColNamePlaceholder: 'Nome da coluna (ex.: Intervenção, Desfecho, Viés)',
+    customColAddBtn: 'Adicionar Coluna',
+    customColEmpty: 'Nenhuma coluna personalizada criada. Crie campos sob medida para exportar no CSV/Markdown.',
+    qualityAppraisalBtn: 'Qualidade & Viés (RoB 2 / JBI / CASP)',
+    qualityToolLabel: 'Instrumento:',
+    qualityOverallLabel: 'Julgamento Global:',
+    qualityScoreLow: 'Baixo risco',
+    qualityScoreSome: 'Preocupações',
+    qualityScoreHigh: 'Alto risco',
+    qualityScoreUnclear: 'Incerto',
+    subTabBibliometrics: 'Bibliometria (SVG)',
+    biblioTitle: 'Painel Bibliométrico do Acervo',
+    biblioSubtitle: 'Distribuição temporal, bases indexadoras, periódicos e produtividade de autoria ({count} estudos).',
+    biblioExportSvgBtn: 'Baixar Gráfico (SVG)',
+    biblioKpiStudies: 'Estudos no Escopo',
+    biblioKpiOpenAccess: 'Taxa Open Access',
+    biblioKpiTotalCitations: 'Citações Totais',
+    biblioKpiMedianCitations: 'Mediana de Citações',
+    biblioChartYearTitle: 'Tendência Temporal de Publicações por Ano',
+    biblioChartSourcesTitle: 'Cobertura por Base Científica',
+    biblioChartVenuesTitle: 'Periódicos e Veículos Principais',
+    biblioChartAuthorsTitle: 'Autores Mais Recorrentes (Lotka)',
+    biblioKeywordsTitle: 'Termos de Alta Frequência em Títulos/Resumos',
+    meshSuggesterTitle: 'Descritores MeSH (NCBI)',
+    meshSuggesterPh: 'Buscar termo em inglês (ex.: telehealth, diabetes)...',
+    meshSuggestBtn: 'Sugerir MeSH',
+    meshEmptyResult: 'Nenhum descritor MeSH encontrado para o termo.',
   },
 
   en: {
@@ -1162,6 +1461,18 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     sortRelevance: 'Relevance',
     sortCitations: 'Most cited',
     sortYear: 'Most recent',
+    platformSortCurated: 'Curated order (default)',
+    platformSortTrust: 'Highest trust score',
+    platformSortName: 'Name (A–Z)',
+    platformSortAccess: 'Free access first',
+    platformSortShortTrust: 'Trust',
+    platformSortShortName: 'A–Z',
+    platformSortShortAccess: 'Access',
+    savedSortRecent: 'Saved order',
+    savedSortYear: 'Year (newest)',
+    savedSortCitations: 'Most cited',
+    savedSortTitle: 'Title (A–Z)',
+    savedSortShortTitle: 'A–Z',
     relevanceMethodCaption: 'BM25F text + RRF consensus + citations/yr + recency',
     relevanceScoreBadge: 'Relevance {score}%',
     relevanceBreakdownTitle:
@@ -1432,6 +1743,19 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     subsCountLabel: 'active subscriptions',
     closeModalBtn: 'Close',
 
+    userWorkspaceTitle: 'User Workspace',
+    userAccountBadge: 'User',
+    userWorkspaceManageBtn: 'Manage access & APIs',
+    userProxyRowLabel: 'Institutional proxy',
+    userByokRowLabel: 'BYOK keys',
+    userSubsRowLabel: 'Subscriptions',
+    userProxyActive: 'Active',
+    userProxyOff: 'Off',
+    userByokActiveCount: '{count} active',
+    userSubsCount: '{count} saved',
+    scopeActiveApisHint: '{count} sources',
+    thematicScopeDrawerTitle: 'Field & Scope',
+
     thematicAreasTitle: 'Thematic Field',
     areaAll: 'All Fields',
     areaTecnologia: 'Technology & Innovation',
@@ -1461,5 +1785,132 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     areaShortGames: 'Games',
     areaShortSoftware: 'Software',
     areaShortHardware: 'Hardware',
+
+    dedupToggleLabel: 'Merge duplicates',
+    dedupToggleTitle: 'Toggle between consolidated records and raw per-source results',
+    dedupDisabledBanner: 'Merging disabled ({count} latent duplicates)',
+    inspectMergesBtn: 'Inspect ({count})',
+    mergeInspectorTitle: 'Merge & Redundancy Inspector',
+    mergeInspectorSubtitle:
+      'Audit which records were consolidated by the deterministic engine and split any false positives.',
+    mergeRuleDoi: 'Canonical DOI (100%)',
+    mergeRulePersistentId: 'Persistent ID (PMID/arXiv)',
+    mergeRuleFuzzyTitle: 'Text Similarity ({score}%)',
+    splitPairBtn: 'Split as distinct studies',
+    mergeClusterCount: '{count} consolidated records',
+    livingDiffTitle: 'Living Review (Diff)',
+    hideAlreadySavedLabel: 'Hide already saved in group',
+    alreadyInLibraryCount: '{count} already evaluated',
+    libraryMatchIncluded: 'In library: Included',
+    libraryMatchExcluded: 'In library: Excluded',
+    libraryMatchUnscreened: 'In library: Pending',
+    noUnseenMatchDesc:
+      'All papers in this view are already present in the selected group. Disable "Hide already saved in group" to view them.',
+    linkPreprintAction: 'Link Preprint ↔ Published',
+    relatedLinksTitle: 'Linked Versions:',
+
+    downloadRis: 'Download .RIS',
+    exportMarkdownBtn: 'Synthesis .MD',
+    exportLatexBtn: 'LaTeX Table',
+    copyInTextAbnt: 'Copy (ABNT)',
+    copyInTextApa: 'Copy (APA)',
+    inTextCopiedLabel: 'Citation copied!',
+    searchHistoryBtn: 'PRISMA-S Log ({count})',
+    searchHistoryTitle: 'Auditable Search Strategy Log (PRISMA-S)',
+    searchHistorySubtitle:
+      'Deterministic chronological record of executed queries, scopes, filters, and per-database yield.',
+    searchHistoryEmpty: 'No federated searches logged in this workspace yet.',
+    searchHistoryRerun: 'Re-run search',
+    searchHistoryExportMd: 'Export PRISMA-S Appendix (.MD)',
+    searchHistoryClear: 'Clear history',
+    searchHistorySourcesToggle: 'Per-database yield ({count})',
+    searchHistoryScopeLabel: 'Scope',
+    searchHistoryDedupOn: 'Dedup: On',
+    searchHistoryDedupOff: 'Dedup: Off',
+    searchHistoryStats: '{raw} raw → {unique} unique',
+
+    retractedBadge: 'Retracted / Erratum',
+    retractionNoticeLink: 'View retraction notice',
+    chaseCitationsBtn: 'Chase Citations',
+    citationChaserTitle: 'Citation Chasing (Snowballing)',
+    citationChaserRefsTab: 'Backward References ({count})',
+    citationChaserCitedByTab: 'Forward Citations ({count})',
+    citationChaserLoading: 'Querying academic citation graph (OpenAlex / Semantic Scholar)...',
+    citationChaserEmpty: 'No references or forward citations found for this record.',
+    findOaPdfBtn: 'Find PDF (Unpaywall)',
+    unpaywallFoundBadge: 'Unpaywall PDF',
+    unpaywallNotFoundMsg: 'No open version in Unpaywall',
+    unpaywallEmailLabel: 'Unpaywall Polite Pool Email',
+    unpaywallEmailPlaceholder: 'researcher@university.edu',
+    unpaywallEmailHint:
+      'Optional: identifies a polite contact email for public Unpaywall Open Access PDF lookups.',
+    batchDoiBtn: 'Batch DOI / PMID',
+    batchDoiTitle: 'Batch Identifier Resolution (DOI / PMID / arXiv)',
+    batchDoiPlaceholder:
+      'Paste DOIs, doi.org URLs, PMID:12345678, or arXiv:2401.12345 (line or comma separated)...',
+    batchDoiResolveAction: 'Resolve & Import',
+    batchDoiResolving: 'Resolving identifiers...',
+    batchDoiResultFeedback: '{added} paper(s) imported; {unresolved} unresolved.',
+
+    blindScreeningBtn: 'Focus & Blind Screening (κ)',
+    blindScreeningTitle: 'Keyboard Focus Screening & Dual-Reviewer Blind Kappa',
+    blindFocusTab: 'Focus Screening',
+    blindDualTab: 'Dual Blind Review & Kappa',
+    blindShortcutsHint: 'Keyboard shortcuts: [I] Include · [E] Exclude · [U] Pending · [←/→] Navigate · [Esc] Close',
+    blindQueueProgress: 'Study {current} of {total}',
+    blindIncludeKey: '[I] Include',
+    blindExcludeKey: '[E] Exclude',
+    blindPendingKey: '[U] Pending',
+    blindPrevBtn: 'Previous',
+    blindNextBtn: 'Next',
+    blindNoStudies: 'No studies available in this slot for screening.',
+    blindExportPkgBtn: 'Export Blind Package (Reviewer 2)',
+    blindImportPkgBtn: 'Import Reviewer 2 Decisions (.json)',
+    blindKappaLabel: "Cohen's Kappa (κ)",
+    blindAgreementLabel: 'Observed agreement ({n} paired decisions)',
+    blindConflictsTitle: 'Disagreements to Resolve ({count})',
+    blindNoConflicts: 'No disagreements between Reviewer 1 and Reviewer 2.',
+    blindResolveKeep: 'Consensus: Include',
+    blindResolveDrop: 'Consensus: Exclude',
+    picoBuilderTab: 'PICO / PECO / PCC Builder',
+    picoPopulationLabel: 'P — Population / Problem',
+    picoInterventionLabel: 'I — Intervention',
+    picoExposureLabel: 'E — Exposure',
+    picoConceptLabel: 'C — Core Concept',
+    picoComparisonLabel: 'C — Comparison / Control',
+    picoOutcomeLabel: 'O — Outcome',
+    picoContextLabel: 'C — Context',
+    picoApplyBtn: 'Apply PICO/PCC Query',
+    dialectTranslatorLabel: 'Database Syntax Dialect Translator',
+    dialectCopyBtn: 'Copy syntax',
+    customColsBtn: 'Custom Columns ({count})',
+    customColsManagerTitle: 'Custom Extraction Columns (Data Synthesis)',
+    customColNamePlaceholder: 'Column name (e.g., Intervention, Effect Size, Risk)',
+    customColAddBtn: 'Add Column',
+    customColEmpty: 'No custom columns yet. Define custom fields to include them in CSV and Markdown exports.',
+    qualityAppraisalBtn: 'Quality Appraisal (RoB 2 / JBI / CASP)',
+    qualityToolLabel: 'Tool:',
+    qualityOverallLabel: 'Overall Judgment:',
+    qualityScoreLow: 'Low risk',
+    qualityScoreSome: 'Some concerns',
+    qualityScoreHigh: 'High risk',
+    qualityScoreUnclear: 'Unclear',
+    subTabBibliometrics: 'Bibliometrics (SVG)',
+    biblioTitle: 'Corpus Bibliometrics Dashboard',
+    biblioSubtitle: 'Temporal distribution, source yield, top venues, and author productivity ({count} studies).',
+    biblioExportSvgBtn: 'Download Chart (SVG)',
+    biblioKpiStudies: 'Studies in Scope',
+    biblioKpiOpenAccess: 'Open Access Share',
+    biblioKpiTotalCitations: 'Total Citations',
+    biblioKpiMedianCitations: 'Median Citations',
+    biblioChartYearTitle: 'Publications Over Time (Year Histogram)',
+    biblioChartSourcesTitle: 'Database Coverage',
+    biblioChartVenuesTitle: 'Top Journals & Venues',
+    biblioChartAuthorsTitle: 'Most Productive Authors (Lotka)',
+    biblioKeywordsTitle: 'High-Frequency Terms in Titles & Abstracts',
+    meshSuggesterTitle: 'MeSH Headings (NCBI)',
+    meshSuggesterPh: 'Search descriptor (e.g., telehealth, diabetes)...',
+    meshSuggestBtn: 'Suggest MeSH',
+    meshEmptyResult: 'No matching MeSH descriptors found.',
   },
 };

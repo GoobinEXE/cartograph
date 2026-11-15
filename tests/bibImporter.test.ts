@@ -5,6 +5,8 @@ import {
   parseRisEntries,
   parseImportedReferences,
 } from '../src/utils/bibImporter.ts';
+import { exportSavedPapersRis } from '../src/utils/citationExporter.ts';
+import type { SavedPaperItem } from '../src/types/academic.ts';
 
 test('parseBibtexEntries extracts authors, title, nested braces, year, DOI, and abstract', () => {
   const bib = `
@@ -52,4 +54,35 @@ test('parseRisEntries extracts Zotero/Mendeley RIS records accurately', () => {
   const detected = parseImportedReferences('references.ris', ris);
   assert.equal(detected.format, 'ris');
   assert.equal(detected.items.length, 1);
+});
+
+test('exportSavedPapersRis round-trips cleanly through parseRisEntries', () => {
+  const original: SavedPaperItem = {
+    id: 'rt-1',
+    title: 'Round-Trip RIS Persistence Study',
+    authors: ['Marcelo Pessoa', 'Ana Clara Silva'],
+    year: 2025,
+    venue: 'Scientometrics',
+    doi: '10.1000/ris.rt.2025',
+    url: 'https://example.org/ris-rt',
+    pdfUrl: 'https://example.org/ris-rt.pdf',
+    isOpenAccess: true,
+    citationCount: 7,
+    abstractText: 'Objective: Verify lossless RIS export and re-import.',
+    source: 'openalex',
+    sourceLabel: 'OpenAlex',
+    savedAt: '2026-01-01T00:00:00.000Z',
+    researcherNotes: '',
+    relevanceTag: 'alta',
+    screeningStatus: 'included',
+  };
+
+  const exported = exportSavedPapersRis([original]);
+  const reimported = parseRisEntries(exported);
+  assert.equal(reimported.length, 1);
+  assert.equal(reimported[0].title, original.title);
+  assert.equal(reimported[0].year, 2025);
+  assert.equal(reimported[0].doi, '10.1000/ris.rt.2025');
+  assert.equal(reimported[0].url, original.url);
+  assert.equal(reimported[0].authors.length, 2);
 });

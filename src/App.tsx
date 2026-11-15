@@ -9,13 +9,20 @@ import {
 } from './data/platforms';
 import { getLocalizedPlatformInfo } from './data/platformsEn';
 import {
+  AccessModel,
+  AccessSettingsTab,
   BooleanQueryState,
+  CustomExtractionColumn,
+  DedupOverrideRule,
   DeduplicationSummary,
   LibraryGroup,
   NormalizedPaper,
   PlatformCategory,
+  QualityAppraisalResult,
+  RelatedPaperUrl,
   SavedPaperItem,
   ScreeningStatus,
+  SearchLogEntry,
   SearchScopeId,
   SourceFetchStatus,
   ThematicArea,
@@ -25,6 +32,8 @@ import {
   launchUrlsCrossPlatform,
   runFederatedSearch,
 } from './services/academicAggregator';
+import { mapAreaToSearchScope } from './data/apiSources';
+import { renderAreaIcon } from './utils/areaIcons';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
 import { loadUserAccessConfig, saveUserAccessConfig } from './utils/accessConfig';
@@ -32,6 +41,8 @@ import { rewriteUrlWithInstitutionalProxy } from './utils/institutionalProxy';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
 import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
+import { UnifiedAreaFilterDrawer } from './components/UnifiedAreaFilterDrawer';
+import { UserWorkspaceSection } from './components/UserWorkspaceSection';
 import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
 import { useI18n } from './i18n/context';
@@ -50,31 +61,21 @@ import {
   trackAcademicEvent,
 } from './utils/analytics';
 import { CartographBackupPayload } from './utils/workspaceBackup';
-import { normalizeDoi } from './utils/deduplication';
+import { deduplicatePapersAdvanced, makePairKey, normalizeDoi } from './utils/deduplication';
+import { workspaceStorageEngine } from './utils/storageEngine';
 import {
-  Activity,
   ArrowUpRight,
-  Atom,
-  Bot,
   Check,
   ChevronDown,
-  Code,
-  Compass,
-  Cpu,
-  Gamepad2,
   Globe,
-  HardDrive,
+  History,
   KeyRound,
-  Landmark,
   LayoutGrid,
-  Leaf,
   List,
   Loader2,
   Moon,
-  Palette,
   Search,
   Share2,
-  ShieldCheck,
   SlidersHorizontal,
   Sun,
   X,
@@ -95,6 +96,9 @@ const AboutView = lazy(() =>
 const AccessSettingsModal = lazy(() =>
   import('./components/AccessSettingsModal').then((m) => ({ default: m.AccessSettingsModal }))
 );
+const SearchHistoryDrawer = lazy(() =>
+  import('./components/SearchHistoryDrawer').then((m) => ({ default: m.SearchHistoryDrawer }))
+);
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
 const STORAGE_KEY_GROUPS = 'cartograph_library_groups_v1';
@@ -102,41 +106,13 @@ const STORAGE_KEY_ACTIVE_GROUP = 'cartograph_active_save_group_v1';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
 const STORAGE_KEY_THEME = 'cartograph_theme_v1';
 const STORAGE_KEY_SIDEBAR_DRAWERS = 'cartograph_sidebar_drawers_v2';
-const STORAGE_KEY_SEARCH_SCOPE = 'cartograph_search_scope_v1';
+const STORAGE_KEY_SELECTED_AREA = 'cartograph_selected_area_v1';
+const STORAGE_KEY_DEDUP_ENABLED = 'cartograph_dedup_enabled_v1';
+const STORAGE_KEY_DEDUP_OVERRIDES = 'cartograph_dedup_overrides_v1';
+const STORAGE_KEY_SEARCH_LOG = 'cartograph_search_log_v1';
 
-type SidebarSectionKey = 'areas' | 'access' | 'presets' | 'categories';
-
-function renderAreaIcon(area: ThematicArea, className: string = 'w-3.5 h-3.5') {
-  switch (area) {
-    case 'tecnologia':
-      return <Cpu className={className} />;
-    case 'ia':
-      return <Bot className={className} />;
-    case 'saude':
-      return <Activity className={className} />;
-    case 'arte':
-      return <Palette className={className} />;
-    case 'games':
-      return <Gamepad2 className={className} />;
-    case 'software':
-      return <Code className={className} />;
-    case 'hardware':
-      return <HardDrive className={className} />;
-    case 'ciencias-exatas':
-      return <Atom className={className} />;
-    case 'biociencias':
-      return <Leaf className={className} />;
-    case 'geociencias':
-      return <Compass className={className} />;
-    case 'economia-politicas':
-      return <Landmark className={className} />;
-    case 'patentes-normas':
-      return <ShieldCheck className={className} />;
-    case 'multidisciplinar':
-    default:
-      return <Globe className={className} />;
-  }
-}
+type SidebarSectionKey = 'sort' | 'presets' | 'categories' | 'access' | 'areas';
+type PlatformSortMode = 'curated' | 'trust' | 'name' | 'access';
 
 export default function AcademicCommandCenter() {
   const { language, isAutoLanguage, setLanguage, resetToSystemLanguage, t, availableLanguages } = useI18n();
@@ -215,34 +191,33 @@ export default function AcademicCommandCenter() {
     isNotFound,
   });
   const [activeCategory, setActiveCategory] = useState<'all' | PlatformCategory>('all');
-  const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [accessFilter, setAccessFilter] = useState<'all' | 'gratuito' | 'pago' | 'aberto-institucional' | 'freemium'>('all');
-  const [ownedOnlyFilter, setOwnedOnlyFilter] = useState(false);
-  const [showAccessModal, setShowAccessModal] = useState(false);
-  const [userAccessConfig, setUserAccessConfig] = useState<UserAccessConfig>(() =>
-    loadUserAccessConfig()
-  );
-  const [searchScope, setSearchScope] = useState<SearchScopeId>(() => {
+  const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SEARCH_SCOPE);
-      if (
-        saved === 'all' ||
-        saved === 'general' ||
-        saved === 'econ-policy' ||
-        saved === 'health' ||
-        saved === 'exact-tech'
-      ) {
-        return saved;
+      const saved = localStorage.getItem(STORAGE_KEY_SELECTED_AREA);
+      if (saved === 'all' || THEMATIC_AREAS.includes(saved as ThematicArea)) {
+        return saved as 'all' | ThematicArea;
       }
     } catch {
       // ignore
     }
     return 'all';
   });
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [accessFilter, setAccessFilter] = useState<'all' | 'gratuito' | 'pago' | 'aberto-institucional' | 'freemium'>('all');
+  const [ownedOnlyFilter, setOwnedOnlyFilter] = useState(false);
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [accessModalTab, setAccessModalTab] = useState<AccessSettingsTab>('proxy');
+  const [userAccessConfig, setUserAccessConfig] = useState<UserAccessConfig>(() =>
+    loadUserAccessConfig()
+  );
+  const activeSearchScope = useMemo<SearchScopeId>(
+    () => mapAreaToSearchScope(selectedArea),
+    [selectedArea]
+  );
   const [showBooleanDrawer, setShowBooleanDrawer] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
+  const [platformSortBy, setPlatformSortBy] = useState<PlatformSortMode>('curated');
   const [sidebarDrawers, setSidebarDrawers] = useState<Record<SidebarSectionKey, boolean>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_DRAWERS);
@@ -250,10 +225,11 @@ export default function AcademicCommandCenter() {
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) {
           return {
-            areas: parsed.areas !== false,
-            access: parsed.access !== false,
+            sort: parsed.sort !== false,
             presets: parsed.presets !== false,
             categories: parsed.categories !== false,
+            access: parsed.access !== false,
+            areas: parsed.areas !== false,
           };
         }
       }
@@ -261,10 +237,11 @@ export default function AcademicCommandCenter() {
       // ignore
     }
     return {
-      areas: true,
-      access: true,
+      sort: true,
       presets: true,
       categories: true,
+      access: true,
+      areas: true,
     };
   });
 
@@ -285,10 +262,11 @@ export default function AcademicCommandCenter() {
   const toggleAllSidebarDrawers = () => {
     const targetState = !allDrawersOpen;
     const next = {
-      areas: targetState,
-      access: targetState,
+      sort: targetState,
       presets: targetState,
       categories: targetState,
+      access: targetState,
+      areas: targetState,
     };
     setSidebarDrawers(next);
     try {
@@ -373,7 +351,44 @@ export default function AcademicCommandCenter() {
     return null;
   });
 
-  const [federatedPapers, setFederatedPapers] = useState<NormalizedPaper[]>([]);
+  const [rawFederatedPapers, setRawFederatedPapers] = useState<NormalizedPaper[]>([]);
+  const [dedupEnabled, setDedupEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_DEDUP_ENABLED) !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [dedupOverrides, setDedupOverrides] = useState<DedupOverrideRule>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_DEDUP_OVERRIDES);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.splitPairs)) {
+          return {
+            splitPairs: parsed.splitPairs.filter((x: unknown): x is string => typeof x === 'string'),
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return { splitPairs: [] };
+  });
+  const [searchLogs, setSearchLogs] = useState<SearchLogEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_SEARCH_LOG);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.slice(0, 100);
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [customColumns, setCustomColumns] = useState<CustomExtractionColumn[]>([]);
+  const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
   const [federatedQuery, setFederatedQuery] = useState<string>('');
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
   const [dedupSummary, setDedupSummary] = useState<DeduplicationSummary | null>(null);
@@ -397,9 +412,54 @@ export default function AcademicCommandCenter() {
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
   const didAutoSearchRef = useRef(false);
+  const isStorageHydratedRef = useRef(false);
 
   useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await workspaceStorageEngine.initAndMigrate();
+        const [
+          storedPapers,
+          storedGroups,
+          storedActiveGroup,
+          storedPlatforms,
+          storedLogs,
+          storedOverrides,
+          storedCustomColumns,
+        ] = await Promise.all([
+          workspaceStorageEngine.getItem<SavedPaperItem[] | null>('savedPapers', null),
+          workspaceStorageEngine.getItem<LibraryGroup[] | null>('libraryGroups', null),
+          workspaceStorageEngine.getItem<string | null>('activeSaveGroupId', null),
+          workspaceStorageEngine.getItem<string[] | null>('selectedPlatformIds', null),
+          workspaceStorageEngine.getItem<SearchLogEntry[] | null>('searchLogs', null),
+          workspaceStorageEngine.getItem<DedupOverrideRule | null>('dedupOverrides', null),
+          workspaceStorageEngine.getItem<CustomExtractionColumn[] | null>('customColumns', null),
+        ]);
+
+        if (!active) return;
+
+        if (Array.isArray(storedPapers)) setSavedPapers(storedPapers);
+        if (Array.isArray(storedGroups)) setLibraryGroups(storedGroups);
+        if (storedActiveGroup !== null) setActiveSaveGroupId(storedActiveGroup);
+        if (Array.isArray(storedPlatforms) && storedPlatforms.length > 0) {
+          setSelectedPlatformIds(storedPlatforms);
+        }
+        if (Array.isArray(storedLogs)) setSearchLogs(storedLogs.slice(0, 100));
+        if (storedOverrides && Array.isArray(storedOverrides.splitPairs)) {
+          setDedupOverrides({ splitPairs: storedOverrides.splitPairs });
+        }
+        if (Array.isArray(storedCustomColumns)) {
+          setCustomColumns(storedCustomColumns);
+        }
+      } finally {
+        if (active) {
+          isStorageHydratedRef.current = true;
+        }
+      }
+    })();
     return () => {
+      active = false;
       searchAbortRef.current?.abort();
     };
   }, []);
@@ -414,43 +474,47 @@ export default function AcademicCommandCenter() {
   }, [theme]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedPapers));
-    } catch {
-      // ignore quota error
-    }
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('savedPapers', savedPapers);
   }, [savedPapers]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(libraryGroups));
+      localStorage.setItem(STORAGE_KEY_DEDUP_ENABLED, String(dedupEnabled));
     } catch {
-      // ignore quota error
+      // ignore
     }
+  }, [dedupEnabled]);
+
+  useEffect(() => {
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('dedupOverrides', dedupOverrides);
+  }, [dedupOverrides]);
+
+  useEffect(() => {
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('searchLogs', searchLogs);
+  }, [searchLogs]);
+
+  useEffect(() => {
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('libraryGroups', libraryGroups);
   }, [libraryGroups]);
 
   useEffect(() => {
-    try {
-      if (activeSaveGroupId) {
-        localStorage.setItem(STORAGE_KEY_ACTIVE_GROUP, activeSaveGroupId);
-      } else {
-        localStorage.removeItem(STORAGE_KEY_ACTIVE_GROUP);
-      }
-    } catch {
-      // ignore quota error
-    }
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('activeSaveGroupId', activeSaveGroupId);
   }, [activeSaveGroupId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY_SELECTED_PLATFORMS,
-        JSON.stringify(selectedPlatformIds)
-      );
-    } catch {
-      // ignore quota error
-    }
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('selectedPlatformIds', selectedPlatformIds);
   }, [selectedPlatformIds]);
+
+  useEffect(() => {
+    if (!isStorageHydratedRef.current) return;
+    void workspaceStorageEngine.setItem('customColumns', customColumns);
+  }, [customColumns]);
 
   // Check multiplatform local bridge health (Windows / Linux / macOS)
   useEffect(() => {
@@ -546,24 +610,57 @@ export default function AcademicCommandCenter() {
     saveUserAccessConfig(next);
   };
 
-  const handleSelectSearchScope = (scope: SearchScopeId) => {
-    setSearchScope(scope);
+  const openAccessSettings = (tab: AccessSettingsTab = 'proxy') => {
+    setAccessModalTab(tab);
+    setShowAccessModal(true);
+  };
+
+  const handleSelectUnifiedArea = (area: 'all' | ThematicArea) => {
+    const prevScope = activeSearchScope;
+    const nextScope = mapAreaToSearchScope(area);
+    setSelectedArea(area);
     try {
-      localStorage.setItem(STORAGE_KEY_SEARCH_SCOPE, scope);
+      localStorage.setItem(STORAGE_KEY_SELECTED_AREA, area);
     } catch {
       // ignore
+    }
+
+    if (activeTab === 'federated' && federatedQuery.trim() && nextScope !== prevScope) {
+      void executeFederatedSearch(nextScope);
     }
   };
 
   const visiblePlatforms = useMemo(() => {
-    return PLATFORMS.filter((p) => {
+    const filtered = PLATFORMS.filter((p) => {
       if (activeCategory !== 'all' && p.category !== activeCategory) return false;
       if (accessFilter !== 'all' && p.accessModel !== accessFilter) return false;
       if (ownedOnlyFilter && !ownedPlatformSet.has(p.id)) return false;
       if (selectedArea !== 'all' && !p.thematicAreas.includes(selectedArea)) return false;
       return true;
     });
-  }, [activeCategory, accessFilter, ownedOnlyFilter, ownedPlatformSet, selectedArea]);
+
+    if (platformSortBy === 'curated') return filtered;
+
+    const accessRank: Record<AccessModel, number> = {
+      gratuito: 0,
+      'aberto-institucional': 1,
+      freemium: 2,
+      pago: 3,
+    };
+
+    return [...filtered].sort((a, b) => {
+      if (platformSortBy === 'trust') {
+        if (b.trustScore !== a.trustScore) return b.trustScore - a.trustScore;
+        return a.name.localeCompare(b.name);
+      }
+      if (platformSortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      }
+      const rankDiff = accessRank[a.accessModel] - accessRank[b.accessModel];
+      if (rankDiff !== 0) return rankDiff;
+      return b.trustScore - a.trustScore;
+    });
+  }, [activeCategory, accessFilter, ownedOnlyFilter, ownedPlatformSet, selectedArea, platformSortBy]);
 
   const savedIdsSet = useMemo(
     () => new Set(savedPapers.map((s) => s.id)),
@@ -631,8 +728,15 @@ export default function AcademicCommandCenter() {
     }
   };
 
-  const handleRunFederatedSearch = async () => {
-    if (!isValidQuery) return;
+  const executeFederatedSearch = async (
+    scopeOverride: SearchScopeId,
+    queryOverride?: string,
+    yearFromOverride?: number | null
+  ) => {
+    const effectiveQuery = (queryOverride ?? trimmedQuery).trim();
+    if (!effectiveQuery) return;
+    const effectiveYearFrom =
+      yearFromOverride !== undefined ? (yearFromOverride ?? undefined) : yearStartNum;
 
     searchAbortRef.current?.abort();
     const controller = new AbortController();
@@ -641,27 +745,27 @@ export default function AcademicCommandCenter() {
 
     setIsNotFound(false);
     setActiveTab('federated');
-    syncBrowserHistory('federated', aboutSection, trimmedQuery);
+    syncBrowserHistory('federated', aboutSection, effectiveQuery);
     setIsSearchingApis(true);
-    setFederatedQuery(trimmedQuery);
-    setFederatedPapers([]);
+    setFederatedQuery(effectiveQuery);
+    setRawFederatedPapers([]);
     setDedupSummary(null);
     setSourceStatuses([]);
 
     try {
-      const { papers, statuses, deduplicationSummary } = await runFederatedSearch(
-        trimmedQuery,
-        yearStartNum,
+      const { rawPapers, statuses, deduplicationSummary } = await runFederatedSearch(
+        effectiveQuery,
+        effectiveYearFrom,
         {
           signal: controller.signal,
           language,
-          scope: searchScope,
+          scope: scopeOverride,
           accessConfig: userAccessConfig,
           onProgress: (progress) => {
             if (requestId !== searchRequestIdRef.current || controller.signal.aborted) {
               return;
             }
-            setFederatedPapers(progress.papers);
+            setRawFederatedPapers(progress.rawPapers);
             setSourceStatuses(progress.statuses);
             setDedupSummary(progress.deduplicationSummary);
           },
@@ -672,13 +776,35 @@ export default function AcademicCommandCenter() {
         return;
       }
 
-      setFederatedPapers(papers);
+      setRawFederatedPapers(rawPapers);
       setSourceStatuses(statuses);
       setDedupSummary(deduplicationSummary);
+
+      const bySource: SearchLogEntry['bySource'] = {};
+      statuses.forEach((s) => {
+        bySource[s.source] = {
+          status: s.status,
+          count: s.count,
+          latencyMs: s.latencyMs,
+        };
+      });
+      const newLog: SearchLogEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        executedAt: new Date().toISOString(),
+        query: effectiveQuery,
+        yearFrom: effectiveYearFrom ?? null,
+        scope: scopeOverride,
+        dedupEnabled,
+        totalRaw: rawPapers.length,
+        totalUnique: dedupEnabled ? deduplicationSummary.uniqueCount : rawPapers.length,
+        bySource,
+      };
+      setSearchLogs((prev) => [newLog, ...prev].slice(0, 100));
+
       trackAcademicEvent('federated_search', {
-        query_length: trimmedQuery.length,
-        has_year_filter: Boolean(yearStartNum),
-        results_count: papers.length,
+        query_length: effectiveQuery.length,
+        has_year_filter: Boolean(effectiveYearFrom),
+        results_count: rawPapers.length,
       });
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError' && requestId === searchRequestIdRef.current) {
@@ -690,6 +816,8 @@ export default function AcademicCommandCenter() {
       }
     }
   };
+
+  const handleRunFederatedSearch = () => executeFederatedSearch(activeSearchScope);
 
   // Auto-trigger federated search once when loading a shared /federated?q=... URL
   useEffect(() => {
@@ -878,6 +1006,15 @@ export default function AcademicCommandCenter() {
         });
       }
       setActiveSaveGroupId(payload.activeSaveGroupId ?? null);
+      if (Array.isArray(payload.searchLogs)) {
+        setSearchLogs(payload.searchLogs.slice(0, 100));
+      }
+      if (payload.dedupOverrides) {
+        setDedupOverrides(payload.dedupOverrides);
+      }
+      if (Array.isArray(payload.customColumns)) {
+        setCustomColumns(payload.customColumns);
+      }
       return {
         papersAdded: payload.savedPapers.length,
         groupsAdded: payload.groups.length,
@@ -903,6 +1040,27 @@ export default function AcademicCommandCenter() {
         ownedPlatformIds: Array.from(
           new Set([...userAccessConfig.ownedPlatformIds, ...validOwned])
         ),
+      });
+    }
+
+    if (Array.isArray(payload.searchLogs) && payload.searchLogs.length > 0) {
+      setSearchLogs((prev) => {
+        const seen = new Set(prev.map((l) => l.id));
+        const merged = [...prev, ...payload.searchLogs!.filter((l) => !seen.has(l.id))];
+        return merged.slice(0, 100);
+      });
+    }
+
+    if (payload.dedupOverrides?.splitPairs?.length) {
+      setDedupOverrides((prev) => ({
+        splitPairs: Array.from(new Set([...prev.splitPairs, ...payload.dedupOverrides!.splitPairs])),
+      }));
+    }
+
+    if (Array.isArray(payload.customColumns) && payload.customColumns.length > 0) {
+      setCustomColumns((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...payload.customColumns!.filter((c) => !seen.has(c.id))];
       });
     }
 
@@ -970,6 +1128,33 @@ export default function AcademicCommandCenter() {
     );
   };
 
+  const handleUpdateCustomField = (id: string, columnId: string, value: string) => {
+    setSavedPapers((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              customFields: {
+                ...(item.customFields || {}),
+                [columnId]: value,
+              },
+            }
+          : item
+      )
+    );
+  };
+
+  const handleUpdateQualityAppraisal = (
+    id: string,
+    appraisal: QualityAppraisalResult
+  ) => {
+    setSavedPapers((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qualityAppraisal: appraisal } : item
+      )
+    );
+  };
+
   const handleUpdateRelevance = (
     id: string,
     relevanceTag: SavedPaperItem['relevanceTag']
@@ -982,6 +1167,103 @@ export default function AcademicCommandCenter() {
   const handleRemoveSaved = (id: string) => {
     setSavedPapers((prev) => prev.filter((item) => item.id !== id));
   };
+
+  const handleSplitMergePair = (idA: string, idB: string) => {
+    const key = makePairKey(idA, idB);
+    setDedupOverrides((prev) => {
+      if (prev.splitPairs.includes(key)) return prev;
+      return { splitPairs: [...prev.splitPairs, key] };
+    });
+  };
+
+  const handleLinkRelatedPaper = (targetId: string, sourceId: string) => {
+    if (!targetId || !sourceId || targetId === sourceId) return;
+    setSavedPapers((prev) => {
+      const target = prev.find((p) => p.id === targetId);
+      const source = prev.find((p) => p.id === sourceId);
+      if (!target || !source) return prev;
+
+      const existing = target.relatedUrls ?? [];
+      const seenUrls = new Set(existing.map((r) => r.url));
+      const newLinks: RelatedPaperUrl[] = [...existing];
+
+      const inferredKind: RelatedPaperUrl['kind'] =
+        source.source === 'arxiv' ||
+        source.source === 'socarxiv' ||
+        (source.url || '').includes('osf.io/preprints') ||
+        (source.url || '').includes('biorxiv') ||
+        (source.url || '').includes('medrxiv')
+          ? 'preprint'
+          : 'published';
+
+      if (source.url && !seenUrls.has(source.url) && source.url !== target.url) {
+        seenUrls.add(source.url);
+        newLinks.push({
+          kind: inferredKind,
+          label: `${source.source.toUpperCase()} (${source.year ?? 's.d.'})`,
+          url: source.url,
+        });
+      }
+      if (source.pdfUrl && !seenUrls.has(source.pdfUrl) && source.pdfUrl !== target.pdfUrl) {
+        seenUrls.add(source.pdfUrl);
+        newLinks.push({
+          kind: inferredKind,
+          label: `${source.source.toUpperCase()} PDF`,
+          url: source.pdfUrl,
+        });
+      }
+      for (const extra of source.relatedUrls ?? []) {
+        if (extra.url && !seenUrls.has(extra.url)) {
+          seenUrls.add(extra.url);
+          newLinks.push(extra);
+        }
+      }
+
+      const mergedNotes =
+        source.researcherNotes.trim() && !target.researcherNotes.includes(source.researcherNotes.trim())
+          ? [target.researcherNotes.trim(), source.researcherNotes.trim()].filter(Boolean).join('\n\n')
+          : target.researcherNotes;
+
+      return prev
+        .filter((p) => p.id !== sourceId)
+        .map((p) =>
+          p.id === targetId
+            ? {
+                ...p,
+                relatedUrls: newLinks,
+                researcherNotes: mergedNotes,
+                pdfUrl: p.pdfUrl ?? source.pdfUrl,
+                doi: p.doi ?? source.doi,
+              }
+            : p
+        );
+    });
+  };
+
+  const dedupComputation = useMemo(
+    () => deduplicatePapersAdvanced(rawFederatedPapers, dedupOverrides),
+    [rawFederatedPapers, dedupOverrides]
+  );
+
+  const federatedPapers = useMemo(
+    () => (dedupEnabled ? dedupComputation.papers : rawFederatedPapers),
+    [dedupEnabled, dedupComputation.papers, rawFederatedPapers]
+  );
+
+  const effectiveDedupSummary = useMemo<DeduplicationSummary | null>(() => {
+    if (!dedupSummary && rawFederatedPapers.length === 0) return null;
+    if (!dedupEnabled) {
+      return {
+        originalCount: rawFederatedPapers.length,
+        uniqueCount: rawFederatedPapers.length,
+        duplicatesRemoved: 0,
+        mergedByDoi: 0,
+        mergedByPmidOrArxiv: 0,
+        mergedByFuzzyTitle: 0,
+      };
+    }
+    return dedupComputation.summary;
+  }, [dedupSummary, rawFederatedPapers.length, dedupEnabled, dedupComputation.summary]);
 
   const sourceBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1020,7 +1302,7 @@ export default function AcademicCommandCenter() {
                     e.preventDefault();
                     navigateToTab('platforms');
                     setActiveCategory('all');
-                    setSelectedArea('all');
+                    handleSelectUnifiedArea('all');
                   }}
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
                   title={t('brandTitle')}
@@ -1179,7 +1461,7 @@ export default function AcademicCommandCenter() {
               <div className="hidden sm:flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setShowAccessModal(true)}
+                  onClick={() => openAccessSettings('proxy')}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[12.5px] font-medium transition-colors cursor-pointer ${
                     hasActiveAccessEnhancement
                       ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
@@ -1286,35 +1568,6 @@ export default function AcademicCommandCenter() {
             </div>
           )}
 
-          {/* Optional Metasearch Scope Selector */}
-          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)] mr-1 shrink-0">
-              {t('scopeLabel')}:
-            </span>
-            {(
-              [
-                { id: 'all', label: t('scopeAll') },
-                { id: 'general', label: t('scopeGeneral') },
-                { id: 'econ-policy', label: t('scopeEconPolicy') },
-                { id: 'health', label: t('scopeHealth') },
-                { id: 'exact-tech', label: t('scopeExactTech') },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => handleSelectSearchScope(opt.id)}
-                className={`px-2.5 py-1 rounded-full text-[12px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                  searchScope === opt.id
-                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
-                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
           {/* Familiar Academic Navigation Bar (Underline Tabs like Google Scholar / Semantic Scholar) */}
           <nav className="flex items-center gap-6 mt-3 overflow-x-auto">
             <button
@@ -1351,6 +1604,15 @@ export default function AcademicCommandCenter() {
               }`}
             >
               {t('tabSaved', { count: savedPapers.length })}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSearchHistoryModal(true)}
+              className="ml-auto pb-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>{t('searchHistoryBtn', { count: searchLogs.length })}</span>
             </button>
           </nav>
         </div>
@@ -1393,38 +1655,42 @@ export default function AcademicCommandCenter() {
                 </button>
               </div>
 
-              {/* Gaveta 1: Disciplines / Specialized Areas */}
+              {/* Gaveta 1: Sort Controls (Primary ordering control — top priority) */}
               <div className="border-b border-[var(--divider)] pb-3">
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('areas')}
+                  onClick={() => toggleSidebarDrawer('sort')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      toggleSidebarDrawer('areas');
+                      toggleSidebarDrawer('sort');
                     }
                   }}
-                  aria-expanded={sidebarDrawers.areas}
+                  aria-expanded={sidebarDrawers.sort}
                   className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                      {t('thematicAreasTitle')}
+                      {t('sortByLabel')}
                     </span>
-                    {selectedArea !== 'all' && (
+                    {platformSortBy !== 'curated' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
-                        {localizedThematicAreas[selectedArea]?.label || selectedArea}
+                        {platformSortBy === 'trust'
+                          ? t('platformSortShortTrust')
+                          : platformSortBy === 'name'
+                          ? t('platformSortShortName')
+                          : t('platformSortShortAccess')}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {selectedArea !== 'all' && (
+                    {platformSortBy !== 'curated' && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedArea('all');
+                          setPlatformSortBy('curated');
                         }}
                         className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                       >
@@ -1433,48 +1699,216 @@ export default function AcademicCommandCenter() {
                     )}
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                        sidebarDrawers.areas ? 'rotate-0' : '-rotate-90'
+                        sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
                       }`}
                     />
                   </div>
                 </div>
 
-                {sidebarDrawers.areas && (
+                {sidebarDrawers.sort && (
+                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
+                    {(['curated', 'trust', 'name', 'access'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setPlatformSortBy(mode)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                          platformSortBy === mode
+                            ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        {mode === 'curated' && t('platformSortCurated')}
+                        {mode === 'trust' && t('platformSortTrust')}
+                        {mode === 'name' && t('platformSortName')}
+                        {mode === 'access' && t('platformSortAccess')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Gaveta 2: Cumulative Presets List (Highest-frequency batch selection) */}
+              <div className="border-b border-[var(--divider)] pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('presets')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('presets');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.presets}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                      {t('quickSelectionTitle')}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 ${
+                        selectedPlatformIds.length > 0
+                          ? 'bg-[var(--link-academic)]/15 text-[var(--link-academic)]'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+                      }`}
+                      title={t('quickSelectionTitleAttr', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
+                    >
+                      {selectedPlatformIds.length}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
+                      sidebarDrawers.presets ? 'rotate-0' : '-rotate-90'
+                    }`}
+                  />
+                </div>
+
+                {sidebarDrawers.presets && (
+                  <div className="space-y-1 text-[13.5px] pt-1.5">
+                    {/* Sub-barra de Ações da Gaveta */}
+                    <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
+                      <span className="text-xs text-[var(--text-muted)] font-medium">
+                        {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
+                          className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
+                        >
+                          {t('quickSelectionAllBtn')}
+                        </button>
+                        <span className="text-[var(--divider)] text-xs">·</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlatformIds([])}
+                          className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                        >
+                          {t('clearFilter')}
+                        </button>
+                      </div>
+                    </div>
+                    {localizedPresets.map((preset) => {
+                      const matchedCount = preset.platformIds.filter((id) =>
+                        selectedPlatformIds.includes(id)
+                      ).length;
+                      const isFullyActive =
+                        matchedCount === preset.platformIds.length &&
+                        preset.platformIds.length > 0;
+                      const isPartiallyActive = matchedCount > 0 && !isFullyActive;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleTogglePreset(preset.id, preset.platformIds)}
+                          title={preset.description}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                            isFullyActive
+                              ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isFullyActive}
+                              ref={(el) => {
+                                if (el) el.indeterminate = isPartiallyActive;
+                              }}
+                              readOnly
+                              className="w-3.5 h-3.5 rounded accent-[var(--link-academic)] pointer-events-none"
+                            />
+                            <span className="truncate">{preset.name}</span>
+                          </div>
+                          <span className="text-xs text-[var(--text-muted)] shrink-0">
+                            {matchedCount}/{preset.platformIds.length}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Gaveta 3: Functional Categories (Primary structural filter) */}
+              <div className="border-b border-[var(--divider)] pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSidebarDrawer('categories')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSidebarDrawer('categories');
+                    }
+                  }}
+                  aria-expanded={sidebarDrawers.categories}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                      {t('platformTypeTitle')}
+                    </span>
+                    {activeCategory !== 'all' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                        {localizedCategoryMeta[activeCategory]?.label.split('&')[0].trim() || activeCategory}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {activeCategory !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCategory('all');
+                        }}
+                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                      >
+                        {t('clearFilter')}
+                      </button>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                        sidebarDrawers.categories ? 'rotate-0' : '-rotate-90'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {sidebarDrawers.categories && (
                   <div className="space-y-0.5 text-[13.5px] pt-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedArea('all')}
+                      onClick={() => setActiveCategory('all')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        selectedArea === 'all'
+                        activeCategory === 'all'
                           ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate">
-                        <Globe className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
-                        <span className="truncate">{t('areaAll')}</span>
-                      </div>
-                      <span className="text-xs text-[var(--text-muted)] shrink-0">{PLATFORMS.length}</span>
+                      <span>{t('platformTypeAll')}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
                     </button>
 
-                    {THEMATIC_AREAS.map((areaKey) => {
-                      const meta = localizedThematicAreas[areaKey];
-                      const count = PLATFORMS.filter((p) => p.thematicAreas.includes(areaKey)).length;
+                    {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
+                      const meta = localizedCategoryMeta[catKey];
+                      const count = PLATFORMS.filter((p) => p.category === catKey).length;
                       return (
                         <button
-                          key={areaKey}
+                          key={catKey}
                           type="button"
-                          onClick={() => setSelectedArea(areaKey)}
+                          onClick={() => setActiveCategory(catKey)}
                           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                            selectedArea === areaKey
+                            activeCategory === catKey
                               ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                               : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                           }`}
                         >
-                          <div className="flex items-center gap-2 truncate">
-                            {renderAreaIcon(areaKey, 'w-3.5 h-3.5 text-[var(--text-muted)] shrink-0')}
-                            <span className="truncate">{meta.label}</span>
-                          </div>
+                          <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
                           <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
                         </button>
                       );
@@ -1483,7 +1917,7 @@ export default function AcademicCommandCenter() {
                 )}
               </div>
 
-              {/* Gaveta 2: Access Model Filter */}
+              {/* Gaveta 4: Access Model Filter */}
               <div className="border-b border-[var(--divider)] pb-3">
                 <div
                   role="button"
@@ -1629,194 +2063,21 @@ export default function AcademicCommandCenter() {
                 )}
               </div>
 
-              {/* Gaveta 3: Cumulative Presets List */}
-              <div className="border-b border-[var(--divider)] pb-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('presets')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('presets');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.presets}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                      {t('quickSelectionTitle')}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 ${
-                        selectedPlatformIds.length > 0
-                          ? 'bg-[var(--link-academic)]/15 text-[var(--link-academic)]'
-                          : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
-                      }`}
-                      title={t('quickSelectionTitleAttr', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
-                    >
-                      {selectedPlatformIds.length}
-                    </span>
-                  </div>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                      sidebarDrawers.presets ? 'rotate-0' : '-rotate-90'
-                    }`}
-                  />
-                </div>
+              {/* Gaveta 5: Unified Thematic Field & Metasearch Scope (14-item disciplinary filter) */}
+              <UnifiedAreaFilterDrawer
+                selectedArea={selectedArea}
+                onSelectArea={handleSelectUnifiedArea}
+                isOpen={sidebarDrawers.areas}
+                onToggleOpen={() => toggleSidebarDrawer('areas')}
+                mode="platforms"
+                accessConfig={userAccessConfig}
+              />
 
-                {sidebarDrawers.presets && (
-                  <div className="space-y-1 text-[13.5px] pt-1.5">
-                    {/* Sub-barra de Ações da Gaveta */}
-                    <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
-                      <span className="text-xs text-[var(--text-muted)] font-medium">
-                        {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
-                          className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
-                        >
-                          {t('quickSelectionAllBtn')}
-                        </button>
-                        <span className="text-[var(--divider)] text-xs">·</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPlatformIds([])}
-                          className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                        >
-                          {t('clearFilter')}
-                        </button>
-                      </div>
-                    </div>
-                    {localizedPresets.map((preset) => {
-                      const matchedCount = preset.platformIds.filter((id) =>
-                        selectedPlatformIds.includes(id)
-                      ).length;
-                      const isFullyActive =
-                        matchedCount === preset.platformIds.length &&
-                        preset.platformIds.length > 0;
-                      const isPartiallyActive = matchedCount > 0 && !isFullyActive;
-
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => handleTogglePreset(preset.id, preset.platformIds)}
-                          title={preset.description}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                            isFullyActive
-                              ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
-                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <input
-                              type="checkbox"
-                              checked={isFullyActive}
-                              ref={(el) => {
-                                if (el) el.indeterminate = isPartiallyActive;
-                              }}
-                              readOnly
-                              className="w-3.5 h-3.5 rounded accent-[var(--link-academic)] pointer-events-none"
-                            />
-                            <span className="truncate">{preset.name}</span>
-                          </div>
-                          <span className="text-xs text-[var(--text-muted)] shrink-0">
-                            {matchedCount}/{preset.platformIds.length}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Gaveta 4: Functional Categories */}
-              <div>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('categories')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('categories');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.categories}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                      {t('platformTypeTitle')}
-                    </span>
-                    {activeCategory !== 'all' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
-                        {localizedCategoryMeta[activeCategory]?.label.split('&')[0].trim() || activeCategory}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {activeCategory !== 'all' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveCategory('all');
-                        }}
-                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                      >
-                        {t('clearFilter')}
-                      </button>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                        sidebarDrawers.categories ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {sidebarDrawers.categories && (
-                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveCategory('all')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        activeCategory === 'all'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span>{t('platformTypeAll')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
-                    </button>
-
-                    {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
-                      const meta = localizedCategoryMeta[catKey];
-                      const count = PLATFORMS.filter((p) => p.category === catKey).length;
-                      return (
-                        <button
-                          key={catKey}
-                          type="button"
-                          onClick={() => setActiveCategory(catKey)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                            activeCategory === catKey
-                              ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
-                          <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              {/* User Preferences & Access Workspace (Tagged for future User System) */}
+              <UserWorkspaceSection
+                config={userAccessConfig}
+                onOpenAccessSettings={openAccessSettings}
+              />
             </aside>
 
             {/* Right Main Directory Area */}
@@ -1825,7 +2086,7 @@ export default function AcademicCommandCenter() {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-3 scrollbar-none">
                 <button
                   type="button"
-                  onClick={() => setSelectedArea('all')}
+                  onClick={() => handleSelectUnifiedArea('all')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     selectedArea === 'all'
                       ? 'bg-[var(--link-academic)] text-white'
@@ -1844,7 +2105,7 @@ export default function AcademicCommandCenter() {
                     <button
                       key={areaKey}
                       type="button"
-                      onClick={() => setSelectedArea(areaKey)}
+                      onClick={() => handleSelectUnifiedArea(areaKey)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                         isActive
                           ? 'bg-[var(--link-academic)] text-white'
@@ -1979,7 +2240,7 @@ export default function AcademicCommandCenter() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedArea(area);
+                                    handleSelectUnifiedArea(area);
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
                                 >
@@ -2081,7 +2342,7 @@ export default function AcademicCommandCenter() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedArea(area);
+                                    handleSelectUnifiedArea(area);
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
                                 >
@@ -2115,8 +2376,16 @@ export default function AcademicCommandCenter() {
             onCreateGroup={handleCreateGroup}
             onAssignPaperGroup={handleAssignPaperGroup}
             onToggleSave={handleToggleSavePaper}
-            deduplicationSummary={dedupSummary}
+            deduplicationSummary={effectiveDedupSummary}
+            dedupEnabled={dedupEnabled}
+            onToggleDedup={setDedupEnabled}
+            mergeClusters={dedupComputation.mergeClusters}
+            onSplitMergePair={handleSplitMergePair}
             institutionalProxy={userAccessConfig.institutionalProxy}
+            selectedArea={selectedArea}
+            onSelectArea={handleSelectUnifiedArea}
+            userAccessConfig={userAccessConfig}
+            onOpenAccessSettings={openAccessSettings}
           />
         )}
 
@@ -2128,18 +2397,26 @@ export default function AcademicCommandCenter() {
               groups={libraryGroups}
               selectedPlatformIds={selectedPlatformIds}
               ownedPlatformIds={userAccessConfig.ownedPlatformIds}
+              userAccessConfig={userAccessConfig}
+              searchLogs={searchLogs}
+              dedupOverrides={dedupOverrides}
+              customColumns={customColumns}
+              onSaveCustomColumns={setCustomColumns}
               activeSaveGroupId={activeSaveGroupId}
               onSelectActiveSaveGroup={setActiveSaveGroupId}
               onCreateGroup={handleCreateGroup}
               onRenameGroup={handleRenameGroup}
               onDeleteGroup={handleDeleteGroup}
               onAssignPaperGroup={handleAssignPaperGroup}
-              dedupSummary={dedupSummary}
+              dedupSummary={effectiveDedupSummary}
               sourceBreakdown={sourceBreakdown}
               onUpdateNotes={handleUpdateNotes}
+              onUpdateCustomField={handleUpdateCustomField}
+              onUpdateQualityAppraisal={handleUpdateQualityAppraisal}
               onUpdateRelevance={handleUpdateRelevance}
               onUpdateScreening={handleUpdateScreening}
               onRemoveItem={handleRemoveSaved}
+              onLinkRelatedPaper={handleLinkRelatedPaper}
               onClearAll={handleClearLibrary}
               onImportPapers={handleImportSavedPapers}
               onRestoreBackup={handleRestoreWorkspaceBackup}
@@ -2300,8 +2577,28 @@ export default function AcademicCommandCenter() {
           <AccessSettingsModal
             isOpen={showAccessModal}
             config={userAccessConfig}
+            initialTab={accessModalTab}
             onChange={handleUpdateUserAccessConfig}
             onClose={() => setShowAccessModal(false)}
+          />
+        </Suspense>
+      )}
+
+      {showSearchHistoryModal && (
+        <Suspense fallback={null}>
+          <SearchHistoryDrawer
+            isOpen={showSearchHistoryModal}
+            logs={searchLogs}
+            onClose={() => setShowSearchHistoryModal(false)}
+            onRerunSearch={(entry) => {
+              setQuery(entry.query);
+              setBooleanState((prev) => ({
+                ...prev,
+                yearFrom: entry.yearFrom ? String(entry.yearFrom) : '',
+              }));
+              void executeFederatedSearch(entry.scope, entry.query, entry.yearFrom);
+            }}
+            onClearLogs={() => setSearchLogs([])}
           />
         </Suspense>
       )}

@@ -1,13 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import {
+  AccessSettingsTab,
   ApiSourceId,
   DeduplicationSummary,
   InstitutionalProxyConfig,
   LibraryGroup,
+  MergeClusterEntry,
   NormalizedPaper,
   RelevanceBreakdown,
   SavedPaperItem,
   SourceFetchStatus,
+  ThematicArea,
+  UserAccessConfig,
 } from '../types/academic';
 import {
   formatAbntCitation,
@@ -15,26 +19,36 @@ import {
   formatBibtexEntry,
 } from '../utils/citationExporter';
 import { parseAbstractMetadata } from '../utils/abstractParser';
+import { partitionResultsAgainstLibrary } from '../utils/deduplication';
 import { buildDoiProxyUrl } from '../utils/institutionalProxy';
 import { rankPapersByRelevance } from '../utils/relevanceRanker';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { resolveUnpaywallPdf } from '../services/unpaywallResolver';
 import { useI18n } from '../i18n/context';
+import { CitationChaserModal } from './CitationChaserModal';
+import { MergeInspectorModal } from './MergeInspectorModal';
+import { UnifiedAreaFilterDrawer } from './UnifiedAreaFilterDrawer';
+import { UserWorkspaceSection } from './UserWorkspaceSection';
 import {
   AlertCircle,
+  AlertTriangle,
   Bookmark,
   BookmarkCheck,
   Check,
   ChevronDown,
+  FileSearch,
   FileText,
   Folder,
   FolderPlus,
+  GitBranch,
+  GitMerge,
   Loader2,
   Microscope,
   SlidersHorizontal,
   Users,
 } from 'lucide-react';
 
-type FederatedSidebarSectionKey = 'slot' | 'sort' | 'access' | 'sources';
+type FederatedSidebarSectionKey = 'areas' | 'slot' | 'sort' | 'access' | 'sources';
 const STORAGE_KEY_FEDERATED_DRAWERS = 'cartograph_federated_sidebar_drawers_v1';
 
 interface FederatedResultsPanelProps {
@@ -51,7 +65,15 @@ interface FederatedResultsPanelProps {
   onAssignPaperGroup?: (paperId: string, groupId: string | null) => void;
   onToggleSave: (paper: NormalizedPaper, targetGroupId?: string | null) => void;
   deduplicationSummary?: DeduplicationSummary | null;
+  dedupEnabled?: boolean;
+  onToggleDedup?: (next: boolean) => void;
+  mergeClusters?: MergeClusterEntry[];
+  onSplitMergePair?: (idA: string, idB: string) => void;
   institutionalProxy?: InstitutionalProxyConfig;
+  selectedArea: 'all' | ThematicArea;
+  onSelectArea: (area: 'all' | ThematicArea) => void;
+  userAccessConfig: UserAccessConfig;
+  onOpenAccessSettings: (tab?: AccessSettingsTab) => void;
 }
 
 export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
@@ -68,10 +90,19 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   onAssignPaperGroup,
   onToggleSave,
   deduplicationSummary,
+  dedupEnabled = true,
+  onToggleDedup,
+  mergeClusters = [],
+  onSplitMergePair,
   institutionalProxy,
+  selectedArea,
+  onSelectArea,
+  userAccessConfig,
+  onOpenAccessSettings,
 }) => {
   const { language, t } = useI18n();
   const [onlyOpenAccess, setOnlyOpenAccess] = useState(false);
+  const [hideAlreadySaved, setHideAlreadySaved] = useState(false);
   const [selectedSource, setSelectedSource] = useState<'all' | ApiSourceId>('all');
   const [sortBy, setSortBy] = useState<'relevance' | 'citations' | 'year'>('relevance');
   const [expandedAbstracts, setExpandedAbstracts] = useState<Record<string, boolean>>({});
@@ -79,6 +110,27 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showQuickGroupInput, setShowQuickGroupInput] = useState(false);
   const [quickGroupName, setQuickGroupName] = useState('');
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorFocusClusterId, setInspectorFocusClusterId] = useState<string | null>(null);
+  const [chaseSeedPaper, setChaseSeedPaper] = useState<NormalizedPaper | null>(null);
+  const [unpaywallState, setUnpaywallState] = useState<
+    Record<string, { status: 'loading' | 'found' | 'not_found'; pdfUrl?: string }>
+  >({});
+
+  const handleFindUnpaywallPdf = async (paper: NormalizedPaper) => {
+    if (!paper.doi) return;
+    setUnpaywallState((prev) => ({ ...prev, [paper.id]: { status: 'loading' } }));
+    const res = await resolveUnpaywallPdf(paper.doi, userAccessConfig?.unpaywallEmail);
+    const resolvedPdf = res.bestPdfUrl || res.bestLandingUrl;
+    if (res.ok && resolvedPdf) {
+      setUnpaywallState((prev) => ({
+        ...prev,
+        [paper.id]: { status: 'found', pdfUrl: resolvedPdf },
+      }));
+    } else {
+      setUnpaywallState((prev) => ({ ...prev, [paper.id]: { status: 'not_found' } }));
+    }
+  };
 
   const [sidebarDrawers, setSidebarDrawers] = useState<
     Record<FederatedSidebarSectionKey, boolean>
@@ -89,6 +141,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) {
           return {
+            areas: parsed.areas !== false,
             slot: parsed.slot !== false,
             sort: parsed.sort !== false,
             access: parsed.access !== false,
@@ -100,6 +153,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
       // ignore storage errors
     }
     return {
+      areas: true,
       slot: true,
       sort: true,
       access: true,
@@ -124,6 +178,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   const toggleAllSidebarDrawers = () => {
     const targetState = !allDrawersOpen;
     const next: Record<FederatedSidebarSectionKey, boolean> = {
+      areas: targetState,
       slot: targetState,
       sort: targetState,
       access: targetState,
@@ -150,8 +205,37 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
     return map;
   }, [savedPapers]);
 
+  const scopedSavedPapers = useMemo(
+    () =>
+      activeSaveGroupId
+        ? savedPapers.filter((sp) => sp.groupId === activeSaveGroupId)
+        : savedPapers,
+    [savedPapers, activeSaveGroupId]
+  );
+
+  const libraryDiff = useMemo(
+    () => partitionResultsAgainstLibrary(papers, scopedSavedPapers),
+    [papers, scopedSavedPapers]
+  );
+
+  const matchedSavedByPaperId = useMemo(() => {
+    const map = new Map<string, SavedPaperItem>();
+    libraryDiff.matched.forEach(({ paper, existingItem }) => {
+      map.set(paper.id, existingItem);
+    });
+    return map;
+  }, [libraryDiff]);
+
+  const mergeClusterByPaperId = useMemo(() => {
+    const map = new Map<string, MergeClusterEntry>();
+    mergeClusters.forEach((cluster) => {
+      map.set(cluster.mergedPaperId, cluster);
+    });
+    return map;
+  }, [mergeClusters]);
+
   const { filteredPapers, relevanceBreakdownMap } = useMemo(() => {
-    let list = [...papers];
+    let list = hideAlreadySaved ? [...libraryDiff.unseen] : [...papers];
     if (onlyOpenAccess) {
       list = list.filter((p) => p.isOpenAccess);
     }
@@ -177,7 +261,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
       list.sort((a, b) => (b.year || 0) - (a.year || 0));
     }
     return { filteredPapers: list, relevanceBreakdownMap: breakdownMap };
-  }, [papers, searchQuery, onlyOpenAccess, selectedSource, sortBy]);
+  }, [papers, libraryDiff.unseen, hideAlreadySaved, searchQuery, onlyOpenAccess, selectedSource, sortBy]);
 
   const totalSources = statuses.length;
   const completedSources = statuses.filter(
@@ -222,28 +306,17 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
     setShowQuickGroupInput(false);
   };
 
-  if (!isSearching && statuses.length === 0 && papers.length === 0) {
-    return (
-      <div className="py-16 text-center max-w-lg mx-auto">
-        <h3 className="text-[17px] font-semibold text-[var(--text-primary)] mb-2">
-          {t('emptyFederatedTitle')}
-        </h3>
-        <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
-          {t('emptyFederatedDesc')}
-        </p>
-      </div>
-    );
-  }
+  const isEmptyIdle = !isSearching && statuses.length === 0 && papers.length === 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-6 xl:gap-8 items-start">
       {/* Left Filter & Target Slot Column — Scroll Independente + Gavetas Retráteis */}
       <aside
-        className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain pr-2 pb-6 select-none"
+        className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
         aria-label={t('federatedSidebarAria')}
       >
         {/* Controle de Gavetas */}
-        <div className="flex items-center justify-between pb-2 border-b border-[var(--divider)]">
+        <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
           <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
             <span>{t('filtersNavTitle')}</span>
@@ -251,14 +324,279 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           <button
             type="button"
             onClick={toggleAllSidebarDrawers}
-            className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
+            className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] rounded"
             title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
           >
             {allDrawersOpen ? t('collapseAll') : t('expandAll')}
           </button>
         </div>
 
-        {/* Target Slot / Group Selector for Saving (Visual original preservado) */}
+        {/* 1. Sort Controls (Primary ordering control — top priority) */}
+        <div className="border-b border-[var(--divider)] pb-3">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toggleSidebarDrawer('sort')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSidebarDrawer('sort');
+              }
+            }}
+            aria-expanded={sidebarDrawers.sort}
+            className="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                {t('sortByLabel')}
+              </span>
+              {sortBy !== 'relevance' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                  {sortBy === 'citations' ? t('sortShortCitations') : t('sortShortYear')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {sortBy !== 'relevance' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSortBy('relevance');
+                  }}
+                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                >
+                  {t('clearFilter')}
+                </button>
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                  sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
+            </div>
+          </div>
+
+          {sidebarDrawers.sort && (
+            <div className="space-y-0.5 text-[13.5px]">
+              {(['relevance', 'citations', 'year'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSortBy(mode)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    sortBy === mode
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {mode === 'relevance' && t('sortRelevance')}
+                  {mode === 'citations' && t('sortCitations')}
+                  {mode === 'year' && t('sortYear')}
+                </button>
+              ))}
+              {sortBy === 'relevance' && (
+                <p className="px-2.5 pt-1 text-[11px] leading-snug text-[var(--text-muted)]">
+                  {t('relevanceMethodCaption')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 2. Access & Deduplication Toggles (High-frequency screening filters) */}
+        <div className="border-b border-[var(--divider)] pb-3">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toggleSidebarDrawer('access')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSidebarDrawer('access');
+              }
+            }}
+            aria-expanded={sidebarDrawers.access}
+            className="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                {t('availabilityTitle')}
+              </span>
+              {onlyOpenAccess && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
+                  Open Access
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onlyOpenAccess && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOnlyOpenAccess(false);
+                  }}
+                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                >
+                  {t('clearFilter')}
+                </button>
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                  sidebarDrawers.access ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
+            </div>
+          </div>
+
+          {sidebarDrawers.access && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyOpenAccess}
+                  onChange={(e) => setOnlyOpenAccess(e.target.checked)}
+                  className="w-4 h-4 rounded accent-[var(--link-academic)]"
+                />
+                <span>{t('availabilityOpenAccessOnly')}</span>
+              </label>
+
+              <label
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none"
+                title={t('livingDiffTitle')}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={hideAlreadySaved}
+                    onChange={(e) => setHideAlreadySaved(e.target.checked)}
+                    className="w-4 h-4 rounded accent-[var(--link-academic)] shrink-0"
+                  />
+                  <span className="truncate">{t('hideAlreadySavedLabel')}</span>
+                </span>
+                {libraryDiff.matched.length > 0 && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] shrink-0">
+                    {libraryDiff.matched.length}
+                  </span>
+                )}
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Unified Field & Metasearch Scope Drawer */}
+        <UnifiedAreaFilterDrawer
+          selectedArea={selectedArea}
+          onSelectArea={onSelectArea}
+          isOpen={sidebarDrawers.areas}
+          onToggleOpen={() => toggleSidebarDrawer('areas')}
+          mode="metasearch"
+          accessConfig={userAccessConfig}
+        />
+
+        {/* 4. Source Filter */}
+        {statuses.length > 0 && (
+          <div className="border-b border-[var(--divider)] pb-3">
+            <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toggleSidebarDrawer('sources')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSidebarDrawer('sources');
+              }
+            }}
+            aria-expanded={sidebarDrawers.sources}
+            className="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                {t('queriedSourcesTitle')}
+              </span>
+              {selectedSource !== 'all' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[85px]">
+                  {activeSourceStatus?.label.split(' ')[0] || selectedSource}
+                </span>
+              )}
+              {isSearching && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--link-academic)] shrink-0" />
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {selectedSource !== 'all' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSource('all');
+                  }}
+                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                >
+                  {t('clearFilter')}
+                </button>
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
+                  sidebarDrawers.sources ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
+            </div>
+          </div>
+
+          {sidebarDrawers.sources && (
+            <div className="space-y-0.5 text-[13.5px]">
+              <button
+                type="button"
+                onClick={() => setSelectedSource('all')}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  selectedSource === 'all'
+                    ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <span>{t('allSourcesOption')}</span>
+                <span className="text-xs text-[var(--text-muted)]">{papers.length}</span>
+              </button>
+
+              {statuses.map((st) => {
+                const isSelected = selectedSource === st.source;
+                const isSourceError = st.status === 'error';
+                const isSourceLoading = st.status === 'loading';
+                return (
+                  <button
+                    key={st.source}
+                    type="button"
+                    onClick={() =>
+                      setSelectedSource((prev) => (prev === st.source ? 'all' : st.source))
+                    }
+                    title={isSourceError ? st.errorMessage : st.label}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <span className="truncate pr-2">{st.label.split(' ')[0]}</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] shrink-0">
+                      {isSourceLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-[var(--link-academic)]" />
+                      ) : isSourceError ? (
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-500/80" />
+                      ) : (
+                        st.count
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          </div>
+        )}
+
+        {/* 5. Target Slot / Group Selector for Saving (Workflow destination) */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-3.5 space-y-2.5">
           <div
             role="button"
@@ -374,241 +712,27 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           )}
         </div>
 
-        {/* Sort Controls */}
-        <div>
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('sort')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('sort');
-              }
-            }}
-            aria-expanded={sidebarDrawers.sort}
-            className="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                {t('sortByLabel')}
-              </span>
-              {sortBy !== 'relevance' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
-                  {sortBy === 'citations' ? t('sortShortCitations') : t('sortShortYear')}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {sortBy !== 'relevance' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSortBy('relevance');
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.sort && (
-            <div className="space-y-0.5 text-[13.5px]">
-              {(['relevance', 'citations', 'year'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSortBy(mode)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    sortBy === mode
-                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {mode === 'relevance' && t('sortRelevance')}
-                  {mode === 'citations' && t('sortCitations')}
-                  {mode === 'year' && t('sortYear')}
-                </button>
-              ))}
-              {sortBy === 'relevance' && (
-                <p className="px-2.5 pt-1 text-[11px] leading-snug text-[var(--text-muted)]">
-                  {t('relevanceMethodCaption')}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Access Filter (Visual original com checkbox preservado) */}
-        <div>
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('access')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('access');
-              }
-            }}
-            aria-expanded={sidebarDrawers.access}
-            className="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                {t('availabilityTitle')}
-              </span>
-              {onlyOpenAccess && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] shrink-0">
-                  Open Access
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onlyOpenAccess && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOnlyOpenAccess(false);
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.access ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.access && (
-            <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={onlyOpenAccess}
-                onChange={(e) => setOnlyOpenAccess(e.target.checked)}
-                className="w-4 h-4 rounded accent-[var(--link-academic)]"
-              />
-              <span>{t('availabilityOpenAccessOnly')}</span>
-            </label>
-          )}
-        </div>
-
-        {/* Source Filter */}
-        <div>
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('sources')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('sources');
-              }
-            }}
-            aria-expanded={sidebarDrawers.sources}
-            className="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                {t('queriedSourcesTitle')}
-              </span>
-              {selectedSource !== 'all' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[85px]">
-                  {activeSourceStatus?.label.split(' ')[0] || selectedSource}
-                </span>
-              )}
-              {isSearching && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--link-academic)] shrink-0" />
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {selectedSource !== 'all' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedSource('all');
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.sources ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.sources && (
-            <div className="space-y-0.5 text-[13.5px]">
-              <button
-                type="button"
-                onClick={() => setSelectedSource('all')}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  selectedSource === 'all'
-                    ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <span>{t('allSourcesOption')}</span>
-                <span className="text-xs text-[var(--text-muted)]">{papers.length}</span>
-              </button>
-
-              {statuses.map((st) => {
-                const isSelected = selectedSource === st.source;
-                const isSourceError = st.status === 'error';
-                const isSourceLoading = st.status === 'loading';
-                return (
-                  <button
-                    key={st.source}
-                    type="button"
-                    onClick={() =>
-                      setSelectedSource((prev) => (prev === st.source ? 'all' : st.source))
-                    }
-                    title={isSourceError ? st.errorMessage : st.label}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <span className="truncate pr-2">{st.label.split(' ')[0]}</span>
-                    <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] shrink-0">
-                      {isSourceLoading ? (
-                        <Loader2 className="w-3 h-3 animate-spin text-[var(--link-academic)]" />
-                      ) : isSourceError ? (
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-500/80" />
-                      ) : (
-                        st.count
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {/* User Preferences & Access Workspace (Tagged for future User System) */}
+        <UserWorkspaceSection
+          config={userAccessConfig}
+          onOpenAccessSettings={onOpenAccessSettings}
+        />
       </aside>
 
       {/* Main Results Column — Classic Borderless Academic Stream */}
       <div className="max-w-3xl">
-        {/* Sleek Top Linear Progress Bar during active streaming */}
+        {isEmptyIdle ? (
+          <div className="py-14 text-center max-w-lg mx-auto">
+            <h3 className="text-[17px] font-semibold text-[var(--text-primary)] mb-2">
+              {t('emptyFederatedTitle')}
+            </h3>
+            <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
+              {t('emptyFederatedDesc')}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Sleek Top Linear Progress Bar during active streaming */}
         {isSearching && totalSources > 0 && (
           <div
             className="mb-3 h-[2px] w-full rounded-full bg-[var(--bg-secondary)] overflow-hidden"
@@ -662,18 +786,56 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             </span>
           </div>
 
-          {deduplicationSummary && deduplicationSummary.duplicatesRemoved > 0 && (
-            <span
-              className="text-xs text-[var(--text-muted)] shrink-0"
-              title={t('duplicatesMergedTitle', {
-                doi: deduplicationSummary.mergedByDoi,
-                ids: deduplicationSummary.mergedByPmidOrArxiv,
-                fuzzy: deduplicationSummary.mergedByFuzzyTitle,
-              })}
-            >
-              {t('duplicatesMergedCount', { count: deduplicationSummary.duplicatesRemoved })}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {deduplicationSummary && deduplicationSummary.originalCount > 1 && (
+              <span
+                className="text-xs text-[var(--text-muted)]"
+                title={t('duplicatesMergedTitle', {
+                  doi: deduplicationSummary.mergedByDoi,
+                  ids: deduplicationSummary.mergedByPmidOrArxiv,
+                  fuzzy: deduplicationSummary.mergedByFuzzyTitle,
+                })}
+              >
+                {dedupEnabled
+                  ? deduplicationSummary.duplicatesRemoved > 0
+                    ? t('duplicatesMergedCount', { count: deduplicationSummary.duplicatesRemoved })
+                    : null
+                  : t('dedupDisabledBanner', { count: deduplicationSummary.duplicatesRemoved })}
+              </span>
+            )}
+
+            {dedupEnabled && mergeClusters.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInspectorFocusClusterId(null);
+                  setInspectorOpen(true);
+                }}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                <GitMerge className="w-3.5 h-3.5" />
+                <span>{t('inspectMergesBtn', { count: mergeClusters.length })}</span>
+              </button>
+            )}
+
+            {onToggleDedup && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={dedupEnabled}
+                onClick={() => onToggleDedup(!dedupEnabled)}
+                title={t('dedupToggleTitle')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-primary)] cursor-pointer transition-colors"
+              >
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    dedupEnabled ? 'bg-[var(--meta-green)]' : 'bg-[var(--text-muted)]'
+                  }`}
+                />
+                <span>{t('dedupToggleLabel')}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Minimalist Search Result Skeletons while waiting for first hits of the active view */}
@@ -725,7 +887,9 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   {t('noPapersInViewTitle')}
                 </div>
                 <p className="text-[13.5px] text-[var(--text-muted)]">
-                  {onlyOpenAccess
+                  {hideAlreadySaved && libraryDiff.matched.length > 0
+                    ? t('noUnseenMatchDesc')
+                    : onlyOpenAccess
                     ? t('noOpenAccessMatchDesc')
                     : selectedSource !== 'all'
                     ? t('noSourceMatchDesc', {
@@ -753,12 +917,32 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             const relevance = relevanceBreakdownMap[paper.id];
             const safePaperUrl = sanitizeExternalUrl(paper.url);
             const safePdfUrl = sanitizeExternalUrl(paper.pdfUrl);
+            const unpaywallEntry = unpaywallState[paper.id];
+            const resolvedUnpaywallUrl = sanitizeExternalUrl(unpaywallEntry?.pdfUrl);
+            const safeRetractionUrl = sanitizeExternalUrl(paper.retractionNoticeUrl);
             const safeProxyDoiUrl = institutionalProxy
               ? sanitizeExternalUrl(buildDoiProxyUrl(paper.doi, institutionalProxy))
               : null;
 
             return (
               <article key={paper.id} className="group">
+                {paper.isRetracted && (
+                  <div className="mb-1.5 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-rose-600/15 border border-rose-500/35 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{t('retractedBadge')}</span>
+                    {safeRetractionUrl && (
+                      <a
+                        href={safeRetractionUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline ml-1"
+                      >
+                        {t('retractionNoticeLink')}
+                      </a>
+                    )}
+                  </div>
+                )}
+
                 {/* Title Row + Direct PDF / Institutional Proxy Links (Google Scholar Pattern) */}
                 <div className="flex items-baseline justify-between gap-4">
                   <h3 className="text-[19px] font-medium leading-snug">
@@ -786,6 +970,40 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                       >
                         [PDF] {paper.sourceLabel.split(' ')[0]}
                       </a>
+                    )}
+                    {!safePdfUrl && resolvedUnpaywallUrl && (
+                      <a
+                        href={resolvedUnpaywallUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                      >
+                        [{t('unpaywallFoundBadge')}]
+                      </a>
+                    )}
+                    {!safePdfUrl && !resolvedUnpaywallUrl && paper.doi && (
+                      <button
+                        type="button"
+                        disabled={unpaywallEntry?.status === 'loading'}
+                        onClick={() => handleFindUnpaywallPdf(paper)}
+                        className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer disabled:opacity-50"
+                        title={
+                          unpaywallEntry?.status === 'not_found'
+                            ? t('unpaywallNotFoundMsg')
+                            : t('findOaPdfBtn')
+                        }
+                      >
+                        {unpaywallEntry?.status === 'loading' ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <FileSearch className="w-3 h-3" />
+                        )}
+                        <span>
+                          {unpaywallEntry?.status === 'not_found'
+                            ? t('unpaywallNotFoundMsg')
+                            : t('findOaPdfBtn')}
+                        </span>
+                      </button>
                     )}
                     {safeProxyDoiUrl && (
                       <a
@@ -984,6 +1202,42 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     </span>
                   )}
 
+                  {dedupEnabled && mergeClusterByPaperId.has(paper.id) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cluster = mergeClusterByPaperId.get(paper.id);
+                        if (cluster) {
+                          setInspectorFocusClusterId(cluster.clusterId);
+                          setInspectorOpen(true);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+                    >
+                      <GitMerge className="w-3.5 h-3.5" />
+                      <span>
+                        {t('corroboratedSourcesBadge', {
+                          count: mergeClusterByPaperId.get(paper.id)!.constituents.length,
+                        })}
+                      </span>
+                    </button>
+                  )}
+
+                  {!hideAlreadySaved && matchedSavedByPaperId.has(paper.id) && (() => {
+                    const matchedItem = matchedSavedByPaperId.get(paper.id)!;
+                    const badgeLabel =
+                      matchedItem.screeningStatus === 'included'
+                        ? t('libraryMatchIncluded')
+                        : matchedItem.screeningStatus === 'excluded'
+                        ? t('libraryMatchExcluded')
+                        : t('libraryMatchUnscreened');
+                    return (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                        {badgeLabel}
+                      </span>
+                    );
+                  })()}
+
                   <div className="inline-flex items-center gap-2">
                     <span>{t('citePrefix')}</span>
                     {(['abnt', 'apa', 'bibtex'] as const).map((fmt) => {
@@ -1012,6 +1266,15 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                       DOI
                     </a>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setChaseSeedPaper(paper)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+                  >
+                    <GitBranch className="w-3.5 h-3.5" />
+                    <span>{t('chaseCitationsBtn')}</span>
+                  </button>
                 </div>
               </article>
             );
@@ -1029,7 +1292,29 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             </span>
           </div>
         )}
+          </>
+        )}
       </div>
+
+      <MergeInspectorModal
+        isOpen={inspectorOpen}
+        clusters={mergeClusters}
+        focusClusterId={inspectorFocusClusterId}
+        onSplitPair={(idA, idB) => onSplitMergePair?.(idA, idB)}
+        onClose={() => {
+          setInspectorOpen(false);
+          setInspectorFocusClusterId(null);
+        }}
+      />
+
+      <CitationChaserModal
+        seedPaper={chaseSeedPaper}
+        accessConfig={userAccessConfig}
+        savedIds={savedIds}
+        activeSaveGroupId={activeSaveGroupId}
+        onToggleSave={onToggleSave}
+        onClose={() => setChaseSeedPaper(null)}
+      />
     </div>
   );
 };

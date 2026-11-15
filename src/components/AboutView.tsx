@@ -299,28 +299,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
             : 'Navegação institucional e documentação legal'
         }
       >
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
-          <div className="flex items-center gap-2.5">
-            <PrismMonogram className="h-7 w-auto shrink-0" />
-            <div>
-              <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
-                Cartograph
-              </div>
-              <div className="text-xs text-[var(--text-muted)]">
-                {isEn ? 'Version 2.4' : 'Versão 2.4'}
-              </div>
-            </div>
-          </div>
-
-          <PrismSpectralBar className="h-[2px] w-full opacity-85" />
-
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            {isEn
-              ? 'Technical documentation, methodological guidelines, and legal terms.'
-              : 'Documentação técnica, diretrizes metodológicas e termos legais do sistema.'}
-          </p>
-        </div>
-
+        {/* 1. Primary Documentation Navigation (Top priority) */}
         <nav
           className="space-y-1"
           aria-label={isEn ? 'About page sections' : 'Seções da página Sobre'}
@@ -354,6 +333,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
           })}
         </nav>
 
+        {/* 2. Technical Specifications & Quick Actions */}
         <div className="border-t border-[var(--divider)] pt-5 px-2 space-y-3 text-sm">
           <div className="text-xs font-semibold text-[var(--text-muted)]">
             {isEn ? 'Technical Specifications' : 'Ficha Técnica'}
@@ -409,6 +389,29 @@ export const AboutView: React.FC<AboutViewProps> = ({
               </button>
             </div>
           )}
+        </div>
+
+        {/* 3. Institutional Summary Card (Context footer) */}
+        <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
+          <div className="flex items-center gap-2.5">
+            <PrismMonogram className="h-7 w-auto shrink-0" />
+            <div>
+              <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
+                Cartograph
+              </div>
+              <div className="text-xs text-[var(--text-muted)]">
+                {isEn ? 'Version 2.4' : 'Versão 2.4'}
+              </div>
+            </div>
+          </div>
+
+          <PrismSpectralBar className="h-[2px] w-full opacity-85" />
+
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+            {isEn
+              ? 'Technical documentation, methodological guidelines, and legal terms.'
+              : 'Documentação técnica, diretrizes metodológicas e termos legais do sistema.'}
+          </p>
         </div>
       </aside>
 
@@ -880,17 +883,17 @@ export const AboutView: React.FC<AboutViewProps> = ({
               <section className="space-y-3 border-t border-[var(--divider)] pt-6">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
                   {isEn
-                    ? '2. Strictly Local Storage (LocalStorage)'
-                    : '2. Armazenamento Estritamente Local (LocalStorage)'}
+                    ? '2. Strictly Local Storage (IndexedDB + LocalStorage)'
+                    : '2. Armazenamento Estritamente Local (IndexedDB + LocalStorage)'}
                 </h2>
                 <p>
                   {isEn ? (
                     <>
-                      All saved articles, research groups, screening notes, priority tags, PRISMA 2020 exclusion reasons, selected favorite platforms, and interface preferences (light/dark theme and language) are stored exclusively in the browser on the user&apos;s own device through the native <code>window.localStorage</code> API.
+                      All saved articles, research groups, search strategy logs (PRISMA-S), screening notes, priority tags, PRISMA 2020 exclusion reasons, selected favorite platforms, and interface preferences (light/dark theme and language) are stored exclusively in the browser on the user&apos;s own device through native <code>IndexedDB</code> (with automatic <code>window.localStorage</code> migration and fallback).
                     </>
                   ) : (
                     <>
-                      Toda a biblioteca de artigos salvos, grupos de pesquisa, notas de fichamento, classificações de prioridade, justificativas de exclusão PRISMA 2020, seleção de plataformas favoritas e preferências visuais (tema claro/escuro e idioma) são armazenadas exclusivamente no navegador do próprio dispositivo do usuário por meio da API nativa <code>window.localStorage</code>.
+                      Toda a biblioteca de artigos salvos, grupos de pesquisa, histórico auditável de buscas (PRISMA-S), notas de fichamento, classificações de prioridade, justificativas de exclusão PRISMA 2020, seleção de plataformas favoritas e preferências visuais (tema claro/escuro e idioma) são armazenadas exclusivamente no navegador do próprio dispositivo do usuário por meio das APIs nativas <code>IndexedDB</code> (com migração automática a partir do <code>window.localStorage</code>).
                     </>
                   )}
                 </p>

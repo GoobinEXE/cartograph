@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   compileBooleanQuery,
+  compilePicoQuery,
   translateAcademicQueryPtToEn,
+  translateQueryToDialect,
 } from '../src/utils/queryBuilder.ts';
 import type { BooleanQueryState } from '../src/types/academic.ts';
 
@@ -66,4 +68,56 @@ test('translateAcademicQueryPtToEn falls back to glossary when /api/translate fa
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('compilePicoQuery compiles PICO, PECO, and PCC clauses with OR-grouped synonyms', () => {
+  const pico = compilePicoQuery({
+    framework: 'pico',
+    population: 'older adults, elderly',
+    interventionOrExposure: 'telehealth',
+    comparison: 'usual care',
+    outcomeOrContext: 'hospital readmission',
+  });
+  assert.equal(
+    pico,
+    '("older adults" OR elderly) AND telehealth AND "usual care" AND "hospital readmission"'
+  );
+
+  const pcc = compilePicoQuery({
+    framework: 'pcc',
+    population: 'nurses',
+    interventionOrExposure: 'burnout',
+    comparison: 'ignored in pcc',
+    outcomeOrContext: 'intensive care',
+  });
+  assert.equal(pcc, 'nurses AND burnout AND "intensive care"');
+});
+
+test('translateQueryToDialect adapts queries to PubMed, Scopus, WoS, arXiv, and IEEE syntaxes', () => {
+  const state = makeState({
+    mainConcept: 'telehealth',
+    orTerms: 'telemedicine',
+    notTerms: 'pediatric',
+    yearFrom: '2022',
+  });
+
+  const pubmed = translateQueryToDialect(state, 'pubmed');
+  assert.match(pubmed, /\[Title\/Abstract\]/);
+  assert.match(pubmed, /"2022\/01\/01"\[Date - Publication\] : "3000"\[Date - Publication\]/);
+
+  const scopus = translateQueryToDialect(state, 'scopus');
+  assert.match(scopus, /^TITLE-ABS-KEY\(/);
+  assert.match(scopus, /AND PUBYEAR > 2021/);
+
+  const wos = translateQueryToDialect(state, 'wos');
+  assert.match(wos, /^TS=\(/);
+  assert.match(wos, /AND PY=\(2022-2026\)/);
+
+  const arxiv = translateQueryToDialect(state, 'arxiv');
+  assert.match(arxiv, /ti:/);
+  assert.match(arxiv, /abs:/);
+  assert.match(arxiv, /ANDNOT/);
+
+  const ieee = translateQueryToDialect(state, 'ieee');
+  assert.match(ieee, /"Document Title":/);
 });

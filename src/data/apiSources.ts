@@ -1,4 +1,11 @@
-import { ApiSourceId, ByokProviderId, SearchScopeId, SourceCategoryTag } from '../types/academic';
+import {
+  ApiSourceId,
+  ByokProviderId,
+  SearchScopeId,
+  SourceCategoryTag,
+  ThematicArea,
+  UserAccessConfig,
+} from '../types/academic';
 
 export interface ApiSourceMetadata {
   id: ApiSourceId;
@@ -281,4 +288,40 @@ export function sourceMatchesScope(sourceId: ApiSourceId, scope: SearchScopeId):
     return meta.categories.includes('exact-tech') || meta.categories.includes('datasets');
   }
   return true;
+}
+
+export const THEMATIC_AREA_TO_SCOPE: Record<ThematicArea, SearchScopeId> = {
+  multidisciplinar: 'general',
+  tecnologia: 'exact-tech',
+  ia: 'exact-tech',
+  saude: 'health',
+  'ciencias-exatas': 'exact-tech',
+  biociencias: 'health',
+  geociencias: 'exact-tech',
+  'economia-politicas': 'econ-policy',
+  'patentes-normas': 'exact-tech',
+  arte: 'general',
+  games: 'general',
+  software: 'exact-tech',
+  hardware: 'exact-tech',
+};
+
+/** Maps a thematic directory area to the corresponding federated API search scope. */
+export function mapAreaToSearchScope(area: 'all' | ThematicArea): SearchScopeId {
+  if (area === 'all') return 'all';
+  return THEMATIC_AREA_TO_SCOPE[area] ?? 'all';
+}
+
+/** Counts APIs active for a given scope considering enabled BYOK keys. */
+export function countSourcesForScope(
+  scope: SearchScopeId,
+  accessConfig?: UserAccessConfig
+): number {
+  return Object.values(API_SOURCE_REGISTRY).filter((meta) => {
+    if (!sourceMatchesScope(meta.id, scope)) return false;
+    if (!meta.requiresByok) return true;
+    if (!accessConfig || !meta.byokProviderId) return false;
+    const entry = accessConfig.byokKeys[meta.byokProviderId];
+    return Boolean(entry?.enabled && entry?.apiKey?.trim());
+  }).length;
 }

@@ -86,6 +86,13 @@ export function sanitizeUserAccessConfig(raw: unknown): UserAccessConfig {
     }
   }
 
+  if (typeof obj.unpaywallEmail === 'string') {
+    const email = obj.unpaywallEmail.trim().slice(0, 160);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      base.unpaywallEmail = email;
+    }
+  }
+
   return base;
 }
 

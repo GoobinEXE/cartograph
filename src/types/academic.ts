@@ -106,10 +106,13 @@ export interface ByokCredentialEntry {
   enabled: boolean;
 }
 
+export type AccessSettingsTab = 'proxy' | 'byok' | 'subscriptions';
+
 export interface UserAccessConfig {
   institutionalProxy: InstitutionalProxyConfig;
   ownedPlatformIds: string[];
   byokKeys: Partial<Record<ByokProviderId, ByokCredentialEntry>>;
+  unpaywallEmail?: string;
 }
 
 export interface NormalizedPaper {
@@ -131,6 +134,8 @@ export interface NormalizedPaper {
   /** 1-based retrieval rank per API source, used for Reciprocal Rank Fusion (RRF) */
   sourceRanks?: Partial<Record<ApiSourceId, number>>;
   publicationType?: string;
+  isRetracted?: boolean;
+  retractionNoticeUrl?: string | null;
 }
 
 export interface RelevanceBreakdown {
@@ -181,6 +186,7 @@ export type ScreeningExclusionReason =
   | 'desfecho_irrelevante'
   | 'texto_completo_inacessivel'
   | 'duplicata_residual'
+  | 'retracao_identificada'
   | 'outro';
 
 export interface ExtractedPaperMetadata {
@@ -201,6 +207,29 @@ export interface LibraryGroup {
   createdAt: string;
 }
 
+export interface RelatedPaperUrl {
+  label: string;
+  url: string;
+  kind: 'preprint' | 'published' | 'supplementary';
+}
+
+export type QualityToolId = 'rob2' | 'jbi_quasi' | 'casp_qual';
+
+export type QualityRating = 'low' | 'some_concerns' | 'high' | 'unclear';
+
+export interface QualityAppraisalResult {
+  tool: QualityToolId;
+  criteria: Record<string, QualityRating>;
+  overall: QualityRating;
+  updatedAt: string;
+}
+
+export interface CustomExtractionColumn {
+  id: string;
+  label: string;
+  placeholder?: string;
+}
+
 export interface SavedPaperItem extends NormalizedPaper {
   savedAt: string;
   researcherNotes: string;
@@ -209,6 +238,9 @@ export interface SavedPaperItem extends NormalizedPaper {
   exclusionReason?: string;
   extractedMetadata?: ExtractedPaperMetadata;
   groupId?: string | null;
+  relatedUrls?: RelatedPaperUrl[];
+  customFields?: Record<string, string>;
+  qualityAppraisal?: QualityAppraisalResult;
 }
 
 export interface Prisma2020Counts {
@@ -223,6 +255,21 @@ export interface Prisma2020Counts {
   includedStudies: number;
 }
 
+export type MergeRuleMatched = 'doi' | 'pmid-arxiv' | 'fuzzy-title';
+
+export interface MergeClusterEntry {
+  clusterId: string;
+  mergedPaperId: string;
+  ruleMatched: MergeRuleMatched;
+  similarityScore: number;
+  constituents: NormalizedPaper[];
+}
+
+export interface DedupOverrideRule {
+  /** Lexicographically sorted "idA::idB" pairs explicitly excluded from merging */
+  splitPairs: string[];
+}
+
 export interface DeduplicationSummary {
   originalCount: number;
   uniqueCount: number;
@@ -230,6 +277,24 @@ export interface DeduplicationSummary {
   mergedByDoi: number;
   mergedByPmidOrArxiv: number;
   mergedByFuzzyTitle: number;
+}
+
+export interface SearchLogSourceSnapshot {
+  status: SourceFetchStatus['status'];
+  count: number;
+  latencyMs?: number;
+}
+
+export interface SearchLogEntry {
+  id: string;
+  executedAt: string;
+  query: string;
+  yearFrom: number | null;
+  scope: SearchScopeId;
+  dedupEnabled: boolean;
+  totalRaw: number;
+  totalUnique: number;
+  bySource: Partial<Record<ApiSourceId, SearchLogSourceSnapshot>>;
 }
 
 export interface LaunchPreset {

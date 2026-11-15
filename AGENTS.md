@@ -1,112 +1,228 @@
-# AGENTS.md — Cartograph (Scientific Metasearch Hub)
+# AGENTS.md — Cartograph (Scientific Metasearch & PRISMA Systematic Review Hub)
 
-Especificação arquitetural, diretrizes operacionais para agentes de IA e protocolo de navegação em grafo de conhecimento (`graphify`) para o **Cartograph (Hub de Metabusca Científica e Revisão de Literatura)**.
+Documento normativo e especificação arquitetural primária para qualquer agente de IA ou desenvolvedor operando no repositório **Cartograph / Super Pesquisador 2000**. Este arquivo define o padrão técnico, as diretrizes de escrita sem vícios de IA (`WP:AISIGNS`), as regras de navegação no grafo de conhecimento (`graphify`) e as restrições arquiteturais do sistema.
 
 ---
 
-## 1. Protocolo de Otimização de Tokens via Graphify (`graphify-out/`)
+## 1. Protocolo de Navegação e Otimização via Graphify (`graphify-out/`)
 
-Este repositório mantém um grafo de conhecimento persistente em `graphify-out/` (`graph.json`, `GRAPH_REPORT.md` e `graph.html`). Qualquer agente que opere neste repositório deve priorizar consultas estruturadas ao grafo antes de realizar leituras extensas de arquivos brutos.
+O repositório mantém um grafo de conhecimento topológico persistente em `graphify-out/` (`graph.json`, `GRAPH_REPORT.md` e `graph.html`), compilado a partir de 77 arquivos-fonte, 677 nós e 1.614 arestas distribuídos em 34 comunidades. Todo agente deve seguir a diretriz **Query-First** para economizar tokens de contexto antes de realizar varreduras de arquivos brutos.
 
-### 1.1 Regras de Consulta (Query-First)
-1. **Inspeção Inicial de Baixo Custo:** Quando `graphify-out/graph.json` existir, responda perguntas sobre arquitetura, fluxo de dados, dependências entre módulos ou localização de símbolos executando:
+### 1.1 Comandos Canônicos do CLI Graphify
+Para inspecionar o grafo sem consumir contexto com leituras integrais de código, execute os utilitários via interpretador Python dedicado:
+
+```bash
+# Identificar o caminho mais curto entre dois módulos ou nós:
+/Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify path "<Origem>" "<Destino>"
+
+# Inspecionar nó, grau de conectividade, localização de código e vizinhança:
+/Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify explain "<NomeDoNo>"
+
+# Diagnosticar riscos de colapso de arestas e integridade:
+/Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify diagnose multigraph
+
+# Atualização incremental pós-modificação (obrigatória após criar/alterar arquivos em src/, server/ ou api/):
+/Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify update .
+```
+
+### 1.2 God Nodes do Repositório (Abstrações Centrais do Sistema)
+O grafo identifica os seguintes pontos de acoplamento crítico que exigem máxima atenção durante refatorações:
+1. `Cartograph Master App Icon (512x512 PNG)` (55 arestas) — Nó central de assets de empacotamento multi-target.
+2. `AcademicCommandCenter()` (36 arestas — `src/App.tsx:L141`) — Orquestrador visual de busca federada, injeção de estado, filtros e gavetas.
+3. `runFederatedSearch()` (32 arestas — `src/services/academicAggregator.ts`) — Coordenador assíncrono de consulta paralela às 15 APIs acadêmicas.
+4. `cleanDoi()` / `normalizeDoi()` (30 arestas — `src/utils/deduplication.ts`) — Sanitizador canônico de identificadores persistentes.
+5. `useI18n()` (21 arestas — `src/i18n/context.tsx`) — Hook de internacionalização reativa em 4 idiomas (PT, EN, ES, FR).
+6. `crossPlatformFetch()` (21 arestas — `src/services/httpClient.ts`) — Camada de abstração HTTP (Web Fetch vs Tauri HTTP nativo).
+7. `sanitizeExternalUrl()` (21 arestas — `api/_security.ts` / `src/utils/urlSafety.ts`) — Barreira anti-SSRF e validação de URLs externas.
+8. `applyCorsHeaders()` (20 arestas — `api/_security.ts`) — Controle rigoroso de origens permitidas em funções de borda.
+9. `enforceRateLimit()` (18 arestas — `api/_security.ts`) — Mecanismo defensivo de limitação de requisições por IP em memória.
+
+### 1.3 Regra de Atualização Contínua
+Sempre que concluir uma tarefa de codificação que adicione, renomeie ou modifique métodos, interfaces ou rotas, execute:
+```bash
+/Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify update .
+```
+Isso mantém o índice AST sincronizado, garante que futuros subagentes encontrem as definições atualizadas e previne regressões arquiteturais sem custo de tokens de IA.
+
+---
+
+## 2. Princípios Basilares e Padrão Editorial (WP:AISIGNS / Anti-Chatbotese)
+
+Toda documentação, interface com o usuário, mensagem de commit e saída textual gerada deve aderir estritamente ao guia comunitário [Wikipedia:Signs of AI writing (`WP:AISIGNS`)](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing) e ao protocolo PESQUISA SGSD.
+
+### 2.1 Postura Arquitetural
+- **Tom de Staff+ Engineer / Principal Architect:** Analítico, objetivo, cético e focado em trade-offs de engenharia. Proibido tom entusiasmado corporativo, retórica de marketing ou estilo de apresentação motivacional.
+- **Prosa Densa e Assertiva:** Parágrafos coesos que explicam causa, mecanismo e consequência. Proibida a quebra contínua de frases curtas em listas telegráficas sem substância técnica.
+- **Pontuação e Formatação Controladas:** Uso de travessões (`—`) restrito à pontuação gramatical legítima, sem repetição contínua como muleta estilística. Sem emojis decorativos (permitidos unicamente os callouts funcionais `📌`, `⚠️`, `💡`).
+
+### 2.2 Proibições Sintáticas e Vocabulares Estritas
+- **Sem Falsa Antítese ou Paralelismo Negativo (`WP:AIPARALLEL`):** Proibidas expressões como *"não se trata apenas de X, mas de Y"*, *"mais do que uma ferramenta, é uma solução"*.
+- **Sem Orações Participiais/Gerundistas de Cauda (`WP:SUPERFICIAL`):** Proibido terminar frases com *"...destacando sua relevância"*, *"...garantindo assim maior eficácia"*.
+- **Sem Evasão de Cópula (`WP:AINOCOPULA`):** Use verbos diretos (*é*, *possui*, *executa*). Proibido usar *"posiciona-se como"*, *"serve como um testamento de"*.
+- **Sem Vocabulário Inflado (`WP:AIVOCAB`):** Proibidas palavras como *mergulho profundo*, *tapeçaria*, *divisor de águas*, *pivotal*, *crucial*, *cenário em constante evolução*, *no final do dia*.
+
+---
+
+## 3. Arquitetura de Execução Híbrida Multiplataforma
+
+O Cartograph opera através de uma tríade de execução projetada para contornar bloqueadores de pop-up de navegadores e viabilizar acesso direto a repositórios autenticados (CAPES CAFe, EZProxy institucional, Zotero Connector, Google Scholar):
+
+```
+                        ┌────────────────────────────────────────────────────────┐
+                        │              Cartograph Frontend (React 18)            │
+                        └──────────┬───────────────────────────────┬─────────────┘
+                                   │                               │
+        Modo Desktop Nativo        │                               │ Modo Web + Local Bridge
+    (Tauri v2 + Rust WebView)      │                               │ (Navegador do Usuário)
+                                   ▼                               ▼
+                     ┌───────────────────────────┐   ┌───────────────────────────┐
+                     │   @tauri-apps/plugin      │   │  server/launcher-bridge   │
+                     │  (opener / http nativo)   │   │  (Node.js / child_process)│
+                     └─────────────┬─────────────┘   └─────────────┬─────────────┘
+                                   │                               │
+                                   ▼                               ▼
+                     ┌───────────────────────────────────────────────────────────┐
+                     │   Sistema Operacional (Windows / macOS / Linux Host)      │
+                     │   start / open / xdg-open com cadência de 120ms por aba   │
+                     └───────────────────────────────────────────────────────────┘
+```
+
+### 3.1 Comparativo das Camadas de Execução
+1. **Web SPA (React 18 + Vite + Tailwind CSS):**
+   - Servido via CDN global (Vercel) com compressão Brotli e cabeçalhos de segurança estritos.
+   - Utiliza as Serverless Functions (`api/`) para contornar restrições de CORS e proxies upstream.
+2. **Desktop Nativo Standalone (Tauri v2 + Rust):**
+   - Binário ultra-leve (8–18 MB), baixo consumo de RAM (45–80 MB).
+   - Comunicação via IPC nativo com `@tauri-apps/plugin-opener` para abertura de links e `@tauri-apps/plugin-http` para bypass total de CORS sem necessidade de proxies intermediários.
+3. **Local Launcher Bridge (`server/launcher-bridge.mjs`):**
+   - Servidor HTTP leve em Node.js puro (`http` + `child_process`), rodando na porta local 3001.
+   - Quando executado no navegador comum, permite abrir múltiplas abas diretamente pelo sistema operacional (`cmd /c start`, `open`, `xdg-open`), contornando o bloqueio de pop-ups com cadência controlada (120ms de intervalo).
+
+---
+
+## 4. Pipeline de Metabusca e Ranqueamento Determinístico
+
+O motor de pesquisa científica do Cartograph é **100% determinístico**, rejeitando qualquer dependência de LLM ou chamadas pagas de IA na agregação, deduplicação, ranqueamento e triagem sistemática. Isso assegura reprodutibilidade metodológica estrita e custo operacional fixo.
+
+### 4.1 Agregador Federado de 15 APIs Abertas (`src/services/academicAggregator.ts`)
+A busca executa chamadas paralelas assíncronas (`Promise.allSettled`) contra 15 bases globais e abertas:
+- **Índices Universais:** OpenAlex (250M+ obras, conceitos, citações, PDF aberto), Semantic Scholar (grafo acadêmico, TL;DR, citações influentes), Crossref (registro de DOIs e metadados de periódicos).
+- **Ciências Biomédicas e da Vida:** PubMed NCBI Entrez (índice oficial MEDLINE, PMID, PMC full-text), Europe PMC (literatura biomédica e biociências com PDFs diretos).
+- **Preprints e Ciências Exatas:** arXiv API (computação, física, matemática, estatística), INSPIRE-HEP (física de altas energias e computação quântica).
+- **Acesso Aberto Auditado e Repositórios Nacionais:** DOAJ (revistas Open Access auditadas), HAL Open Science (CNRS França, 3.5M+ documentos acadêmicos).
+- **Conjuntos de Dados e Repositórios Multidisciplinares:** DataCite Commons (DOIs para datasets, relatórios técnicos, OSF), Zenodo / CERN OpenAIRE (datasets, software, artigos), Figshare (materiais suplementares e replicação), GBIF (dados de biodiversidade e ecologia).
+- **Agências Federais de Pesquisa e Tecnologia:** OSTI.gov (relatórios técnicos do Departamento de Energia dos EUA), NASA NTRS (pesquisas e relatórios aeroespaciais).
+
+### 4.2 Algoritmo Multicritério de Ranqueamento de Relevância (`src/utils/relevanceRanker.ts`)
+Cada artigo recuperado recebe uma pontuação $S_{\text{final}} \in [0, 1]$ através da equação:
+$$S_{\text{final}} = 0.45 \cdot S_{\text{lexical}} + 0.25 \cdot S_{\text{consensus}} + 0.20 \cdot S_{\text{impact\_recency}} + 0.10 \cdot S_{\text{quality\_access}}$$
+
+- **Componente Léxico ($S_{\text{lexical}}$ — Peso 0.45):**
+  - Aplica Okapi BM25 modificado no título ($k_1 = 1.2$, $b = 0.5$, $\text{avg\_len} = 11$) e no resumo ($k_1 = 1.2$, $b = 0.35$, $\text{avg\_len} = 160$).
+  - Incorpora bônus para correspondência exata de frase contígua e expansão semântica via glossário técnico bilíngue Português ↔ Inglês.
+- **Componente de Consenso e Autoridade ($S_{\text{consensus}}$ — Peso 0.25):**
+  - Bonifica artigos descobertos simultaneamente por múltiplas fontes independentes através de Reciprocal Rank Fusion ($k = 60$).
+  - Pondera a autoridade de cada API conforme `API_SOURCE_AUTHORITY_WEIGHTS` (PubMed = 1.0, Crossref = 0.95, OpenAlex = 0.90, arXiv = 0.85, etc.).
+- **Componente de Impacto e Recência ($S_{\text{impact\_recency}}$ — Peso 0.20):**
+  - Mede a velocidade de citações por ano de publicação: $v_{\text{cite}} = \frac{C}{\max(1, Y_{\text{atual}} - Y_{\text{pub}})}$.
+  - Aplica decaimento temporal exponencial com constante de tempo $\tau = 8$ anos: $D(t) = \exp\left(-\frac{Y_{\text{atual}} - Y_{\text{pub}}}{\tau}\right)$.
+- **Componente de Qualidade e Acesso Aberto ($S_{\text{quality\_access}}$ — Peso 0.10):**
+  - Bonificação para desenhos de estudo prioritários na hierarquia PRISMA (Revisões Sistemáticas, Meta-análises, Ensaios Clínicos Randomizados - RCT).
+  - Bônus para disponibilidade imediata de link direto para PDF em Acesso Aberto (`isOpenAccess: true`).
+
+### 4.3 Motor Determinístico de Deduplicação em 3 Níveis (`src/utils/deduplication.ts`)
+Para garantir a integridade da amostra em revisões sistemáticas, a deduplicação opera sequencialmente:
+1. **Nível 1 (DOI Canônico):** Normalização de DOI (remoção de prefixos `https://doi.org/`, `dx.doi.org/`, caixa baixa e limpeza de pontuação).
+2. **Nível 2 (Identificadores de Repositório Exatos):** Resolução exata de IDs proprietários normalizados (PubMed PMID numérico, arXiv ID sem sufixo de versão de revisão).
+3. **Nível 3 (Similaridade Fonética e Ortográfica Híbrida):**
+   - Comparação do sobrenome do primeiro autor normalizado (`getFirstAuthorSurname`).
+   - Margem temporal de tolerância ($\le 1$ ano de diferença para acomodar ciclo entre preprint e publicação formal em periódico).
+   - Cálculo de similaridade Jaro-Winkler sobre o título limpo de diacríticos e pontuação ($\text{threshold} \ge 0.92$).
+4. **Fusão Enriquecida de Metadados:** Ao fundir dois registros, o sistema unifica resumos (preservando o mais longo e detalhado), soma contagens de citação, agrega URLs e registra o histórico de fusão no `MergeClusterEntry` inspecionável visualmente via `MergeInspectorModal.tsx`.
+
+---
+
+## 5. Extração Metodológica e Triagem Sistemática PRISMA 2020
+
+O Cartograph implementa nativamente o fluxo metodológico das diretrizes **PRISMA 2020 (Preferred Reporting Items for Systematic Reviews and Meta-Analyses)**.
+
+### 5.1 Parser Determinístico de Resumos Estruturados (`src/utils/abstractParser.ts`)
+- Segmenta seções canônicas de resumos (*Background*, *Methods*, *Results*, *Conclusions*) sem o uso de LLM, utilizando análise léxica e padrões IMRAD.
+- Identifica desenhos de estudo com base em vocabulário controlado MeSH (*Randomized Controlled Trial*, *Systematic Review*, *Cohort Study*, *Case-Control*, *Observational*, *In Vitro*, *Mathematical Model*).
+- Extrai tamanho amostral empírico ($N = \dots$, participantes, espécimes ou casos) através de expressões regulares contextuais com validação de limites numéricos.
+
+### 5.2 Fluxograma PRISMA 2020 Interativo (`src/components/PrismaFlowDiagram.tsx`)
+- Renderização visual das quatro fases do fluxo PRISMA:
+  1. **Identificação:** Total de registros obtidos via APIs abertas e importações manuais (BibTeX/RIS).
+  2. **Triagem:** Registros após exclusão de duplicatas exatas e aproximadas.
+  3. **Elegibilidade:** Artigos analisados na íntegra com marcação formal de motivos de exclusão estruturados (*Critério de inclusão não atendido*, *Desenho de estudo inadequado*, *Amostra insuficiente*, *Ausência de desfecho mensurável*, *Texto completo inacessível*).
+  4. **Inclusão:** Amostra final consolidada para síntese qualitativa e quantitativa.
+- Exportação nativa do diagrama em vetor SVG estandardizado para inclusão direta em teses e artigos acadêmicos.
+
+### 5.3 Exportação Estandardizada de Dados (`src/utils/citationExporter.ts`)
+- **ABNT NBR 6023:2018:** Formatação estrita para normas brasileiras (caixa alta para sobrenomes, títulos em destaque, DOI e paginação).
+- **APA 7ª Edição:** Formatação internacional com resolução de autores múltiplos, ano entre parênteses e links https para DOI.
+- **BibTeX:** Exportação estrita de chaves e campos (`@article`, `@inproceedings`, `@misc`) com escape adequado de caracteres especiais.
+- **Matriz de Revisão Sistemática (CSV com BOM UTF-8):** Tabela multidimensional formatada para Excel, LibreOffice e R/Python, contendo identificadores, pontuações de relevância, seções estruturadas, tamanho amostral ($N$) e status PRISMA.
+
+---
+
+## 6. Segurança, Proxies e Infraestrutura de Nuvem (`api/`)
+
+As funções Serverless em `api/` implementam camadas defensivas rigorosas para evitar exploração de proxies, SSRF e abusos de recursos:
+
+### 6.1 Políticas de Segurança (`api/_security.ts`)
+- **Sanitização de URLs Upstream (`sanitizeExternalUrl`):** Bloqueio estrito de IPs privados (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), endereços de loopback (`127.0.0.1`, `localhost`), interfaces de metadados de nuvem (`169.254.169.254`) e protocolos não-HTTP/HTTPS.
+- **Rate Limiting em Memória (`enforceRateLimit`):** Algoritmo de token bucket / sliding window em memória para conter abusos por IP sem onerar latência com dependências de banco externas.
+- **Restrição de Origens e CORS (`applyCorsHeaders`):** Permissão restrita aos domínios autorizados de produção (`cartographsearch.com`), subdomínios Vercel Preview oficiais do projeto e ambiente de desenvolvimento local.
+- **Cabeçalhos de Isolamento:** Injeção sistemática de `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` e `User-Agent` canônico institucional para auditoria externa.
+
+---
+
+## 7. Internacionalização (i18n) e Arquitetura de Estado
+
+A aplicação oferece suporte multilíngue integral e sem recarga de página para quatro idiomas:
+- **Idiomas Suportados:** Português (`pt`), Inglês (`en`), Espanhol (`es`) e Francês (`fr`).
+- **Resolução de Idioma:** Auto-detecção a partir de `navigator.languages`, com persistência em `localStorage` e mecanismo hierárquico de fallback para inglês quando a chave não existir na tabela traduzida.
+- **Gestão de Sessão e Backups:** O módulo `src/utils/workspaceBackup.ts` permite salvar o estado completo da revisão sistemática (fichamentos, parâmetros booleanos, status PRISMA e histórico de deduplicação) em arquivo JSON verificado com checksum SHA-256 e recarregamento seguro.
+
+---
+
+## 8. Diretrizes de UI/UX Intelligence, Rigor Tipográfico e Integração Arquitetural
+
+Toda e qualquer intervenção visual, estilística ou de interação no frontend do Cartograph deve seguir um processo de design assistido por inteligência técnica especializada, rejeitando soluções genéricas e garantindo acabamento artesanal.
+
+### 8.1 Ativação Mandatória das Skills de Design
+É estritamente proibido criar ou refatorar interfaces com base em palpites estéticos arbitrários ou componentes genéricos de modelos de IA. Qualquer tarefa que modifique telas, componentes React, folhas de estilo ou animações deve acionar a suíte de design:
+- **Inteligência Central (`/ui-ux-pro-max`):** Consulta obrigatória de paletas, microinterações, espaçamentos e acessibilidade antes de codificar (`search.py --domain ux|style|color|typography|icons`). Aplicação irrestrita dos checklists de acabamento em `references/pro-rules.md`.
+- **Suíte Complementar:** Uso de `frontend-design` para composições exclusivas e direção estética autêntica; `bencium-impact-designer` e `bencium-controlled-ux-designer` para validação de hierarquia e contraste; `emil-design-eng` e `apple-design` para física de movimento, sensação tátil e consistência espacial; `animate` para coreografia fluida; e `accesslint` / `web-design-guidelines` para conformidade com WCAG 2.2 AA.
+
+### 8.2 Proibição de Estética Genérica e Padronização Tipográfica Estrita
+O Cartograph rejeita designs genéricos de inteligência artificial ou modelos pré-fabricados sem identidade. A aplicação fundamenta-se na estética do ecossistema PRISM (Spectral Prism Design):
+- **Títulos e Marca (`.font-heading`, `.font-brand`):** Exclusivamente `Plus Jakarta Sans` (pesos 500, 600, 700), `letter-spacing: -0.02em`. Proibidas fontes serifadas ou sans-serif genéricas de navegador sem estilização.
+- **Corpo de Texto e Rótulos:** `Inter` e `Roboto` com fallbacks nativos (`-apple-system`, `BlinkMacSystemFont`, `'Segoe UI'`), altura de linha de 1.5 e renderização antialiased.
+- **Código, DOIs, Queries Booleanas e Dados Numéricos:** `JetBrains Mono` ou `ui-monospace` (pesos 400, 500) com `font-variant-numeric: tabular-nums` para alinhamento vertical rigoroso de contagens de citação e matrizes.
+
+### 8.3 Princípio de Integração Excepcional (Tolerância Zero a Soluções Provisórias)
+Novos recursos nunca devem ser implementados como remendos, elementos visuais flutuantes descontextualizados ou atalhos técnicos ("gambiarras"). Cada funcionalidade deve nascer organicamente integrada:
+- **Integração de Estado e Tipos:** Contratos de dados estritos em `src/types/academic.ts` sem recurso a `any` ou props anônimas.
+- **Suporte Bitemático Universal:** Compatibilidade perfeita com `[data-theme="light"]` e `[data-theme="dark"]` através das variáveis semânticas CSS (`--bg-canvas`, `--bg-secondary`, `--text-primary`, `--text-secondary`, `--divider`, `--link-academic`, `--meta-green`). Proibidas cores hexadecimais dispersas e hardcoded em tags.
+- **Internacionalização Completa (4 Idiomas):** Inclusão mandatória de todas as novas strings de interface no dicionário reativo `src/i18n/translations.ts` em Português (`pt`), Inglês (`en`), Espanhol (`es`) e Francês (`fr`).
+- **Harmonia com os Orquestradores Principais:** Encaixe coerente no fluxo de `AcademicCommandCenter()` em `src/App.tsx`, com suporte aos atalhos de teclado globais, transições elegantes e ausência de travamentos de layout no desktop Tauri v2 e na web.
+
+---
+
+## 9. Checklist Obrigatório para Agentes de IA
+
+Antes de considerar qualquer tarefa finalizada no repositório, o agente deve comprovar a execução dos seguintes itens:
+
+1. **Validação de Tipagem:** Código TypeScript livre de erros de compilação (`npm run build` ou verificação via `tsc --noEmit`). É expressamente proibido o uso de `any` explícito ou implícito em novas declarações.
+2. **Determinismo Algorítmico:** Não introduzir dependências de inferência de LLM ou APIs proprietárias no motor central de metabusca, ordenação ou triagem.
+3. **Padrão de Design e Tipografia:** Validação de conformidade visual via `/ui-ux-pro-max`, fidelidade tipográfica às fontes oficiais (`Plus Jakarta Sans`, `Inter`, `JetBrains Mono`) e ausência de componentes genéricos de IA.
+4. **Integração Completa:** Suporte a 4 idiomas (i18n), suporte bitemático (claro/escuro) e ausência de soluções provisórias ou remendos de interface.
+5. **Auditoria Anti-Chatbotese:** O código, documentação e comentários não devem conter nenhum dos vícios de linguagem catalogados na Seção 2 (`WP:AISIGNS`).
+6. **Atualização do Grafo de Conhecimento:** Executar obrigatoriamente a sincronização incremental via AST:
    ```bash
-   $(cat graphify-out/.graphify_python) -m graphify.cli query "<pergunta ou termo técnico>" --budget 1500
+   /Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify update .
    ```
-2. **Rastreamento de Caminhos e Explicação de Nós:**
-   - Para identificar o caminho mais curto entre dois componentes (ex.: `AcademicCommandCenter` e `searchOpenAlex`):
-     ```bash
-     $(cat graphify-out/.graphify_python) -m graphify.cli path "<Origem>" "<Destino>"
-     ```
-   - Para inspecionar vizinhança, grau de conexões e localização exata de um nó (`source_location`):
-     ```bash
-     $(cat graphify-out/.graphify_python) -m graphify.cli explain "<NomeDoNo>"
-     ```
-3. **Leitura Seletiva de Código:** Utilize o campo `source_location` retornado pelo grafo para ler exclusivamente as linhas necessárias com `read_file`, evitando varreduras completas de diretório. Consulte `graphify-out/GRAPH_REPORT.md` apenas quando precisar de visão macro das comunidades e dos *God Nodes*.
-4. **Atualização Incremental Após Modificações:** Sempre que criar, refatorar ou remover módulos em `src/` ou `server/`, atualize o grafo incrementalmente via AST (custo zero de tokens LLM para código):
-   ```bash
-   /graphify . --update
-   ```
-
----
-
-## 2. Arquitetura do Sistema e Execução Multiplataforma (Windows, Linux, macOS)
-
-O sistema adota uma arquitetura híbrida composta por **Frontend SPA Reativo (React 18 + TypeScript + Vite + Tailwind CSS)** acoplado a um **Bridge Local Multiplataforma em Node.js (`server/launcher-bridge.mjs`)**, além de configuração pronta para empacotamento nativo via **Tauri v2**.
-
-### 2.1 Comparativo Técnico de Empacotamento Desktop (Windows, Linux e macOS)
-
-| Arquitetura | Consumo de RAM | Tamanho do Binário | Bypass de Bloqueador de Pop-up | Manutenção Cross-Platform | Veredito Arquitetural |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Vite + Node Local Bridge** | ~35 MB (processo Node) + navegador nativo | < 5 MB (sem duplicar Chromium) | Nativo via chamadas de SO (`start` no Windows, `xdg-open` no Linux, `open` no macOS) | Alta (launchers `.bat`, `.sh`, `.command`) | Execução em aba do navegador aproveitando sessões e cookies já ativos (CAPES CAFe, Zotero, Google Scholar). |
-| **Tauri v2 (Rust + WebView Nativo - ATIVO)** | ~45–80 MB (usa WebView2 no Windows, WebKitGTK no Linux, WKWebView no macOS) | 8–18 MB (`.msi`/`.exe`, `.deb`/`.AppImage`, `.dmg`/`.app`) | Nativo via `@tauri-apps/plugin-opener` | Alta (integrado ao Vite + Rust) | **Modo Janela Nativa Standalone:** não roda em aba de navegador, possui janela própria com resolução 1280x860 e atalhos de SO. Comandos: `npm run desktop` e `npm run desktop:build`. |
-| **Electron** | 250–450 MB (empacota Chromium + Node completos) | 120–180 MB | Nativo via `shell.openExternal` | Média | Desaconselhado para este escopo devido ao overhead desproporcional de memória e disco. |
-
-> 💡 **Decisão de Engenharia:** Quando o pesquisador abre portais como Periódicos CAPES, Consensus, Elicit ou Google Scholar, ele precisa aproveitar os cookies, extensões de proxy institucional (EZProxy/CAFe) e gerenciadores de referência (Zotero Connector) já instalados em seu navegador padrão. O **Node Local Bridge (`/api/launch-urls`)** dispara a abertura das abas diretamente pelo sistema operacional no navegador padrão do usuário, contornando 100% dos bloqueadores de pop-up do navegador em Windows, Linux e macOS.
-
----
-
-## 3. Topologia de Módulos do Projeto
-
-- `src/types/academic.ts`: Contratos estritos de dados para plataformas (`PlatformConfig`), áreas especializadas (`ThematicArea`: `tecnologia`, `ia`, `saude`, `ciencias-exatas`, `biociencias`, `geociencias`, `economia-politicas`, `patentes-normas`, `arte`, `games`, `software`, `hardware`, `multidisciplinar`), artigos normalizados (`NormalizedPaper`), estado do construtor booleano (`BooleanQueryState`), filtros de busca (`SearchFilters`), modelos de acesso (`AccessModel`: `gratuito`, `aberto-institucional`, `freemium`, `pago`) e itens de fichamento (`SavedPaperItem`).
-- `src/data/platforms.ts`: Catálogo curado de **111 plataformas científicas, tecnológicas e acadêmicas** classificadas por nível de validação par-a-par, modelo de acesso (`gratuito`, `aberto-institucional`, `freemium`, `pago`), áreas temáticas disciplinares (`thematicAreas`), categoria operacional (`global-index`, `regional-latam`, `ai-synthesis`, `citation-graph`, `evidence-health`, `commercial-publishers`, `tech-patents`, `niche-science`), **20 perfis de lançamento temático** (`LAUNCH_PRESETS`) e geradores dinâmicos de URL de busca com suporte a autenticação institucional e paywalls acadêmicos internacionais.
-- `src/utils/queryBuilder.ts`: Motor determinístico de construção de queries booleanas (`AND`, `OR`, `NOT`, termos exatos, recorte temporal, filtro de revisões sistemáticas/meta-análises) e dicionário técnico de expansão bilíngue Português ↔ Inglês para pesquisa acadêmica.
-- `src/services/academicAggregator.ts`: Agregador federado assíncrono (`Promise.allSettled`) que consulta paralelamente **15 APIs científicas e tecnológicas abertas e gratuitas**:
-  1. **OpenAlex API** (`api.openalex.org/works`): 250M+ obras científicas com métricas de citação, conceitos e links diretos de PDF Open Access.
-  2. **Semantic Scholar Graph API** (`api.semanticscholar.org/graph/v1/paper/search`): relevância semântica, TL;DR, contagem de citações influentes e PDFs abertos.
-  3. **PubMed NCBI Entrez E-Utilities** (`eutils.ncbi.nlm.nih.gov/entrez/eutils/`): busca direta no índice oficial MEDLINE / National Library of Medicine (NIH) com resolução de PMID, DOI e PubMed Central PDF.
-  4. **Europe PMC REST API** (`ebi.ac.uk/europepmc/webservices/rest/search`): literatura biomédica, clínica e ciências da vida com resumos completos e links de PDF aberto.
-  5. **arXiv API** (`export.arxiv.org/api/query` via proxy/CORS): preprints de Ciência da Computação, Física, Matemática, Biologia Quantitativa, Estatística e Economia.
-  6. **Crossref REST API** (`api.crossref.org/works`): registro oficial de DOIs e metadados editoriais de periódicos revisados por pares.
-  7. **DOAJ REST API v4** (`doaj.org/api/search/articles/`): artigos publicados em periódicos científicos de Acesso Aberto auditados e revisados por pares.
-  8. **Zenodo / CERN OpenAIRE API** (`zenodo.org/api/records` via proxy `/api/zenodo`): artigos, conjuntos de dados (datasets), pacotes de replicação e software científico hospedados no CERN.
-  9. **HAL Open Science API** (`api.archives-ouvertes.fr/search/`): repositório nacional multi-institucional operado pelo CNRS (França) com mais de 3,5 milhões de documentos acadêmicos e textos completos.
-  10. **DataCite Commons REST API** (`api.datacite.org/dois`): registro mundial de DOIs para conjuntos de dados empíricos, preprints (OSF, Figshare, Dryad) e relatórios técnicos.
-  11. **INSPIRE-HEP API** (`inspirehep.net/api/literature`): literatura de física de altas energias, aceleradores e computação quântica operada por CERN, DESY, Fermilab e SLAC.
-  12. **Figshare REST API v2** (`api.figshare.com/v2/articles/search`): conjuntos de dados científicos, códigos de replicação e materiais suplementares.
-  13. **GBIF Literature API** (`api.gbif.org/v1/literature/search`): literatura científica revisada por pares sobre biodiversidade, ecologia e clima.
-  14. **OSTI.GOV API** (`osti.gov/api/v1/records` via proxy `/api/osti`): relatórios técnicos e pesquisas do Departamento de Energia dos EUA (DOE).
-  15. **NASA NTRS API** (`ntrs.nasa.gov/api/citations/search` via proxy `/api/ntrs`): relatórios técnicos aeroespaciais, propulsão e engenharia de sistemas da NASA.
-  Inclui normalização de registros, deduplicação por DOI canônico e título normalizado, e ordenação multicritério (relevância, citações, ano, Open Access).
-- `src/utils/citationExporter.ts`: Formatação determinística de referências segundo **ABNT NBR 6023:2018**, **APA 7ª Edição**, **BibTeX** e exportação de **Matriz de Revisão de Literatura em CSV** (UTF-8 com BOM para abertura direta no Excel/LibreOffice em Windows, Linux e macOS).
-- `server/launcher-bridge.mjs`: Servidor HTTP local zero-dependência externa pesada (Node.js nativo `http` + `child_process`) que:
-  - Dispara abertura nativa de múltiplas URLs no sistema operacional (`cmd /c start` em `win32`, `open` em `darwin`, `xdg-open` em `linux`) com controle de cadência (throttling de 120ms por aba para evitar travamento do navegador).
-  - Provê proxy local para a API XML do `arXiv` e tradução gratuita de termos técnicos PT→EN.
-- `src/i18n/context.tsx` e `src/i18n/translations.ts`: Camada reativa de internacionalização multilíngue com auto-detecção da língua do sistema operacional/navegador (`navigator.languages`), persistência em `localStorage` e suporte nativo a Português, Inglês, Espanhol e Francês.
-- `src/utils/deduplication.ts`: Motor determinístico de deduplicação multicritério em 3 níveis (DOI canônico, identificadores exatos PMID/arXiv e proximidade textual Jaro-Winkler/Levenshtein) com fusão enriquecida de metadados.
-- `src/utils/abstractParser.ts`: Parser determinístico de resumos estruturados (*Structured Abstracts*) e extração de metodologia, desenho de estudo e tamanho amostral ($N$) via regex heurístico e vocabulários controlados.
-- `src/utils/prismaFlow.ts` e `src/components/PrismaFlowDiagram.tsx`: Motor de cálculo e renderização interativa do fluxograma oficial **PRISMA 2020** com exportação vetorial (SVG) e rastreamento de motivos de exclusão.
-- `api/`: Funções Serverless (Vercel / Cloudflare) para proxy de CORS e APIs acadêmicas que exigem resolução remota (`/api/arxiv`, `/api/zenodo`, `/api/osti`, `/api/ntrs`, `/api/translate`, `/api/feedback`).
-- `src/App.tsx`: Interface principal com atalhos de teclado (`Ctrl/Cmd + K` para foco na busca, `Ctrl/Cmd + Enter` para busca federada, `Shift + Enter` para lançamento multi-abas), seletor visual de idioma, abas de operação (Metabuscador Integrado, Diretório de Plataformas, Construtor Booleano, Fichamento e Triagem PRISMA 2020).
-
----
-
-## 4. Arquitetura de Deploy Web e Monetização sem Dependência de IA
-
-O Cartograph opera em modelo híbrido (**Web First para democratização + Desktop Tauri v2 para Power Users**). As funcionalidades premium (*Plano Pro*) são construídas estritamente com **engenharia de software determinística**, garantindo 100% de reprodutibilidade científica, ausência de alucinações e margem de lucro de ~95% (custo fixo sem consumo de tokens de LLM):
-
-### 4.1 Matriz de Funcionalidades Determinísticas (Plano Free vs Pro)
-
-| Funcionalidade | Free / Básico | Pro / Pesquisador Avançado | Mecanismo Técnico |
-| :--- | :--- | :--- | :--- |
-| **Metabusca e Coleta** | 15 APIs abertas em paralelo | 15 APIs abertas + importação de arquivos BibTeX/RIS externos | Agregador federado assíncrono. |
-| **Deduplicação de Artigos** | Deduplicação básica por DOI | Deduplicação multicritério com relatório de fusão e score de similaridade | `src/utils/deduplication.ts` (Jaro-Winkler + Levenshtein). |
-| **Resumos e Metodologia** | Resumo bruto textual | Parser de resumos estruturados (Objetivo, Métodos, Amostra $N$, Conclusão) | `src/utils/abstractParser.ts` (regex e vocabulário MeSH). |
-| **Triagem Sistemática** | Fichamento linear simples | Fluxo completo PRISMA 2020 com marcação cega de motivos de exclusão | `src/types/academic.ts` (`screeningStatus` e `exclusionReason`). |
-| **Diagrama de Evidência** | Indisponível | Gerador dinâmico de Fluxograma PRISMA 2020 em SVG/PDF | `src/components/PrismaFlowDiagram.tsx`. |
-| **Exportação de Dados** | CSV simples e BibTeX | Matriz completa de Revisão Sistemática (PRISMA Matrix) | `src/utils/citationExporter.ts`. |
-
-### 4.2 Infraestrutura de Nuvem e Proxies Serverless
-
-Para publicação em produção web (Vercel ou Cloudflare Pages):
-1. O frontend React/Vite é servido em Edge CDN global com compressão Brotli.
-2. As rotas `/api/arxiv`, `/api/zenodo` e `/api/translate` são executadas como funções Serverless Node.js na pasta `api/`.
-3. O frontend detecta dinamicamente a presença do Tauri ou do Launcher Bridge local; caso esteja em ambiente web convencional, instrui o pesquisador sobre o bloqueador de pop-ups ou oferece lista com abertura sob demanda.
-
----
-
-## 5. Diretrizes de Qualidade de Código e Escrita (WP:AISIGNS / Anti-Chatbotese)
-
-1. **Tipagem Estrita:** Proibido uso de `any` implícito. Todas as respostas de APIs externas devem passar por funções *type-guard* ou mapeadores defensivos com *fallback* seguro.
-2. **Resiliência de Rede:** Se uma API externa atingir *rate-limit* (ex.: Semantic Scholar HTTP 429), o agregador deve degradar graciosamente exibindo o status individual de cada fonte sem interromper os resultados das demais APIs.
-3. **Padrão Editorial:** Toda documentação, interface textual e relatório gerado deve obedecer às regras Anti-Chatbotese (`WP:AISIGNS`): prosa direta, técnica, sem clichês promocionais, sem paralelismos negativos e sem adjetivação inflada.
+7. **Preservação de Integridade:** Não deletar comentários técnicos contextuais ou assinaturas de tipos existentes sem justificativa arquitetural documentada.
