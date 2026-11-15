@@ -29,6 +29,7 @@ export interface Translations {
   tabFederated: string;
   tabSaved: string;
   tabFeedback: string;
+  tabAbout: string;
   feedbackTitle: string;
   feedbackSubtitle: string;
   feedbackTypeLabel: string;
@@ -237,6 +238,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     tabFederated: 'Artigos Encontrados ({count})',
     tabSaved: 'Biblioteca ({count})',
     tabFeedback: 'Feedback & Sugestões',
+    tabAbout: 'Sobre & Legal',
     feedbackTitle: 'Contribuições & Avaliação',
     feedbackSubtitle:
       'Envie sugestões de novas fontes científicas, reporte inconsistências ou proponha aprimoramentos para o Cartograph.',
@@ -447,6 +449,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     tabFederated: 'Papers Found ({count})',
     tabSaved: 'Library ({count})',
     tabFeedback: 'Feedback & Suggestions',
+    tabAbout: 'About & Legal',
     feedbackTitle: 'Feedback & Contributions',
     feedbackSubtitle:
       'Suggest new scientific sources, report broken links or issues, and help improve Cartograph.',
@@ -657,6 +660,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     tabFederated: 'Artículos Encontrados ({count})',
     tabSaved: 'Biblioteca ({count})',
     tabFeedback: 'Comentarios & Sugerencias',
+    tabAbout: 'Acerca de & Legal',
     feedbackTitle: 'Contribuciones & Valoración',
     feedbackSubtitle:
       'Sugiera nuevas fuentes científicas, reporte enlaces caídos o proponga mejoras para Cartograph.',
@@ -867,6 +871,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     tabFederated: 'Articles Trouvés ({count})',
     tabSaved: 'Bibliothèque ({count})',
     tabFeedback: 'Retours & Suggestions',
+    tabAbout: 'À propos & Mentions légales',
     feedbackTitle: 'Contributions & Avis',
     feedbackSubtitle:
       'Proposez de nouvelles sources scientifiques, signalez un lien brisé ou suggérez des améliorations.',

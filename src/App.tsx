@@ -24,7 +24,7 @@ import {
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
-import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
+import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './components/PrismLogo';
 import { useI18n } from './i18n/context';
 import {
   Activity,
@@ -61,6 +61,9 @@ const SavedLiteratureDrawer = lazy(() =>
 );
 const FeedbackView = lazy(() =>
   import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView }))
+);
+const AboutView = lazy(() =>
+  import('./components/AboutView').then((m) => ({ default: m.AboutView }))
 );
 
 const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
@@ -116,7 +119,7 @@ export default function AcademicCommandCenter() {
   });
 
   const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'platforms' | 'federated' | 'saved' | 'feedback'>('platforms');
+  const [activeTab, setActiveTab] = useState<'platforms' | 'federated' | 'saved' | 'feedback' | 'about'>('platforms');
   const [activeCategory, setActiveCategory] = useState<'all' | PlatformCategory>('all');
   const [selectedArea, setSelectedArea] = useState<'all' | ThematicArea>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -770,6 +773,18 @@ export default function AcademicCommandCenter() {
               }`}
             >
               {t('tabFeedback')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('about')}
+              className={`pb-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                activeTab === 'about'
+                  ? 'border-[var(--link-academic)] text-[var(--link-academic)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {t('tabAbout')}
             </button>
           </nav>
         </div>
@@ -1499,33 +1514,165 @@ export default function AcademicCommandCenter() {
             <FeedbackView />
           </Suspense>
         )}
+
+        {/* TAB 5: ABOUT CARTOGRAPH, PRISM & LEGAL NOTICES */}
+        {activeTab === 'about' && (
+          <Suspense fallback={null}>
+            <AboutView
+              onNavigateTab={(tab) => {
+                setActiveTab(tab);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          </Suspense>
+        )}
       </main>
 
       {/* Prism Institutional Footer */}
       <footer className="mt-20 border-t border-[var(--divider)] pt-6 pb-12 text-xs text-[var(--text-muted)]">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <PrismSpectralBar className="h-[2px] w-full mb-6 opacity-80" />
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <PrismMonogram className="h-4 w-auto" />
-              <div className="text-[13px]">
-                <span className="font-semibold text-[var(--text-primary)]">Cartograph</span>
-                <span className="mx-2 text-[var(--text-muted)]">·</span>
-                <span>Desenvolvido pela Prism</span>
-              </div>
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <PrismSpectralBar className="h-[2px] w-full opacity-80" />
+
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            {/* Dual Brand Signature: Cartograph + Prism P */}
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('platforms');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
+                title="Cartograph — Hub de Metabusca Científica"
+              >
+                <PrismMonogram className="h-5 w-auto shrink-0" />
+                <div className="leading-tight">
+                  <div className="text-[13px] font-heading font-semibold text-[var(--text-primary)]">
+                    Cartograph
+                  </div>
+                  <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                    Metabusca Científica
+                  </div>
+                </div>
+              </button>
+
+              <span className="h-5 w-[1px] bg-[var(--divider)] hidden sm:inline-block" aria-hidden="true" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
+                title="Prism — Engenharia de Software & Ciência Aberta"
+              >
+                <PrismPMonogram className="h-4 w-auto shrink-0" />
+                <div className="leading-tight">
+                  <div className="text-[13px] font-heading font-semibold text-[var(--text-primary)]">
+                    Prism
+                  </div>
+                  <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                    Desenvolvido pela Prism Labs
+                  </div>
+                </div>
+              </button>
             </div>
-            <div className="flex items-center gap-4 text-[12px] text-[var(--text-muted)]">
-              <span>Pesquisa acadêmica e metabusca integrada em periódicos e repositórios abertos.</span>
-              <span className="hidden sm:inline">·</span>
+
+            {/* Footer Navigation & Institutional Links */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('platforms');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+              >
+                {PLATFORMS.length} Plataformas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('federated');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+              >
+                15 APIs Abertas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('saved');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
+              >
+                Fluxo PRISMA 2020
+              </button>
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab('feedback');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="text-[var(--link-academic)] hover:underline cursor-pointer"
+                className="text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer"
               >
                 {t('tabFeedback')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                {t('tabAbout')}
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Legal & Copyright Row */}
+          <div className="pt-4 border-t border-[var(--divider)]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
+            <div>
+              <span>© {new Date().getFullYear()} </span>
+              <strong className="font-medium text-[var(--text-secondary)]">Prism</strong>
+              <span> · Cartograph v2.4. Todos os direitos reservados. Arquitetura determinística Local-First (LGPD / GDPR).</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
+              >
+                Direitos Autorais & Licenças
+              </button>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
+              >
+                Privacidade & Termos de Uso
+              </button>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="hover:text-[var(--text-primary)] underline-offset-2 hover:underline cursor-pointer"
+              >
+                Como Citar (ABNT / APA / BibTeX)
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FeedbackType, UserFeedbackItem } from '../types/academic';
 import { useI18n } from '../i18n/context';
-import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
+import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './PrismLogo';
 import {
   Check,
   Copy,
@@ -413,7 +413,7 @@ ${item.message}`;
       {/* Institutional Note */}
       <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <PrismMonogram className="h-5 w-auto shrink-0" />
+          <PrismPMonogram className="h-5 w-auto shrink-0" />
           <div className="text-xs">
             <span className="font-semibold text-[var(--text-primary)]">Prism Labs</span>
             <span className="mx-1.5 text-[var(--divider)]">·</span>
