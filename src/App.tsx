@@ -26,7 +26,7 @@ import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
 import { NotFoundView } from './components/NotFoundView';
-import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './components/PrismLogo';
+import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
 import type { AboutSectionId } from './components/AboutView';
 import { useI18n } from './i18n/context';
 import {
@@ -775,7 +775,7 @@ export default function AcademicCommandCenter() {
                     setSelectedArea('all');
                   }}
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
-                  title="Cartograph — Desenvolvido pela Prism"
+                  title="Cartograph — Hub de Metabusca Científica"
                 >
                   <PrismMonogram className="h-[30px] w-auto" />
                   <div className="flex flex-col leading-none">
@@ -1757,7 +1757,7 @@ export default function AcademicCommandCenter() {
           </Suspense>
         )}
 
-        {/* TAB 5: ABOUT CARTOGRAPH, PRISM & LEGAL NOTICES */}
+        {/* TAB 5: ABOUT CARTOGRAPH & LEGAL NOTICES */}
         {activeTab === 'about' && (
           <Suspense fallback={null}>
             <AboutView
@@ -1774,13 +1774,13 @@ export default function AcademicCommandCenter() {
         )}
       </main>
 
-      {/* Prism Institutional Footer */}
+      {/* Institutional Footer */}
       <footer className="mt-20 border-t border-[var(--divider)] pt-7 pb-12 text-[13px] text-[var(--text-muted)]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <PrismSpectralBar className="h-[2px] w-full opacity-80" />
 
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-            {/* Dual Brand Signature: Cartograph + Prism P */}
+            {/* Brand Signature: Cartograph */}
             <div className="flex flex-wrap items-center gap-4">
               <button
                 type="button"
@@ -1795,25 +1795,6 @@ export default function AcademicCommandCenter() {
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)]">
                     Metabusca Científica
-                  </div>
-                </div>
-              </button>
-
-              <span className="h-5 w-[1px] bg-[var(--divider)] hidden sm:inline-block" aria-hidden="true" />
-
-              <button
-                type="button"
-                onClick={() => navigateToAboutSection('prism')}
-                className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
-                title="Sobre a Prism — Engenharia de Software & Ciência Aberta"
-              >
-                <PrismPMonogram className="h-[18px] w-auto shrink-0" />
-                <div className="leading-tight">
-                  <div className="text-[15px] font-heading font-semibold text-[var(--text-primary)]">
-                    Prism
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)]">
-                    Desenvolvido pela Prism Labs
                   </div>
                 </div>
               </button>
@@ -1834,17 +1815,6 @@ export default function AcademicCommandCenter() {
                 }`}
               >
                 Sobre o Cartograph
-              </button>
-              <button
-                type="button"
-                onClick={() => navigateToAboutSection('prism')}
-                className={`transition-colors cursor-pointer ${
-                  activeTab === 'about' && aboutSection === 'prism'
-                    ? 'font-semibold text-[var(--link-academic)]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
-                }`}
-              >
-                Sobre a Prism
               </button>
               <button
                 type="button"
@@ -1911,8 +1881,8 @@ export default function AcademicCommandCenter() {
           <div className="pt-4 border-t border-[var(--divider)]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[13px] text-[var(--text-muted)]">
             <div>
               <span>©&nbsp;{new Date().getFullYear()} </span>
-              <strong className="font-medium text-[var(--text-secondary)]">Prism</strong>
-              <span> · Cartograph v2.4. Todos os direitos reservados.</span>
+              <strong className="font-medium text-[var(--text-secondary)]">Cartograph</strong>
+              <span> v2.4. Todos os direitos reservados.</span>
             </div>
             <div>
               Engenharia determinística · Local-First · PRISMA 2020

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './PrismLogo';
+import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import { PLATFORMS } from '../data/platforms';
 import {
   ArrowLeft,
@@ -10,14 +10,12 @@ import {
   Copy,
   Database,
   FileText,
-  Layers,
   Lock,
   Scale,
 } from 'lucide-react';
 
 export type AboutSectionId =
   | 'cartograph'
-  | 'prism'
   | 'apis'
   | 'citation'
   | 'copyright'
@@ -123,14 +121,13 @@ const FEDERATED_APIS_LIST = [
 ];
 
 const CITATION_FORMATS = {
-  abnt: `PRISM. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString('pt-BR')}.`,
-  apa: `Prism. (2026). Cartograph: Scientific Metasearch Hub & PRISMA 2020 Systematic Review Workstation (Version 2.4) [Computer software]. Prism Labs. https://cartographsearch.com`,
-  bibtex: `@software{prism_cartograph_2026,
-  author       = {{Prism}},
+  abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString('pt-BR')}.`,
+  apa: `Cartograph. (2026). Cartograph: Scientific Metasearch Hub & PRISMA 2020 Systematic Review Workstation (Version 2.4) [Computer software]. https://cartographsearch.com`,
+  bibtex: `@software{cartograph_2026,
+  author       = {{Cartograph}},
   title        = {{Cartograph: Scientific Metasearch Hub and PRISMA 2020 Systematic Review Workstation}},
   year         = {2026},
   version      = {2.4.0},
-  publisher    = {Prism Labs},
   url          = {https://cartographsearch.com},
   note         = {Federated metasearch across 15 open scientific APIs and 111 curated academic platforms}
 }`,
@@ -147,12 +144,6 @@ const SECTIONS_META: {
     label: 'Sobre o Cartograph',
     shortDesc: 'Arquitetura, deduplicação e PRISMA 2020',
     icon: BookOpen,
-  },
-  {
-    id: 'prism',
-    label: 'Sobre a Prism',
-    shortDesc: 'Engenharia de software e Ciência Aberta',
-    icon: Layers,
   },
   {
     id: 'apis',
@@ -224,31 +215,20 @@ export const AboutView: React.FC<AboutViewProps> = ({
       >
         {/* Bloco de Assinatura Institucional */}
         <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <PrismMonogram className="h-7 w-auto shrink-0" />
-              <div>
-                <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
-                  Cartograph
-                </div>
-                <div className="text-xs text-[var(--text-muted)]">Versão 2.4</div>
+          <div className="flex items-center gap-2.5">
+            <PrismMonogram className="h-7 w-auto shrink-0" />
+            <div>
+              <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
+                Cartograph
               </div>
-            </div>
-
-            <div className="h-6 w-[1px] bg-[var(--divider)]" />
-
-            <div className="flex items-center gap-2">
-              <PrismPMonogram className="h-5 w-auto shrink-0" />
-              <div className="text-base font-heading font-semibold text-[var(--text-primary)]">
-                Prism
-              </div>
+              <div className="text-xs text-[var(--text-muted)]">Versão 2.4</div>
             </div>
           </div>
 
           <PrismSpectralBar className="h-[2px] w-full opacity-85" />
 
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            Documentação técnica, diretrizes metodológicas, informações da Prism e termos legais do sistema.
+            Documentação técnica, diretrizes metodológicas e termos legais do sistema.
           </p>
         </div>
 
@@ -289,10 +269,6 @@ export const AboutView: React.FC<AboutViewProps> = ({
             Ficha Técnica
           </div>
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">Desenvolvedora</dt>
-              <dd className="font-medium text-[var(--text-primary)]">Prism (Prism Labs)</dd>
-            </div>
             <div className="flex justify-between gap-2">
               <dt className="text-[var(--text-muted)]">Plataformas Curadas</dt>
               <dd className="font-medium text-[var(--text-primary)]">{PLATFORMS.length} portais</dd>
@@ -413,75 +389,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
           </article>
         )}
 
-        {/* SEÇÃO 2: SOBRE A PRISM */}
-        {currentSection === 'prism' && (
-          <article className="space-y-8 max-w-4xl">
-            <header className="border-b border-[var(--divider)] pb-6 space-y-3">
-              <div className="text-sm font-medium text-[var(--link-academic)]">
-                Organização Desenvolvedora
-              </div>
-              <div className="flex items-center gap-3.5">
-                <PrismPMonogram className="h-8 w-auto shrink-0" />
-                <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
-                  Sobre a Prism (Prism Labs)
-                </h1>
-              </div>
-              <p className="text-base sm:text-lg text-[var(--text-secondary)] leading-relaxed pt-1">
-                A <strong>Prism</strong> é a organização de engenharia de software e pesquisa aplicada responsável pelo desenvolvimento, arquitetura e manutenção do Cartograph.
-              </p>
-            </header>
-
-            <div className="space-y-6 text-base text-[var(--text-secondary)] leading-relaxed">
-              <p>
-                A atuação da <strong>Prism</strong> concentra-se na construção de ferramentas computacionais de alta precisão para pesquisa acadêmica, análise estruturada de informações e infraestrutura de Ciência Aberta. Em vez de depender de caixas-pretas probabilísticas que comprometem a rastreabilidade de revisões sistemáticas, os sistemas desenvolvidos pela Prism priorizam engenharia determinística, reprodutibilidade empírica e controle local pelo usuário.
-              </p>
-
-              <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)] pt-2">
-                Diretrizes de Engenharia da Prism
-              </h2>
-
-              <div className="divide-y divide-[var(--divider)] border-y border-[var(--divider)]">
-                <div className="py-5 space-y-1.5">
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                    Reprodutibilidade e Transparência Algorítmica
-                  </h3>
-                  <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    Em uma revisão sistemática de literatura, dois pesquisadores que executem o mesmo protocolo de busca precisam compreender exatamente como cada artigo foi recuperado, deduplicado e filtrado. Todos os mecanismos de expansão booleana, normalização de identificadores e cálculo PRISMA da Prism seguem regras explícitas e auditáveis.
-                  </p>
-                </div>
-
-                <div className="py-5 space-y-1.5">
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                    Soberania de Dados do Pesquisador (Arquitetura Local-First)
-                  </h3>
-                  <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    A Prism projeta softwares nos quais o acervo bibliográfico, os grupos de pesquisa, as anotações de fichamento e as matrizes de síntese permanecem gravados diretamente na máquina do pesquisador, sem aprisionamento em nuvens proprietárias (<em>vendor lock-in</em>) e com exportação imediata em padrões abertos universais (CSV, BibTeX, SVG, ABNT e APA).
-                  </p>
-                </div>
-
-                <div className="py-5 space-y-1.5">
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                    Integração entre Ciência Global e Produção Regional
-                  </h3>
-                  <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    Ferramentas internacionais frequentemente negligenciam bases vitais para a pesquisa ibero-americana e europeia. A Prism mantém no Cartograph suporte de primeira classe a infraestruturas como SciELO, Portal de Periódicos CAPES, Redalyc, Latindex, LA Referencia, BDTD/IBICT, LILACS/BIREME e HAL Open Science, lado a lado com PubMed, OpenAlex, IEEE Xplore, Scopus e Web of Science.
-                  </p>
-                </div>
-
-                <div className="py-5 space-y-1.5">
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                    Interoperabilidade Multiplataforma (Web e Desktop Nativo)
-                  </h3>
-                  <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                    O ecossistema técnico do Cartograph opera tanto via navegador web quanto como aplicação desktop leve construída sobre <strong>Tauri v2 (Rust + WebView nativo)</strong> e <strong>Node.js Local Bridge</strong> para Windows, macOS e Linux, consumindo uma fração mínima de memória RAM.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </article>
-        )}
-
-        {/* SEÇÃO 3: 15 APIs CIENTÍFICAS FEDERADAS */}
+        {/* SEÇÃO 2: 15 APIs CIENTÍFICAS FEDERADAS */}
         {currentSection === 'apis' && (
           <article className="space-y-8">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
@@ -650,23 +558,23 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 Direitos Autorais (Copyright) e Licenciamento de Dados
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                Declaração de titularidade sobre o software Cartograph, marcas da Prism, marcas de terceiros e regime jurídico dos metadados científicos.
+                Declaração de titularidade sobre o software Cartograph, marcas de terceiros e regime jurídico dos metadados científicos.
               </p>
             </header>
 
             <div className="space-y-8 text-base text-[var(--text-secondary)] leading-relaxed">
               <section className="space-y-3">
                 <h2 className="text-xl font-heading font-semibold text-[var(--text-primary)]">
-                  1. Titularidade do Software e das Marcas Prism e Cartograph
+                  1. Titularidade do Software Cartograph
                 </h2>
                 <p className="font-medium text-[var(--text-primary)]">
-                  © {currentYear} Prism (Prism Labs). Todos os direitos reservados.
+                  © {currentYear} Cartograph. Todos os direitos reservados.
                 </p>
                 <p>
-                  O nome comercial e o monograma <strong>Prism (P)</strong>, bem como a marca, o logotipo da lupa cartográfica e o sistema <strong>Cartograph</strong> (compreendendo seu código-fonte, projeto de interface gráfica, motor de deduplicação multicritério, parser determinístico de resumos estruturados, geradores vetoriais PRISMA 2020, compiladores bibliográficos e taxonomia curada de plataformas) são de titularidade exclusiva da <strong>Prism</strong>.
+                  A marca, o logotipo da lupa cartográfica e o sistema <strong>Cartograph</strong> (compreendendo seu código-fonte, projeto de interface gráfica, motor de deduplicação multicritério, parser determinístico de resumos estruturados, geradores vetoriais PRISMA 2020, compiladores bibliográficos e taxonomia curada de plataformas) são protegidos por direitos de propriedade intelectual.
                 </p>
                 <p>
-                  Estes ativos são protegidos pela legislação brasileira de Propriedade Intelectual, Lei do Software (Lei nº 9.609/1998), Lei de Direitos Autorais (Lei nº 9.610/1998) e pelos tratados internacionais aplicáveis (Convenção de Berna e Acordo TRIPS). É vedada a reprodução comercial não autorizada, redistribuição como serviço próprio ou remoção dos créditos institucionais da Prism.
+                  Estes ativos são amparados pela legislação brasileira de Propriedade Intelectual, Lei do Software (Lei nº 9.609/1998), Lei de Direitos Autorais (Lei nº 9.610/1998) e pelos tratados internacionais aplicáveis (Convenção de Berna e Acordo TRIPS). É vedada a reprodução comercial não autorizada ou redistribuição como serviço próprio.
                 </p>
               </section>
 

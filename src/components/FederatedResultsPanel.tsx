@@ -13,6 +13,7 @@ import {
   formatBibtexEntry,
 } from '../utils/citationExporter';
 import { parseAbstractMetadata } from '../utils/abstractParser';
+import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { useI18n } from '../i18n/context';
 import {
   AlertCircle,
@@ -705,25 +706,31 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             const isExpanded = Boolean(expandedAbstracts[paper.id]);
             const isStructuredExpanded = Boolean(expandedStructured[paper.id]);
             const meta = parseAbstractMetadata(paper.title, paper.abstractText, paper.publicationType);
+            const safePaperUrl = sanitizeExternalUrl(paper.url);
+            const safePdfUrl = sanitizeExternalUrl(paper.pdfUrl);
 
             return (
               <article key={paper.id} className="group">
                 {/* Title Row + Direct PDF Link (Google Scholar Pattern) */}
                 <div className="flex items-baseline justify-between gap-4">
                   <h3 className="text-[19px] font-medium leading-snug">
-                    <a
-                      href={paper.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[var(--link-academic)] hover:underline"
-                    >
-                      {paper.title}
-                    </a>
+                    {safePaperUrl ? (
+                      <a
+                        href={safePaperUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--link-academic)] hover:underline"
+                      >
+                        {paper.title}
+                      </a>
+                    ) : (
+                      <span className="text-[var(--text-primary)]">{paper.title}</span>
+                    )}
                   </h3>
 
-                  {paper.pdfUrl && (
+                  {safePdfUrl && (
                     <a
-                      href={paper.pdfUrl}
+                      href={safePdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0 text-[13px] font-medium text-[var(--meta-green)] hover:underline"

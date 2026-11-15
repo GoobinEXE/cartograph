@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { FeedbackType, UserFeedbackItem } from '../types/academic';
 import { useI18n } from '../i18n/context';
-import { PrismMonogram, PrismPMonogram, PrismSpectralBar } from './PrismLogo';
+import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import {
   Check,
   Copy,
@@ -83,13 +84,18 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) =>
       // ignore
     }
 
-    // 2. Attempt sending to local server bridge if online
+    // 2. Attempt sending to API endpoint if online
+    let persistedRemotely = false;
     try {
-      await fetch('/api/feedback', {
+      const res = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
       });
+      if (res.ok) {
+        const data = (await res.json()) as { persistedRemotely?: boolean };
+        persistedRemotely = Boolean(data?.persistedRemotely);
+      }
     } catch {
       // Graceful degradation when running purely in static browser mode
     }
@@ -103,8 +109,12 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) =>
     setMessage('');
     setRelatedUrl('');
     setIsSubmitting(false);
-    setSuccessBanner(t('feedbackSuccessBanner'));
-    setTimeout(() => setSuccessBanner(null), 5000);
+    setSuccessBanner(
+      persistedRemotely
+        ? t('feedbackSuccessBanner')
+        : `${t('feedbackSuccessBanner')} (salvo no histórico local deste navegador — copie em Markdown para envio manual se desejar).`
+    );
+    setTimeout(() => setSuccessBanner(null), 6000);
   };
 
   const handleCopyMarkdown = async (item: UserFeedbackItem) => {
@@ -139,7 +149,7 @@ ${item.message}`;
             <div className="inline-flex items-center gap-2 mb-2">
               <PrismMonogram className="h-4 w-auto" />
               <span className="text-xs font-medium text-[var(--text-muted)]">
-                Prism Open Science
+                Cartograph · Ciência Aberta
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-heading font-semibold text-[var(--text-primary)] tracking-tight">
@@ -391,17 +401,23 @@ ${item.message}`;
                 {(item.institution || item.relatedUrl) && (
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] pt-1">
                     {item.institution && <span>Instituição: {item.institution}</span>}
-                    {item.relatedUrl && (
-                      <a
-                        href={item.relatedUrl.startsWith('http') ? item.relatedUrl : `https://${item.relatedUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[var(--link-academic)] hover:underline"
-                      >
-                        <span>{item.relatedUrl}</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
+                    {(() => {
+                      const safeRelatedUrl = sanitizeExternalUrl(item.relatedUrl, {
+                        allowImplicitHttps: true,
+                      });
+                      if (!safeRelatedUrl) return null;
+                      return (
+                        <a
+                          href={safeRelatedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[var(--link-academic)] hover:underline"
+                        >
+                          <span>{item.relatedUrl}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -413,12 +429,12 @@ ${item.message}`;
       {/* Institutional Note */}
       <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <PrismPMonogram className="h-5 w-auto shrink-0" />
+          <PrismMonogram className="h-5 w-auto shrink-0" />
           <div className="text-xs">
-            <span className="font-semibold text-[var(--text-primary)]">Prism Labs</span>
+            <span className="font-semibold text-[var(--text-primary)]">Cartograph</span>
             <span className="mx-1.5 text-[var(--divider)]">·</span>
             <span className="text-[var(--text-muted)]">
-              Engenharia de software e pesquisa em ciência aberta.
+              Metabusca científica e revisão sistemática em ciência aberta.
             </span>
           </div>
         </div>

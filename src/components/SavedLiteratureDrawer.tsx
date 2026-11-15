@@ -16,6 +16,7 @@ import { calculatePrisma2020Counts, SCREENING_REASON_LABELS } from '../utils/pri
 import { PrismaFlowDiagram } from './PrismaFlowDiagram';
 import { parseAbstractMetadata } from '../utils/abstractParser';
 import { trackAcademicEvent } from '../utils/analytics';
+import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { useI18n } from '../i18n/context';
 import {
   Check,
@@ -730,14 +731,18 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                             </div>
 
                             <h4 className="text-[18px] font-medium text-[var(--link-academic)] leading-snug">
-                              <a
-                                href={item.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline"
-                              >
-                                {item.title}
-                              </a>
+                              {sanitizeExternalUrl(item.url) ? (
+                                <a
+                                  href={sanitizeExternalUrl(item.url)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:underline"
+                                >
+                                  {item.title}
+                                </a>
+                              ) : (
+                                <span className="text-[var(--text-primary)]">{item.title}</span>
+                              )}
                             </h4>
                             <div className="text-[13.5px] text-[var(--meta-green)] mt-1">
                               {item.authors.length > 0
@@ -991,17 +996,19 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-5 text-[13px] text-[var(--text-muted)]">
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-[var(--link-academic)] hover:underline"
-                          >
-                            {t('openSource')}
-                          </a>
-                          {item.pdfUrl && (
+                          {sanitizeExternalUrl(item.url) && (
                             <a
-                              href={item.pdfUrl}
+                              href={sanitizeExternalUrl(item.url)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-[var(--link-academic)] hover:underline"
+                            >
+                              {t('openSource')}
+                            </a>
+                          )}
+                          {sanitizeExternalUrl(item.pdfUrl) && (
+                            <a
+                              href={sanitizeExternalUrl(item.pdfUrl)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-medium text-[var(--meta-green)] hover:underline"

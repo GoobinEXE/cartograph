@@ -55,15 +55,7 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://cartographsearch.com/about" />
   </url>
 
-  <!-- 5. Capítulo 02: Ecossistema Prism (Prism Labs) -->
-  <url>
-    <loc>https://cartographsearch.com/prism</loc>
-    <lastmod>2026-11-14</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-
-  <!-- 6. Capítulo 03: Catálogo de 15 APIs Abertas Federadas -->
+  <!-- 5. Catálogo de 15 APIs Abertas Federadas -->
   <url>
     <loc>https://cartographsearch.com/apis</loc>
     <lastmod>2026-11-14</lastmod>
@@ -71,7 +63,7 @@
     <priority>0.8</priority>
   </url>
 
-  <!-- 7. Capítulo 04: Como Citar (ABNT NBR 6023, APA 7ª Ed., BibTeX) -->
+  <!-- 6. Como Citar (ABNT NBR 6023, APA 7ª Ed., BibTeX) -->
   <url>
     <loc>https://cartographsearch.com/citation</loc>
     <lastmod>2026-11-14</lastmod>
@@ -79,7 +71,7 @@
     <priority>0.8</priority>
   </url>
 
-  <!-- 8. Capítulo 05: Direitos Autorais, Propriedade Intelectual & Licenças -->
+  <!-- 7. Direitos Autorais, Propriedade Intelectual & Licenças -->
   <url>
     <loc>https://cartographsearch.com/copyright</loc>
     <lastmod>2026-11-14</lastmod>
@@ -87,7 +79,7 @@
     <priority>0.6</priority>
   </url>
 
-  <!-- 9. Capítulo 06: Política de Privacidade (LGPD / GDPR) & Termos de Uso -->
+  <!-- 8. Política de Privacidade (LGPD / GDPR) & Termos de Uso -->
   <url>
     <loc>https://cartographsearch.com/privacy</loc>
     <lastmod>2026-11-14</lastmod>
@@ -95,7 +87,7 @@
     <priority>0.6</priority>
   </url>
 
-  <!-- 10. Canal de Feedback & Sugestão de Plataformas -->
+  <!-- 9. Canal de Feedback & Sugestão de Plataformas -->
   <url>
     <loc>https://cartographsearch.com/feedback</loc>
     <lastmod>2026-11-14</lastmod>

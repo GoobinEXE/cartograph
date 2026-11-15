@@ -1,5 +1,6 @@
 import { ApiSourceId, DeduplicationSummary, NormalizedPaper, SourceFetchStatus } from '../types/academic';
 import { deduplicatePapersAdvanced } from '../utils/deduplication';
+import { sanitizeExternalUrl } from '../utils/urlSafety';
 
 export function isTauriRuntime(): boolean {
   return (
@@ -69,23 +70,7 @@ export async function crossPlatformFetch(
       return directRes;
     }
     lastHttpStatus = directRes.status;
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
-    lastNetworkError = err instanceof Error ? err.message : String(err);
-    // Fallback to public CORS relay
-  }
-
-  checkAborted();
-
-  try {
-    const relayRes = await fetch(
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`,
-      { signal: init?.signal }
-    );
-    if (!relayRes.ok && lastHttpStatus) {
-      throw new Error(`HTTP ${lastHttpStatus} (relay fallback HTTP ${relayRes.status})`);
-    }
-    return relayRes;
+    throw new Error(`HTTP ${directRes.status}`);
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') throw err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -1377,17 +1362,20 @@ export async function runFederatedSearch(
 export async function launchUrlsCrossPlatform(
   urls: string[]
 ): Promise<{ usedNativeBridge: boolean; launchedCount: number }> {
-  if (urls.length === 0) return { usedNativeBridge: false, launchedCount: 0 };
+  const safeUrls = urls
+    .map((u) => sanitizeExternalUrl(u))
+    .filter((u): u is string => Boolean(u));
+  if (safeUrls.length === 0) return { usedNativeBridge: false, launchedCount: 0 };
 
   // 1. Detecção e execução em runtime nativo Tauri Desktop
   if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       let launched = 0;
-      for (let i = 0; i < urls.length; i++) {
-        await openUrl(urls[i]);
+      for (let i = 0; i < safeUrls.length; i++) {
+        await openUrl(safeUrls[i]);
         launched++;
-        if (i < urls.length - 1) {
+        if (i < safeUrls.length - 1) {
           await new Promise((r) => setTimeout(r, 110));
         }
       }
@@ -1397,29 +1385,34 @@ export async function launchUrlsCrossPlatform(
     }
   }
 
-  // 2. Node.js Local Bridge (/api/launch-urls)
-  try {
-    const res = await fetch('/api/launch-urls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.ok) {
-        return {
-          usedNativeBridge: true,
-          launchedCount: Number(data.launchedCount || urls.length),
-        };
+  // 2. Node.js Local Bridge (/api/launch-urls) — only attempt when running on localhost
+  const isLocalHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (isLocalHost) {
+    try {
+      const res = await fetch('/api/launch-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: safeUrls }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ok) {
+          return {
+            usedNativeBridge: true,
+            launchedCount: Number(data.launchedCount || safeUrls.length),
+          };
+        }
       }
+    } catch {
+      // Fallback to browser window.open if running static build without bridge
     }
-  } catch {
-    // Fallback to browser window.open if running static build without bridge
   }
 
   // 3. Fallback Web Standard
   let opened = 0;
-  urls.forEach((url) => {
+  safeUrls.forEach((url) => {
     const win = window.open(url, '_blank', 'noopener,noreferrer');
     if (win) opened++;
   });

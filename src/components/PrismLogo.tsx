@@ -7,7 +7,7 @@ export const PrismMonogram: React.FC<{
 }> = ({
   className = 'h-6 w-auto shrink-0',
   size,
-  title = 'Logo Cartograph — Lupa Cartográfica e Espectro Prism',
+  title = 'Logo Cartograph',
 }) => {
   return (
     <svg

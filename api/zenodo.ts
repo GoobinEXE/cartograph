@@ -1,39 +1,57 @@
-export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+import {
+  applyCorsHeaders,
+  CARTOGRAPH_USER_AGENT,
+  enforceRateLimit,
+  type MinimalRequest,
+  type MinimalResponse,
+  setEdgeCacheHeaders,
+  validateSearchParams,
+} from './_security';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+export default async function handler(req: MinimalRequest, res: MinimalResponse) {
+  if (applyCorsHeaders(req, res, 'GET, OPTIONS')) return;
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ ok: false, error: 'Método não permitido' });
   }
 
-  const query = (req.query?.q || '').trim();
-  const size = Math.min(Number(req.query?.size || 8), 20);
+  const allowed = await enforceRateLimit(req, res, {
+    keyPrefix: 'zenodo',
+    maxRequests: 30,
+    windowMs: 60_000,
+  });
+  if (!allowed) return;
 
-  if (!query) {
-    return res.status(400).json({ ok: false, error: 'Parâmetro q ausente' });
-  }
+  const params = validateSearchParams(req, res, {
+    limitKey: 'size',
+    defaultLimit: 8,
+    maxLimit: 20,
+    maxQueryLength: 300,
+  });
+  if (!params) return;
 
   try {
     const zenodoUrl = `https://zenodo.org/api/records?q=${encodeURIComponent(
-      query
-    )}&size=${size}&sort=bestmatch`;
+      params.query
+    )}&size=${params.limit}&sort=bestmatch`;
 
     const response = await fetch(zenodoUrl, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'Cartograph/2.1 (Academic Metasearch Hub)',
+        'User-Agent': CARTOGRAPH_USER_AGENT,
       },
       signal: AbortSignal.timeout(10_000),
     });
 
     const data = await response.json();
+    if (response.ok) {
+      setEdgeCacheHeaders(res, 300);
+    }
     return res.status(response.status).json(data);
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(502).json({
       ok: false,
       error: err instanceof Error ? err.message : 'Falha ao consultar Zenodo API',
     });
   }
 }
-

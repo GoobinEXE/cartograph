@@ -84,7 +84,9 @@ export function formatBibtexEntry(paper: NormalizedPaper): string {
 
 function escapeCsvCell(value: string | number | null | undefined): string {
   const str = value == null ? '' : String(value);
-  const escaped = str.replace(/"/g, '""');
+  // Neutralize spreadsheet formula injection (CWE-1236) in Excel/LibreOffice
+  const neutralized = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+  const escaped = neutralized.replace(/"/g, '""');
   return `"${escaped}"`;
 }
 
