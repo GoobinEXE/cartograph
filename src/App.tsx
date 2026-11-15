@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import {
   PLATFORMS,
   THEMATIC_AREAS,
@@ -1531,6 +1532,7 @@ export default function AcademicCommandCenter() {
           </div>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 }
