@@ -48,6 +48,18 @@ export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 }
 
+/**
+ * The launcher bridge (server/launcher-bridge.mjs) runs only on the researcher's machine, so
+ * its routes (/api/health, /api/launch-urls) exist only on a loopback origin: never on the
+ * Vercel deployment, where probing them just logs a 404, and never inside Tauri, which opens
+ * tabs through its own opener plugin.
+ */
+export function isLocalBridgeOrigin(): boolean {
+  if (typeof window === 'undefined' || !window.location || isTauriRuntime()) return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+}
+
 function isAbortError(err: unknown): boolean {
   return (err as { name?: string } | null)?.name === 'AbortError';
 }

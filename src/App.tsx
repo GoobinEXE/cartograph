@@ -22,6 +22,7 @@ import {
   UserAccessConfig,
 } from './types/academic';
 import {
+  isLocalBridgeOrigin,
   launchUrlsCrossPlatform,
   runFederatedSearch,
 } from './services/academicAggregator';
@@ -296,8 +297,10 @@ export default function AcademicCommandCenter() {
     }
   }, [dedupEnabled]);
 
-  // Check multiplatform local bridge health (Windows / Linux / macOS)
+  // Check multiplatform local bridge health (Windows / Linux / macOS). The bridge only runs
+  // on loopback, so hosted builds skip the probe instead of logging a 404 on every load.
   useEffect(() => {
+    if (!isLocalBridgeOrigin()) return;
     let mounted = true;
     fetch('/api/health')
       .then((r) => (r.ok ? r.json() : null))
