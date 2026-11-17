@@ -1,5 +1,6 @@
 import { SupportedLanguage, translate } from '../i18n/translations';
 import {
+  ApiSourceId,
   CustomExtractionColumn,
   DedupOverrideRule,
   LibraryGroup,
@@ -130,17 +131,26 @@ function sanitizeRecordList<T>(
   return out;
 }
 
+/** Raw workspace records after sanitization, plus what failed it. Missing keys yield empty values. */
+export interface SanitizedWorkspaceRecords {
+  savedPapers: SavedPaperItem[];
+  groups: LibraryGroup[];
+  searchLogs: SearchLogEntry[];
+  customColumns: CustomExtractionColumn[];
+  selectedPlatformIds: string[];
+  activeSaveGroupId: string | null;
+  dedupOverrides: DedupOverrideRule | undefined;
+  rejected: EmergencyRejectedRecord[];
+}
+
 /**
- * Builds a restorable backup from the raw workspace records (IndexedDB or legacy localStorage).
- * It reads only the workspace keys, so the access configuration (BYOK keys, InstToken,
- * institutional proxy) can never reach the file. Records that fail sanitization are kept
- * under `emergencyRecovery.rejectedRecords` instead of being dropped, since the crash that
- * triggered this export may come from exactly those records.
+ * Single sanitization path for records read back from IndexedDB or legacy localStorage:
+ * used by workspace hydration and by the emergency backup, so both agree on which stored
+ * records are usable.
  */
-export function buildEmergencyBackupFromRecords(
-  records: Partial<Record<WorkspaceStorageKey, unknown>>,
-  options?: { ownedPlatformIds?: string[]; version?: string }
-): EmergencyBackupResult {
+export function sanitizeStoredWorkspaceRecords(
+  records: Partial<Record<WorkspaceStorageKey, unknown>>
+): SanitizedWorkspaceRecords {
   const rejected: EmergencyRejectedRecord[] = [];
 
   const savedPapers = sanitizeRecordList('savedPapers', records.savedPapers, sanitizeSavedPaper, rejected);
@@ -178,6 +188,40 @@ export function buildEmergencyBackupFromRecords(
       rejected.push({ key: 'dedupOverrides', index: null, value: rawOverrides });
     }
   }
+
+  return {
+    savedPapers,
+    groups,
+    searchLogs,
+    customColumns,
+    selectedPlatformIds,
+    activeSaveGroupId,
+    dedupOverrides,
+    rejected,
+  };
+}
+
+/**
+ * Builds a restorable backup from the raw workspace records (IndexedDB or legacy localStorage).
+ * It reads only the workspace keys, so the access configuration (BYOK keys, InstToken,
+ * institutional proxy) can never reach the file. Records that fail sanitization are kept
+ * under `emergencyRecovery.rejectedRecords` instead of being dropped, since the crash that
+ * triggered this export may come from exactly those records.
+ */
+export function buildEmergencyBackupFromRecords(
+  records: Partial<Record<WorkspaceStorageKey, unknown>>,
+  options?: { ownedPlatformIds?: string[]; version?: string }
+): EmergencyBackupResult {
+  const {
+    savedPapers,
+    groups,
+    searchLogs,
+    customColumns,
+    selectedPlatformIds,
+    activeSaveGroupId,
+    dedupOverrides,
+    rejected,
+  } = sanitizeStoredWorkspaceRecords(records);
 
   const payload: CartographEmergencyBackup = {
     ...buildWorkspaceBackupPayload({
@@ -273,6 +317,11 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
         .filter((e): e is RelatedPaperUrl => e !== null)
     : undefined;
 
+  const safeRetractionUrl = sanitizeExternalUrl(
+    typeof p.retractionNoticeUrl === 'string' ? p.retractionNoticeUrl : null
+  );
+  const sourceRanks = sanitizeSourceRanks(p.sourceRanks);
+
   return {
     id: p.id.trim(),
     title,
@@ -311,7 +360,25 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
     ...(sanitizeQualityAppraisal(p.qualityAppraisal)
       ? { qualityAppraisal: sanitizeQualityAppraisal(p.qualityAppraisal)! }
       : {}),
+    // Retraction flags drive the library warning badge and sourceRanks feed the RRF consensus
+    // score, so a stored record keeps them across reloads and backups.
+    ...(p.isRetracted === true ? { isRetracted: true } : {}),
+    ...(safeRetractionUrl ? { retractionNoticeUrl: safeRetractionUrl } : {}),
+    ...(sourceRanks ? { sourceRanks } : {}),
   };
+}
+
+function sanitizeSourceRanks(raw: unknown): Partial<Record<ApiSourceId, number>> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Partial<Record<ApiSourceId, number>> = {};
+  let count = 0;
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (key.trim() && typeof val === 'number' && Number.isFinite(val) && val > 0) {
+      out[key as ApiSourceId] = val;
+      count += 1;
+    }
+  }
+  return count > 0 ? out : undefined;
 }
 
 function sanitizeCustomFields(raw: unknown): Record<string, string> {

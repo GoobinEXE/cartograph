@@ -4,7 +4,6 @@ import {
   ApiSourceId,
   DeduplicationSummary,
   InstitutionalProxyConfig,
-  LibraryGroup,
   MergeClusterEntry,
   NormalizedPaper,
   RelevanceBreakdown,
@@ -26,17 +25,19 @@ import { rankPapersByRelevance } from '../utils/relevanceRanker';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { resolveUnpaywallPdf } from '../services/unpaywallResolver';
 import { useI18n } from '../i18n/context';
+import { useWorkspace } from '../state/workspace';
 import { CitationChaserModal } from './CitationChaserModal';
 import { MergeInspectorModal } from './MergeInspectorModal';
 import { UnifiedAreaFilterDrawer } from './UnifiedAreaFilterDrawer';
 import { UserWorkspaceSection } from './UserWorkspaceSection';
+import { CollapsibleSection, SidebarDrawersHeader } from './ui/CollapsibleSection';
+import { usePersistedDrawers } from './ui/usePersistedDrawers';
 import {
   AlertCircle,
   AlertTriangle,
   Bookmark,
   BookmarkCheck,
   Check,
-  ChevronDown,
   FileSearch,
   FileText,
   Folder,
@@ -45,31 +46,32 @@ import {
   GitMerge,
   Loader2,
   Microscope,
-  SlidersHorizontal,
   Users,
 } from 'lucide-react';
 
 type FederatedSidebarSectionKey = 'areas' | 'slot' | 'sort' | 'access' | 'sources';
-const STORAGE_KEY_FEDERATED_DRAWERS = LAYOUT_STORAGE_KEYS.federatedSidebarDrawers;
 
+const FEDERATED_SIDEBAR_DRAWER_DEFAULTS: Record<FederatedSidebarSectionKey, boolean> = {
+  areas: true,
+  slot: true,
+  sort: true,
+  access: true,
+  sources: true,
+};
+
+const FEDERATED_DRAWER_HEADER_CLASS =
+  'w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left';
+
+/** Search-session data from App; library data (saved papers, groups, save target) comes from the workspace store. */
 interface FederatedResultsPanelProps {
   papers: NormalizedPaper[];
   searchQuery?: string;
   statuses: SourceFetchStatus[];
   isSearching: boolean;
-  savedIds: Set<string>;
-  savedPapers?: SavedPaperItem[];
-  groups?: LibraryGroup[];
-  activeSaveGroupId?: string | null;
-  onSelectActiveSaveGroup?: (groupId: string | null) => void;
-  onCreateGroup?: (name: string, color?: string) => LibraryGroup;
-  onAssignPaperGroup?: (paperId: string, groupId: string | null) => void;
-  onToggleSave: (paper: NormalizedPaper, targetGroupId?: string | null) => void;
   deduplicationSummary?: DeduplicationSummary | null;
   dedupEnabled?: boolean;
   onToggleDedup?: (next: boolean) => void;
   mergeClusters?: MergeClusterEntry[];
-  onSplitMergePair?: (idA: string, idB: string) => void;
   institutionalProxy?: InstitutionalProxyConfig;
   selectedArea: 'all' | ThematicArea;
   onSelectArea: (area: 'all' | ThematicArea) => void;
@@ -82,19 +84,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   searchQuery = '',
   statuses,
   isSearching,
-  savedIds,
-  savedPapers = [],
-  groups = [],
-  activeSaveGroupId = null,
-  onSelectActiveSaveGroup,
-  onCreateGroup,
-  onAssignPaperGroup,
-  onToggleSave,
   deduplicationSummary,
   dedupEnabled = true,
   onToggleDedup,
   mergeClusters = [],
-  onSplitMergePair,
   institutionalProxy,
   selectedArea,
   onSelectArea,
@@ -102,6 +95,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   onOpenAccessSettings,
 }) => {
   const { language, t } = useI18n();
+  const { state: workspace, actions: workspaceActions } = useWorkspace();
+  const { savedPapers, libraryGroups: groups, activeSaveGroupId } = workspace;
+  const savedIds = useMemo(() => new Set(savedPapers.map((sp) => sp.id)), [savedPapers]);
+  const onToggleSave = workspaceActions.toggleSavePaper;
   const [onlyOpenAccess, setOnlyOpenAccess] = useState(false);
   const [hideAlreadySaved, setHideAlreadySaved] = useState(false);
   const [selectedSource, setSelectedSource] = useState<'all' | ApiSourceId>('all');
@@ -133,65 +130,12 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
     }
   };
 
-  const [sidebarDrawers, setSidebarDrawers] = useState<
-    Record<FederatedSidebarSectionKey, boolean>
-  >(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_FEDERATED_DRAWERS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return {
-            areas: parsed.areas !== false,
-            slot: parsed.slot !== false,
-            sort: parsed.sort !== false,
-            access: parsed.access !== false,
-            sources: parsed.sources !== false,
-          };
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return {
-      areas: true,
-      slot: true,
-      sort: true,
-      access: true,
-      sources: true,
-    };
-  });
-
-  const toggleSidebarDrawer = (key: FederatedSidebarSectionKey) => {
-    setSidebarDrawers((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem(STORAGE_KEY_FEDERATED_DRAWERS, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
-  const allDrawersOpen = Object.values(sidebarDrawers).every(Boolean);
-
-  const toggleAllSidebarDrawers = () => {
-    const targetState = !allDrawersOpen;
-    const next: Record<FederatedSidebarSectionKey, boolean> = {
-      areas: targetState,
-      slot: targetState,
-      sort: targetState,
-      access: targetState,
-      sources: targetState,
-    };
-    setSidebarDrawers(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_FEDERATED_DRAWERS, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  };
+  const {
+    drawers: sidebarDrawers,
+    allDrawersOpen,
+    toggleDrawer: toggleSidebarDrawer,
+    toggleAllDrawers: toggleAllSidebarDrawers,
+  } = usePersistedDrawers(LAYOUT_STORAGE_KEYS.federatedSidebarDrawers, FEDERATED_SIDEBAR_DRAWER_DEFAULTS);
 
   const activeSaveGroupObj = useMemo(
     () => (activeSaveGroupId ? groups.find((g) => g.id === activeSaveGroupId) ?? null : null),
@@ -298,11 +242,9 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   const handleQuickCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = quickGroupName.trim();
-    if (!trimmed || !onCreateGroup) return;
-    const created = onCreateGroup(trimmed);
-    if (onSelectActiveSaveGroup) {
-      onSelectActiveSaveGroup(created.id);
-    }
+    if (!trimmed) return;
+    const created = workspaceActions.createGroup(trimmed);
+    workspaceActions.setActiveSaveGroup(created.id);
     setQuickGroupName('');
     setShowQuickGroupInput(false);
   };
@@ -316,38 +258,17 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
         className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
         aria-label={t('federatedSidebarAria')}
       >
-        {/* Controle de Gavetas */}
-        <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
-          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <span>{t('filtersNavTitle')}</span>
-          </div>
-          <button
-            type="button"
-            onClick={toggleAllSidebarDrawers}
-            className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] rounded"
-            title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
-          >
-            {allDrawersOpen ? t('collapseAll') : t('expandAll')}
-          </button>
-        </div>
+        <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
         {/* 1. Sort Controls (Primary ordering control — top priority) */}
-        <div className="border-b border-[var(--divider)] pb-3">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('sort')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('sort');
-              }
-            }}
-            aria-expanded={sidebarDrawers.sort}
-            className="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.sort}
+          onToggle={() => toggleSidebarDrawer('sort')}
+          className="border-b border-[var(--divider)] pb-3"
+          headerClassName={FEDERATED_DRAWER_HEADER_CLASS}
+          contentClassName="space-y-0.5 text-[13.5px]"
+          title={
+            <>
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                 {t('sortByLabel')}
               </span>
@@ -356,71 +277,55 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   {sortBy === 'citations' ? t('sortShortCitations') : t('sortShortYear')}
                 </span>
               )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {sortBy !== 'relevance' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSortBy('relevance');
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.sort && (
-            <div className="space-y-0.5 text-[13.5px]">
-              {(['relevance', 'citations', 'year'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSortBy(mode)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    sortBy === mode
-                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {mode === 'relevance' && t('sortRelevance')}
-                  {mode === 'citations' && t('sortCitations')}
-                  {mode === 'year' && t('sortYear')}
-                </button>
-              ))}
-              {sortBy === 'relevance' && (
-                <p className="px-2.5 pt-1 text-[11px] leading-snug text-[var(--text-muted)]">
-                  {t('relevanceMethodCaption')}
-                </p>
-              )}
-            </div>
+            </>
+          }
+          actions={
+            sortBy !== 'relevance' && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSortBy('relevance');
+                }}
+                className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                {t('clearFilter')}
+              </button>
+            )
+          }
+        >
+          {(['relevance', 'citations', 'year'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSortBy(mode)}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                sortBy === mode
+                  ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {mode === 'relevance' && t('sortRelevance')}
+              {mode === 'citations' && t('sortCitations')}
+              {mode === 'year' && t('sortYear')}
+            </button>
+          ))}
+          {sortBy === 'relevance' && (
+            <p className="px-2.5 pt-1 text-[11px] leading-snug text-[var(--text-muted)]">
+              {t('relevanceMethodCaption')}
+            </p>
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* 2. Access & Deduplication Toggles (High-frequency screening filters) */}
-        <div className="border-b border-[var(--divider)] pb-3">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('access')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('access');
-              }
-            }}
-            aria-expanded={sidebarDrawers.access}
-            className="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.access}
+          onToggle={() => toggleSidebarDrawer('access')}
+          className="border-b border-[var(--divider)] pb-3"
+          headerClassName={FEDERATED_DRAWER_HEADER_CLASS}
+          contentClassName="space-y-1"
+          title={
+            <>
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                 {t('availabilityTitle')}
               </span>
@@ -429,62 +334,53 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   Open Access
                 </span>
               )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onlyOpenAccess && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOnlyOpenAccess(false);
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.access ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.access && (
-            <div className="space-y-1">
-              <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={onlyOpenAccess}
-                  onChange={(e) => setOnlyOpenAccess(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[var(--link-academic)]"
-                />
-                <span>{t('availabilityOpenAccessOnly')}</span>
-              </label>
-
-              <label
-                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none"
-                title={t('livingDiffTitle')}
+            </>
+          }
+          actions={
+            onlyOpenAccess && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOnlyOpenAccess(false);
+                }}
+                className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
               >
-                <span className="flex items-center gap-2 min-w-0">
-                  <input
-                    type="checkbox"
-                    checked={hideAlreadySaved}
-                    onChange={(e) => setHideAlreadySaved(e.target.checked)}
-                    className="w-4 h-4 rounded accent-[var(--link-academic)] shrink-0"
-                  />
-                  <span className="truncate">{t('hideAlreadySavedLabel')}</span>
-                </span>
-                {libraryDiff.matched.length > 0 && (
-                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] shrink-0">
-                    {libraryDiff.matched.length}
-                  </span>
-                )}
-              </label>
-            </div>
-          )}
-        </div>
+                {t('clearFilter')}
+              </button>
+            )
+          }
+        >
+          <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={onlyOpenAccess}
+              onChange={(e) => setOnlyOpenAccess(e.target.checked)}
+              className="w-4 h-4 rounded accent-[var(--link-academic)]"
+            />
+            <span>{t('availabilityOpenAccessOnly')}</span>
+          </label>
+
+          <label
+            className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[13.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none"
+            title={t('livingDiffTitle')}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <input
+                type="checkbox"
+                checked={hideAlreadySaved}
+                onChange={(e) => setHideAlreadySaved(e.target.checked)}
+                className="w-4 h-4 rounded accent-[var(--link-academic)] shrink-0"
+              />
+              <span className="truncate">{t('hideAlreadySavedLabel')}</span>
+            </span>
+            {libraryDiff.matched.length > 0 && (
+              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] shrink-0">
+                {libraryDiff.matched.length}
+              </span>
+            )}
+          </label>
+        </CollapsibleSection>
 
         {/* 3. Unified Field & Metasearch Scope Drawer */}
         <UnifiedAreaFilterDrawer
@@ -498,35 +394,29 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
 
         {/* 4. Source Filter */}
         {statuses.length > 0 && (
-          <div className="border-b border-[var(--divider)] pb-3">
-            <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('sources')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('sources');
-              }
-            }}
-            aria-expanded={sidebarDrawers.sources}
-            className="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                {t('queriedSourcesTitle')}
-              </span>
-              {selectedSource !== 'all' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[85px]">
-                  {activeSourceStatus?.label.split(' ')[0] || selectedSource}
+          <CollapsibleSection
+            isOpen={sidebarDrawers.sources}
+            onToggle={() => toggleSidebarDrawer('sources')}
+            className="border-b border-[var(--divider)] pb-3"
+            headerClassName="w-full flex items-center justify-between py-1 px-1 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left"
+            contentClassName="space-y-0.5 text-[13.5px]"
+            title={
+              <>
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                  {t('queriedSourcesTitle')}
                 </span>
-              )}
-              {isSearching && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--link-academic)] shrink-0" />
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {selectedSource !== 'all' && (
+                {selectedSource !== 'all' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--link-academic)]/15 text-[var(--link-academic)] truncate max-w-[85px]">
+                    {activeSourceStatus?.label.split(' ')[0] || selectedSource}
+                  </span>
+                )}
+                {isSearching && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--link-academic)] shrink-0" />
+                )}
+              </>
+            }
+            actions={
+              selectedSource !== 'all' && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -537,82 +427,66 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                 >
                   {t('clearFilter')}
                 </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.sources ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
+              )
+            }
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedSource('all')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                selectedSource === 'all'
+                  ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <span>{t('allSourcesOption')}</span>
+              <span className="text-xs text-[var(--text-muted)]">{papers.length}</span>
+            </button>
 
-          {sidebarDrawers.sources && (
-            <div className="space-y-0.5 text-[13.5px]">
-              <button
-                type="button"
-                onClick={() => setSelectedSource('all')}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  selectedSource === 'all'
-                    ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <span>{t('allSourcesOption')}</span>
-                <span className="text-xs text-[var(--text-muted)]">{papers.length}</span>
-              </button>
-
-              {statuses.map((st) => {
-                const isSelected = selectedSource === st.source;
-                const isSourceError = st.status === 'error';
-                const isSourceLoading = st.status === 'loading';
-                return (
-                  <button
-                    key={st.source}
-                    type="button"
-                    onClick={() =>
-                      setSelectedSource((prev) => (prev === st.source ? 'all' : st.source))
-                    }
-                    title={isSourceError ? st.errorMessage : st.label}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <span className="truncate pr-2">{st.label.split(' ')[0]}</span>
-                    <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] shrink-0">
-                      {isSourceLoading ? (
-                        <Loader2 className="w-3 h-3 animate-spin text-[var(--link-academic)]" />
-                      ) : isSourceError ? (
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-500/80" />
-                      ) : (
-                        st.count
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          </div>
+            {statuses.map((st) => {
+              const isSelected = selectedSource === st.source;
+              const isSourceError = st.status === 'error';
+              const isSourceLoading = st.status === 'loading';
+              return (
+                <button
+                  key={st.source}
+                  type="button"
+                  onClick={() =>
+                    setSelectedSource((prev) => (prev === st.source ? 'all' : st.source))
+                  }
+                  title={isSourceError ? st.errorMessage : st.label}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span className="truncate pr-2">{st.label.split(' ')[0]}</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] shrink-0">
+                    {isSourceLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-[var(--link-academic)]" />
+                    ) : isSourceError ? (
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500/80" />
+                    ) : (
+                      st.count
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </CollapsibleSection>
         )}
 
         {/* 5. Target Slot / Group Selector for Saving (Workflow destination) */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-3.5 space-y-2.5">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('slot')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('slot');
-              }
-            }}
-            aria-expanded={sidebarDrawers.slot}
-            className="w-full flex items-center justify-between gap-2 cursor-pointer group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.slot}
+          onToggle={() => toggleSidebarDrawer('slot')}
+          className="bg-[var(--bg-secondary)] rounded-2xl p-3.5 space-y-2.5"
+          headerClassName="w-full flex items-center justify-between gap-2 cursor-pointer select-none text-left"
+          titleClassName="flex items-center gap-1.5 min-w-0"
+          contentClassName="space-y-2.5"
+          title={
+            <>
               <Folder className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
                 {t('saveToSlotTitle')}
@@ -622,96 +496,81 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                   {activeSaveGroupObj.name}
                 </span>
               )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {activeSaveGroupId && onSelectActiveSaveGroup && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectActiveSaveGroup(null);
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.slot ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
+            </>
+          }
+          actions={
+            activeSaveGroupId && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  workspaceActions.setActiveSaveGroup(null);
+                }}
+                className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                {t('clearFilter')}
+              </button>
+            )
+          }
+        >
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowQuickGroupInput((v) => !v)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+              title={t('createNewSlotTitle')}
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+              <span>{t('newBtn')}</span>
+            </button>
           </div>
 
-          {sidebarDrawers.slot && (
-            <div className="space-y-2.5">
-              {onCreateGroup && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickGroupInput((v) => !v)}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
-                    title={t('createNewSlotTitle')}
-                  >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    <span>{t('newBtn')}</span>
-                  </button>
-                </div>
-              )}
+          <select
+            value={activeSaveGroupId ?? ''}
+            onChange={(e) => workspaceActions.setActiveSaveGroup(e.target.value ? e.target.value : null)}
+            className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+          >
+            <option value="">{t('ungroupedOption')}</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {t('slotPrefix')} {g.name}
+              </option>
+            ))}
+          </select>
 
-              <select
-                value={activeSaveGroupId ?? ''}
-                onChange={(e) => {
-                  if (onSelectActiveSaveGroup) {
-                    onSelectActiveSaveGroup(e.target.value ? e.target.value : null);
-                  }
-                }}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
-              >
-                <option value="">{t('ungroupedOption')}</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {t('slotPrefix')} {g.name}
-                  </option>
-                ))}
-              </select>
-
-              {showQuickGroupInput && (
-                <form onSubmit={handleQuickCreateGroup} className="space-y-2 pt-1">
-                  <input
-                    type="text"
-                    value={quickGroupName}
-                    onChange={(e) => setQuickGroupName(e.target.value)}
-                    placeholder={t('slotPlaceholder')}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
-                    autoFocus
-                  />
-                  <div className="flex items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickGroupInput(false)}
-                      className="px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      {t('cancelBtn')}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!quickGroupName.trim()}
-                      className="px-2.5 py-1 rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-xs font-semibold cursor-pointer disabled:opacity-50"
-                    >
-                      {t('createSlotBtn')}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              <p className="text-xs text-[var(--text-muted)] leading-snug">
-                {t('slotHelperPrefix')} <strong>{t('slotHelperUngrouped')}</strong>.
-              </p>
-            </div>
+          {showQuickGroupInput && (
+            <form onSubmit={handleQuickCreateGroup} className="space-y-2 pt-1">
+              <input
+                type="text"
+                value={quickGroupName}
+                onChange={(e) => setQuickGroupName(e.target.value)}
+                placeholder={t('slotPlaceholder')}
+                className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickGroupInput(false)}
+                  className="px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  {t('cancelBtn')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!quickGroupName.trim()}
+                  className="px-2.5 py-1 rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-xs font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {t('createSlotBtn')}
+                </button>
+              </div>
+            </form>
           )}
-        </div>
+
+          <p className="text-xs text-[var(--text-muted)] leading-snug">
+            {t('slotHelperPrefix')} <strong>{t('slotHelperUngrouped')}</strong>.
+          </p>
+        </CollapsibleSection>
 
         {/* User Preferences & Access Workspace (Tagged for future User System) */}
         <UserWorkspaceSection
@@ -1156,11 +1015,11 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     </button>
 
                     {/* If saved, allow switching its group directly from search results */}
-                    {isSaved && onAssignPaperGroup && (
+                    {isSaved && (
                       <select
                         value={assignedGroupId ?? ''}
                         onChange={(e) =>
-                          onAssignPaperGroup(paper.id, e.target.value ? e.target.value : null)
+                          workspaceActions.assignPaperGroup(paper.id, e.target.value ? e.target.value : null)
                         }
                         className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-medium text-[var(--text-primary)] cursor-pointer"
                         title={t('changePaperGroupTitle')}
@@ -1301,7 +1160,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
         isOpen={inspectorOpen}
         clusters={mergeClusters}
         focusClusterId={inspectorFocusClusterId}
-        onSplitPair={(idA, idB) => onSplitMergePair?.(idA, idB)}
+        onSplitPair={workspaceActions.splitMergePair}
         onClose={() => {
           setInspectorOpen(false);
           setInspectorFocusClusterId(null);

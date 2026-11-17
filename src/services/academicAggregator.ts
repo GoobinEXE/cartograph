@@ -1,13 +1,11 @@
 import {
   ApiSourceId,
   ByokCredentialEntry,
-  DeduplicationSummary,
   NormalizedPaper,
   SearchScopeId,
   SourceFetchStatus,
   UserAccessConfig,
 } from '../types/academic';
-import { deduplicatePapersAdvanced } from '../utils/deduplication';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { SupportedLanguage, Translations, translate } from '../i18n/translations';
 import { API_SOURCE_REGISTRY, sourceMatchesScope } from '../data/apiSources';
@@ -18,15 +16,14 @@ import { localizeUntitledPapers } from './adapterUtils';
 
 export { crossPlatformFetch, isTauriRuntime };
 
-export function deduplicatePapers(papers: NormalizedPaper[]): NormalizedPaper[] {
-  return deduplicatePapersAdvanced(papers).papers;
-}
-
+/**
+ * Raw records in arrival order plus per-source statuses. Deduplication is left to the caller,
+ * which applies the researcher's split overrides once per snapshot instead of the aggregator
+ * deduplicating every streamed flush without them.
+ */
 export interface FederatedSearchResult {
-  papers: NormalizedPaper[];
   rawPapers: NormalizedPaper[];
   statuses: SourceFetchStatus[];
-  deduplicationSummary: DeduplicationSummary;
 }
 
 export interface FederatedSearchProgress extends FederatedSearchResult {
@@ -231,13 +228,9 @@ export async function runFederatedSearch(
 
   const emitProgressSnapshot = () => {
     if (signal?.aborted || !onProgress) return;
-    const rawSnapshot = [...allPapers];
-    const { papers, summary } = deduplicatePapersAdvanced(rawSnapshot);
     onProgress({
-      papers,
-      rawPapers: rawSnapshot,
+      rawPapers: [...allPapers],
       statuses: [...statuses],
-      deduplicationSummary: summary,
       completedCount,
       totalCount: sources.length,
     });
@@ -340,13 +333,9 @@ export async function runFederatedSearch(
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  const rawPapers = [...allPapers];
-  const { papers: dedupedPapers, summary } = deduplicatePapersAdvanced(rawPapers);
   const finalResult: FederatedSearchResult = {
-    papers: dedupedPapers,
-    rawPapers,
+    rawPapers: [...allPapers],
     statuses,
-    deduplicationSummary: summary,
   };
 
   if (federatedSearchCache.size >= FEDERATED_CACHE_MAX) {
