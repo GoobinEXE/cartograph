@@ -87,11 +87,21 @@ export interface WorkspaceHandle {
   actions: WorkspaceActions;
 }
 
-export function useWorkspace(): WorkspaceHandle {
+function useWorkspaceContext(): WorkspaceContextValue {
   const context = useContext(WorkspaceContext);
   if (!context) {
     throw new Error('useWorkspace() must be called inside <WorkspaceProvider>.');
   }
+  return context;
+}
+
+/** Action creators only: components that never read library state skip the store subscription. */
+export function useWorkspaceActions(): WorkspaceActions {
+  return useWorkspaceContext().actions;
+}
+
+export function useWorkspace(): WorkspaceHandle {
+  const context = useWorkspaceContext();
   const snapshot = useSyncExternalStore(
     context.store.subscribe,
     context.store.getSnapshot,

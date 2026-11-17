@@ -1,4 +1,9 @@
-export { WorkspaceProvider, useWorkspace, type WorkspaceHandle } from './WorkspaceProvider';
+export {
+  WorkspaceProvider,
+  useWorkspace,
+  useWorkspaceActions,
+  type WorkspaceHandle,
+} from './WorkspaceProvider';
 export {
   DEFAULT_GROUP_COLOR,
   type BackupRestoreResult,
