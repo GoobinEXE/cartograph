@@ -1,3 +1,6 @@
+import { asArray, asRecord, asString, asStringList, firstString, isRecord } from '../utils/json';
+import { fetchJsonDirect } from './httpClient';
+
 export interface MeshDescriptorSuggestion {
   uid: string;
   heading: string;
@@ -25,19 +28,9 @@ export async function suggestMeshTerms(
     const searchUrl = `${NCBI_EUTILS_BASE}/esearch.fcgi?db=mesh&term=${encodeURIComponent(
       cleaned
     )}&retmax=8&retmode=json`;
-    const searchRes = await fetch(searchUrl, {
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-    if (!searchRes.ok) {
-      return { ok: false, terms: [], error: `NCBI esearch HTTP ${searchRes.status}` };
-    }
-    const searchJson = (await searchRes.json()) as {
-      esearchresult?: { idlist?: string[] };
-    };
-    const ids = (searchJson?.esearchresult?.idlist || []).filter(
-      (id): id is string => typeof id === 'string' && id.trim().length > 0
-    );
+    // HTTP failures surface as HttpStatusError("NCBI esearch HTTP <status>") and land in the catch below.
+    const searchJson = await fetchJsonDirect(searchUrl, 'NCBI esearch', { signal });
+    const ids = asStringList(asRecord(asRecord(searchJson).esearchresult).idlist);
     if (ids.length === 0) {
       return { ok: true, terms: [] };
     }
@@ -45,36 +38,19 @@ export async function suggestMeshTerms(
     const summaryUrl = `${NCBI_EUTILS_BASE}/esummary.fcgi?db=mesh&id=${encodeURIComponent(
       ids.join(',')
     )}&retmode=json`;
-    const summaryRes = await fetch(summaryUrl, {
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-    if (!summaryRes.ok) {
-      return { ok: false, terms: [], error: `NCBI esummary HTTP ${summaryRes.status}` };
-    }
-
-    const summaryJson = (await summaryRes.json()) as {
-      result?: Record<string, Record<string, unknown>>;
-    };
-    const resultMap = summaryJson?.result || {};
+    const summaryJson = await fetchJsonDirect(summaryUrl, 'NCBI esummary', { signal });
+    const resultMap = asRecord(asRecord(summaryJson).result);
     const terms: MeshDescriptorSuggestion[] = [];
 
     for (const id of ids) {
       const entry = resultMap[id];
-      if (!entry || typeof entry !== 'object') continue;
-      const meshList = Array.isArray(entry.ds_meshterms) ? entry.ds_meshterms : [];
-      const headingRaw =
-        (typeof meshList[0] === 'string' && meshList[0]) ||
-        (typeof entry.title === 'string' && entry.title) ||
-        '';
-      const heading = headingRaw.trim();
+      if (!isRecord(entry)) continue;
+      const heading = firstString(asArray(entry.ds_meshterms)[0], entry.title);
       if (!heading) continue;
-      const scopeNote =
-        typeof entry.ds_scopenote === 'string' ? entry.ds_scopenote.trim() : '';
       terms.push({
         uid: id,
         heading,
-        scopeNote,
+        scopeNote: asString(entry.ds_scopenote) ?? '',
       });
     }
 

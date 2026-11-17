@@ -8,7 +8,6 @@ import {
   asStringList,
   firstString,
   isRecord,
-  stableHashId,
 } from '../utils/json';
 import { UNTITLED_PAPER_TITLE, extractYear, filterByYear, nonNegativeCount } from './adapterUtils';
 import { fetchDedicatedSource, fetchJsonDirect, fetchViaByokProxy } from './httpClient';

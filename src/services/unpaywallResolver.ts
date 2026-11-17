@@ -1,5 +1,6 @@
 import { crossPlatformFetch } from './httpClient';
 import { normalizeDoi } from '../utils/deduplication';
+import { asRecord, firstString, isRecord } from '../utils/json';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 
 export interface UnpaywallResolution {
@@ -14,6 +15,11 @@ export interface UnpaywallResolution {
 }
 
 const unpaywallCache = new Map<string, UnpaywallResolution>();
+
+/** First argument whose type is string, returned unchanged (sanitizeExternalUrl validates it). */
+function firstStringValue(...values: unknown[]): string | null {
+  return values.find((value): value is string => typeof value === 'string') ?? null;
+}
 
 export async function resolveUnpaywallPdf(
   rawDoi: string | null | undefined,
@@ -61,34 +67,30 @@ export async function resolveUnpaywallPdf(
       };
     }
 
-    const data = (await res.json()) as Record<string, any>;
-    const bestLoc = data?.best_oa_location;
-    const rawPdf =
-      typeof data.bestPdfUrl === 'string'
-        ? data.bestPdfUrl
-        : typeof bestLoc?.url_for_pdf === 'string'
-        ? bestLoc.url_for_pdf
-        : null;
-    const rawLanding =
-      typeof data.bestLandingUrl === 'string'
-        ? data.bestLandingUrl
-        : typeof bestLoc?.url_for_landing_page === 'string'
-        ? bestLoc.url_for_landing_page
-        : null;
+    // Accepts both the proxy shape (camelCase) and the raw Unpaywall v2 shape (direct fallback).
+    const payload: unknown = await res.json();
+    if (!isRecord(payload)) {
+      return {
+        ok: false,
+        doi,
+        isOa: false,
+        oaStatus: 'error',
+        bestPdfUrl: null,
+        bestLandingUrl: null,
+        hostType: null,
+        error: 'Malformed Unpaywall response',
+      };
+    }
+    const bestLoc = asRecord(payload.best_oa_location);
 
     const result: UnpaywallResolution = {
       ok: true,
       doi,
-      isOa: Boolean(data.isOa ?? data.is_oa),
-      oaStatus: String(data.oaStatus || data.oa_status || 'unknown'),
-      bestPdfUrl: sanitizeExternalUrl(rawPdf),
-      bestLandingUrl: sanitizeExternalUrl(rawLanding),
-      hostType:
-        typeof data.hostType === 'string'
-          ? data.hostType
-          : typeof bestLoc?.host_type === 'string'
-          ? bestLoc.host_type
-          : null,
+      isOa: Boolean(payload.isOa ?? payload.is_oa),
+      oaStatus: firstString(payload.oaStatus, payload.oa_status) ?? 'unknown',
+      bestPdfUrl: sanitizeExternalUrl(firstStringValue(payload.bestPdfUrl, bestLoc.url_for_pdf)),
+      bestLandingUrl: sanitizeExternalUrl(firstStringValue(payload.bestLandingUrl, bestLoc.url_for_landing_page)),
+      hostType: firstStringValue(payload.hostType, bestLoc.host_type),
     };
 
     if (unpaywallCache.size > 200) {
