@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PLATFORMS,
   THEMATIC_AREAS,
@@ -12,16 +12,9 @@ import {
   AccessModel,
   AccessSettingsTab,
   BooleanQueryState,
-  CustomExtractionColumn,
-  DedupOverrideRule,
   DeduplicationSummary,
-  LibraryGroup,
   NormalizedPaper,
   PlatformCategory,
-  QualityAppraisalResult,
-  RelatedPaperUrl,
-  SavedPaperItem,
-  ScreeningStatus,
   SearchLogEntry,
   SearchScopeId,
   SourceFetchStatus,
@@ -35,7 +28,6 @@ import {
 import { OPEN_FEDERATED_SOURCE_COUNT, mapAreaToSearchScope } from './data/apiSources';
 import { renderAreaIcon } from './utils/areaIcons';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
-import { parseAbstractMetadata } from './utils/abstractParser';
 import { loadUserAccessConfig, saveUserAccessConfig } from './utils/accessConfig';
 import { rewriteUrlWithInstitutionalProxy } from './utils/institutionalProxy';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
@@ -61,9 +53,9 @@ import {
   trackAcademicEvent,
 } from './utils/analytics';
 import { CartographBackupPayload } from './utils/workspaceBackup';
-import { deduplicatePapersAdvanced, makePairKey, normalizeDoi } from './utils/deduplication';
-import { workspaceStorageEngine } from './utils/storageEngine';
+import { deduplicatePapersAdvanced } from './utils/deduplication';
 import { LAYOUT_STORAGE_KEYS } from './utils/layoutPreferences';
+import { useWorkspace, type BackupRestoreMode, type BackupRestoreResult } from './state/workspace';
 import {
   ArrowUpRight,
   Check,
@@ -101,22 +93,18 @@ const SearchHistoryDrawer = lazy(() =>
   import('./components/SearchHistoryDrawer').then((m) => ({ default: m.SearchHistoryDrawer }))
 );
 
-const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
-const STORAGE_KEY_GROUPS = 'cartograph_library_groups_v1';
-const STORAGE_KEY_ACTIVE_GROUP = 'cartograph_active_save_group_v1';
-const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
 const STORAGE_KEY_THEME = LAYOUT_STORAGE_KEYS.theme;
 const STORAGE_KEY_SIDEBAR_DRAWERS = LAYOUT_STORAGE_KEYS.platformsSidebarDrawers;
 const STORAGE_KEY_SELECTED_AREA = 'cartograph_selected_area_v1';
 const STORAGE_KEY_DEDUP_ENABLED = 'cartograph_dedup_enabled_v1';
-const STORAGE_KEY_DEDUP_OVERRIDES = 'cartograph_dedup_overrides_v1';
-const STORAGE_KEY_SEARCH_LOG = 'cartograph_search_log_v1';
 
 type SidebarSectionKey = 'sort' | 'presets' | 'categories' | 'access' | 'areas';
 type PlatformSortMode = 'curated' | 'trust' | 'name' | 'access';
 
 export default function AcademicCommandCenter() {
   const { language, isAutoLanguage, setLanguage, resetToSystemLanguage, t, availableLanguages } = useI18n();
+  const { state: workspace, actions: workspaceActions } = useWorkspace();
+  const { savedPapers, selectedPlatformIds, searchLogs, dedupOverrides } = workspace;
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
@@ -292,66 +280,6 @@ export default function AcademicCommandCenter() {
     studyDesign: 'any',
   });
 
-  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>(() => {
-    try {
-      const raw =
-        localStorage.getItem(STORAGE_KEY_SELECTED_PLATFORMS) ||
-        localStorage.getItem('nexus_academico_selected_platforms_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore storage error
-    }
-    return [
-      'scholar',
-      'openalex',
-      'semanticscholar',
-      'pubmed',
-      'scielo',
-      'consensus',
-    ];
-  });
-
-  const [savedPapers, setSavedPapers] = useState<SavedPaperItem[]>(() => {
-    try {
-      const raw =
-        localStorage.getItem(STORAGE_KEY_SAVED) ||
-        localStorage.getItem('nexus_academico_saved_papers_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore storage error
-    }
-    return [];
-  });
-
-  const [libraryGroups, setLibraryGroups] = useState<LibraryGroup[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore storage error
-    }
-    return [];
-  });
-
-  const [activeSaveGroupId, setActiveSaveGroupId] = useState<string | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_GROUP);
-      if (raw) return raw;
-    } catch {
-      // ignore
-    }
-    return null;
-  });
-
   const [rawFederatedPapers, setRawFederatedPapers] = useState<NormalizedPaper[]>([]);
   const [dedupEnabled, setDedupEnabled] = useState<boolean>(() => {
     try {
@@ -360,35 +288,6 @@ export default function AcademicCommandCenter() {
       return true;
     }
   });
-  const [dedupOverrides, setDedupOverrides] = useState<DedupOverrideRule>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_DEDUP_OVERRIDES);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.splitPairs)) {
-          return {
-            splitPairs: parsed.splitPairs.filter((x: unknown): x is string => typeof x === 'string'),
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return { splitPairs: [] };
-  });
-  const [searchLogs, setSearchLogs] = useState<SearchLogEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_SEARCH_LOG);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed.slice(0, 100);
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
-  const [customColumns, setCustomColumns] = useState<CustomExtractionColumn[]>([]);
   const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
   const [federatedQuery, setFederatedQuery] = useState<string>('');
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
@@ -413,57 +312,9 @@ export default function AcademicCommandCenter() {
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
   const didAutoSearchRef = useRef(false);
-  const isStorageHydratedRef = useRef(false);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        await workspaceStorageEngine.initAndMigrate();
-        const [
-          storedPapers,
-          storedGroups,
-          storedActiveGroup,
-          storedPlatforms,
-          storedLogs,
-          storedOverrides,
-          storedCustomColumns,
-        ] = await Promise.all([
-          workspaceStorageEngine.getItem<SavedPaperItem[] | null>('savedPapers', null),
-          workspaceStorageEngine.getItem<LibraryGroup[] | null>('libraryGroups', null),
-          workspaceStorageEngine.getItem<string | null>('activeSaveGroupId', null),
-          workspaceStorageEngine.getItem<string[] | null>('selectedPlatformIds', null),
-          workspaceStorageEngine.getItem<SearchLogEntry[] | null>('searchLogs', null),
-          workspaceStorageEngine.getItem<DedupOverrideRule | null>('dedupOverrides', null),
-          workspaceStorageEngine.getItem<CustomExtractionColumn[] | null>('customColumns', null),
-        ]);
-
-        if (!active) return;
-
-        if (Array.isArray(storedPapers)) setSavedPapers(storedPapers);
-        if (Array.isArray(storedGroups)) setLibraryGroups(storedGroups);
-        if (storedActiveGroup !== null) setActiveSaveGroupId(storedActiveGroup);
-        if (Array.isArray(storedPlatforms) && storedPlatforms.length > 0) {
-          setSelectedPlatformIds(storedPlatforms);
-        }
-        if (Array.isArray(storedLogs)) setSearchLogs(storedLogs.slice(0, 100));
-        if (storedOverrides && Array.isArray(storedOverrides.splitPairs)) {
-          setDedupOverrides({ splitPairs: storedOverrides.splitPairs });
-        }
-        if (Array.isArray(storedCustomColumns)) {
-          setCustomColumns(storedCustomColumns);
-        }
-      } finally {
-        if (active) {
-          isStorageHydratedRef.current = true;
-        }
-      }
-    })();
-    return () => {
-      active = false;
-      searchAbortRef.current?.abort();
-    };
-  }, []);
+  // Cancels the in-flight federated search when the app unmounts.
+  useEffect(() => () => searchAbortRef.current?.abort(), []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -475,47 +326,12 @@ export default function AcademicCommandCenter() {
   }, [theme]);
 
   useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('savedPapers', savedPapers);
-  }, [savedPapers]);
-
-  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_DEDUP_ENABLED, String(dedupEnabled));
     } catch {
       // ignore
     }
   }, [dedupEnabled]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('dedupOverrides', dedupOverrides);
-  }, [dedupOverrides]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('searchLogs', searchLogs);
-  }, [searchLogs]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('libraryGroups', libraryGroups);
-  }, [libraryGroups]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('activeSaveGroupId', activeSaveGroupId);
-  }, [activeSaveGroupId]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('selectedPlatformIds', selectedPlatformIds);
-  }, [selectedPlatformIds]);
-
-  useEffect(() => {
-    if (!isStorageHydratedRef.current) return;
-    void workspaceStorageEngine.setItem('customColumns', customColumns);
-  }, [customColumns]);
 
   // Check multiplatform local bridge health (Windows / Linux / macOS)
   useEffect(() => {
@@ -663,44 +479,6 @@ export default function AcademicCommandCenter() {
     });
   }, [activeCategory, accessFilter, ownedOnlyFilter, ownedPlatformSet, selectedArea, platformSortBy]);
 
-  const savedIdsSet = useMemo(
-    () => new Set(savedPapers.map((s) => s.id)),
-    [savedPapers]
-  );
-
-  const handleTogglePlatformSelection = (id: string) => {
-    setSelectedPlatformIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handleTogglePreset = (presetId: string, presetPlatformIds: string[]) => {
-    trackAcademicEvent('preset_selected', {
-      preset_id: presetId,
-      platforms_count: presetPlatformIds.length,
-    });
-    setSelectedPlatformIds((prev) => {
-      const isFullyActive = presetPlatformIds.every((id) => prev.includes(id));
-
-      if (!isFullyActive) {
-        return Array.from(new Set([...prev, ...presetPlatformIds]));
-      }
-
-      const otherActivePresets = localizedPresets.filter(
-        (p) =>
-          p.id !== presetId &&
-          p.platformIds.every((id) => prev.includes(id))
-      );
-      const protectedIds = new Set(
-        otherActivePresets.flatMap((p) => p.platformIds)
-      );
-
-      return prev.filter(
-        (id) => !presetPlatformIds.includes(id) || protectedIds.has(id)
-      );
-    });
-  };
-
   const handleTranslatePtToEn = async () => {
     if (!isValidQuery || isTranslating) return;
     setIsTranslating(true);
@@ -800,7 +578,7 @@ export default function AcademicCommandCenter() {
         totalUnique: dedupEnabled ? deduplicationSummary.uniqueCount : rawPapers.length,
         bySource,
       };
-      setSearchLogs((prev) => [newLog, ...prev].slice(0, 100));
+      workspaceActions.appendSearchLog(newLog);
 
       trackAcademicEvent('federated_search', {
         query_length: effectiveQuery.length,
@@ -823,14 +601,23 @@ export default function AcademicCommandCenter() {
   // Auto-trigger federated search once when loading a shared /federated?q=... URL
   useEffect(() => {
     if (
-      !didAutoSearchRef.current &&
-      initialRoute.tab === 'federated' &&
-      !initialRoute.isNotFound &&
-      trimmedQuery
+      didAutoSearchRef.current ||
+      initialRoute.tab !== 'federated' ||
+      initialRoute.isNotFound ||
+      !trimmedQuery
     ) {
-      didAutoSearchRef.current = true;
-      void handleRunFederatedSearch();
+      return undefined;
     }
+    didAutoSearchRef.current = true;
+    let settled = false;
+    void handleRunFederatedSearch().finally(() => {
+      settled = true;
+    });
+    return () => {
+      // StrictMode (dev) unmounts once right after mounting and the unmount effect aborts this
+      // search; re-arming the flag lets the remount start it again.
+      if (!settled) didAutoSearchRef.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -887,358 +674,34 @@ export default function AcademicCommandCenter() {
     await Promise.all([handleRunFederatedSearch(), handleLaunchSelectedPlatforms()]);
   };
 
-  const handleCreateGroup = (name: string, color: string = '#01ABE8'): LibraryGroup => {
-    const newGroup: LibraryGroup = {
-      id: `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: name.trim(),
-      color,
-      createdAt: new Date().toISOString(),
-    };
-    setLibraryGroups((prev) => [...prev, newGroup]);
-    trackAcademicEvent('library_group_action', { action: 'create' });
-    return newGroup;
-  };
-
-  const handleRenameGroup = (groupId: string, newName: string) => {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    setLibraryGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g))
-    );
-  };
-
-  const handleDeleteGroup = (groupId: string) => {
-    setLibraryGroups((prev) => prev.filter((g) => g.id !== groupId));
-    // Move papers of this deleted group back to "Sem grupo" (null) so no research is lost
-    setSavedPapers((prev) =>
-      prev.map((item) => (item.groupId === groupId ? { ...item, groupId: null } : item))
-    );
-    setActiveSaveGroupId((prev) => (prev === groupId ? null : prev));
-  };
-
-  const handleAssignPaperGroup = (paperId: string, groupId: string | null) => {
-    setSavedPapers((prev) =>
-      prev.map((item) => (item.id === paperId ? { ...item, groupId } : item))
-    );
-  };
-
-  const handleClearLibrary = (onlyGroupId?: string | 'ungrouped') => {
-    if (!onlyGroupId) {
-      setSavedPapers([]);
-      return;
-    }
-    if (onlyGroupId === 'ungrouped') {
-      const validGroupIds = new Set(libraryGroups.map((g) => g.id));
-      setSavedPapers((prev) =>
-        prev.filter((item) => item.groupId && validGroupIds.has(item.groupId))
-      );
-      return;
-    }
-    setSavedPapers((prev) => prev.filter((item) => item.groupId !== onlyGroupId));
-  };
-
-  const handleImportSavedPapers = (
-    imported: SavedPaperItem[],
-    targetGroupId?: string | null
-  ): { added: number; skippedDuplicates: number } => {
-    const existingIds = new Set(savedPapers.map((p) => p.id));
-    const existingDois = new Set(
-      savedPapers
-        .map((p) => normalizeDoi(p.doi))
-        .filter((d): d is string => Boolean(d))
-    );
-    const existingTitles = new Set(
-      savedPapers.map((p) => p.title.trim().toLowerCase())
-    );
-
-    const resolvedGroup =
-      targetGroupId !== undefined ? targetGroupId : activeSaveGroupId;
-
-    const toAdd: SavedPaperItem[] = [];
-    let skippedDuplicates = 0;
-
-    for (const candidate of imported) {
-      const normDoi = normalizeDoi(candidate.doi);
-      const normTitle = candidate.title.trim().toLowerCase();
-      if (
-        existingIds.has(candidate.id) ||
-        (normDoi && existingDois.has(normDoi)) ||
-        existingTitles.has(normTitle)
-      ) {
-        skippedDuplicates++;
-        continue;
-      }
-      existingIds.add(candidate.id);
-      if (normDoi) existingDois.add(normDoi);
-      existingTitles.add(normTitle);
-      toAdd.push({
-        ...candidate,
-        groupId: candidate.groupId ?? resolvedGroup ?? null,
-      });
-    }
-
-    if (toAdd.length > 0) {
-      setSavedPapers((prev) => [...toAdd, ...prev]);
-    }
-
-    return { added: toAdd.length, skippedDuplicates };
-  };
-
+  // Workspace data lives in the store; App only adds what the store does not own: the portal
+  // catalog (to drop unknown platform IDs) and the access config (owned subscriptions).
   const handleRestoreWorkspaceBackup = (
     payload: CartographBackupPayload,
-    mode: 'merge' | 'replace'
-  ): { papersAdded: number; groupsAdded: number } => {
+    mode: BackupRestoreMode
+  ): BackupRestoreResult => {
     const validPlatformSet = new Set(PLATFORMS.map((p) => p.id));
-    const validPlatforms = payload.selectedPlatformIds.filter((id) =>
-      validPlatformSet.has(id)
+    const result = workspaceActions.restoreBackup(
+      {
+        ...payload,
+        selectedPlatformIds: payload.selectedPlatformIds.filter((id) => validPlatformSet.has(id)),
+      },
+      mode
     );
 
-    if (mode === 'replace') {
-      setLibraryGroups(payload.groups);
-      setSavedPapers(payload.savedPapers);
-      if (validPlatforms.length > 0) {
-        setSelectedPlatformIds(validPlatforms);
-      }
-      if (Array.isArray(payload.ownedPlatformIds)) {
-        const validOwned = payload.ownedPlatformIds.filter((id) => validPlatformSet.has(id));
+    if (Array.isArray(payload.ownedPlatformIds)) {
+      const validOwned = payload.ownedPlatformIds.filter((id) => validPlatformSet.has(id));
+      if (mode === 'replace') {
+        handleUpdateUserAccessConfig({ ...userAccessConfig, ownedPlatformIds: validOwned });
+      } else if (payload.ownedPlatformIds.length > 0) {
         handleUpdateUserAccessConfig({
           ...userAccessConfig,
-          ownedPlatformIds: validOwned,
+          ownedPlatformIds: Array.from(new Set([...userAccessConfig.ownedPlatformIds, ...validOwned])),
         });
       }
-      setActiveSaveGroupId(payload.activeSaveGroupId ?? null);
-      if (Array.isArray(payload.searchLogs)) {
-        setSearchLogs(payload.searchLogs.slice(0, 100));
-      }
-      if (payload.dedupOverrides) {
-        setDedupOverrides(payload.dedupOverrides);
-      }
-      if (Array.isArray(payload.customColumns)) {
-        setCustomColumns(payload.customColumns);
-      }
-      return {
-        papersAdded: payload.savedPapers.length,
-        groupsAdded: payload.groups.length,
-      };
     }
 
-    const existingGroupIds = new Set(libraryGroups.map((g) => g.id));
-    const newGroups = payload.groups.filter((g) => !existingGroupIds.has(g.id));
-    if (newGroups.length > 0) {
-      setLibraryGroups((prev) => [...prev, ...newGroups]);
-    }
-
-    if (validPlatforms.length > 0) {
-      setSelectedPlatformIds((prev) =>
-        Array.from(new Set([...prev, ...validPlatforms]))
-      );
-    }
-
-    if (Array.isArray(payload.ownedPlatformIds) && payload.ownedPlatformIds.length > 0) {
-      const validOwned = payload.ownedPlatformIds.filter((id) => validPlatformSet.has(id));
-      handleUpdateUserAccessConfig({
-        ...userAccessConfig,
-        ownedPlatformIds: Array.from(
-          new Set([...userAccessConfig.ownedPlatformIds, ...validOwned])
-        ),
-      });
-    }
-
-    if (Array.isArray(payload.searchLogs) && payload.searchLogs.length > 0) {
-      setSearchLogs((prev) => {
-        const seen = new Set(prev.map((l) => l.id));
-        const merged = [...prev, ...payload.searchLogs!.filter((l) => !seen.has(l.id))];
-        return merged.slice(0, 100);
-      });
-    }
-
-    if (payload.dedupOverrides?.splitPairs?.length) {
-      setDedupOverrides((prev) => ({
-        splitPairs: Array.from(new Set([...prev.splitPairs, ...payload.dedupOverrides!.splitPairs])),
-      }));
-    }
-
-    if (Array.isArray(payload.customColumns) && payload.customColumns.length > 0) {
-      setCustomColumns((prev) => {
-        const seen = new Set(prev.map((c) => c.id));
-        return [...prev, ...payload.customColumns!.filter((c) => !seen.has(c.id))];
-      });
-    }
-
-    const paperRes = handleImportSavedPapers(payload.savedPapers, null);
-    return {
-      papersAdded: paperRes.added,
-      groupsAdded: newGroups.length,
-    };
-  };
-
-  const handleToggleSavePaper = (
-    paper: NormalizedPaper,
-    targetGroupId?: string | null
-  ) => {
-    setSavedPapers((prev) => {
-      const exists = prev.some((item) => item.id === paper.id);
-      if (exists) {
-        return prev.filter((item) => item.id !== paper.id);
-      }
-      trackAcademicEvent('paper_saved', {
-        source_api: paper.source,
-      });
-      const extractedMetadata = parseAbstractMetadata(
-        paper.title,
-        paper.abstractText,
-        paper.publicationType,
-        language
-      );
-      const resolvedGroupId =
-        targetGroupId !== undefined ? targetGroupId : activeSaveGroupId;
-      const newItem: SavedPaperItem = {
-        ...paper,
-        savedAt: new Date().toISOString(),
-        researcherNotes: '',
-        relevanceTag: 'alta',
-        screeningStatus: 'unscreened',
-        extractedMetadata,
-        groupId: resolvedGroupId ?? null,
-      };
-      return [newItem, ...prev];
-    });
-  };
-
-  const handleUpdateScreening = (
-    id: string,
-    status: ScreeningStatus,
-    reason?: string
-  ) => {
-    setSavedPapers((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              screeningStatus: status,
-              exclusionReason: status === 'excluded' ? reason : undefined,
-            }
-          : item
-      )
-    );
-  };
-
-  const handleUpdateNotes = (id: string, notes: string) => {
-    setSavedPapers((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, researcherNotes: notes } : item))
-    );
-  };
-
-  const handleUpdateCustomField = (id: string, columnId: string, value: string) => {
-    setSavedPapers((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              customFields: {
-                ...(item.customFields || {}),
-                [columnId]: value,
-              },
-            }
-          : item
-      )
-    );
-  };
-
-  const handleUpdateQualityAppraisal = (
-    id: string,
-    appraisal: QualityAppraisalResult
-  ) => {
-    setSavedPapers((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, qualityAppraisal: appraisal } : item
-      )
-    );
-  };
-
-  const handleUpdateRelevance = (
-    id: string,
-    relevanceTag: SavedPaperItem['relevanceTag']
-  ) => {
-    setSavedPapers((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, relevanceTag } : item))
-    );
-  };
-
-  const handleRemoveSaved = (id: string) => {
-    setSavedPapers((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleSplitMergePair = (idA: string, idB: string) => {
-    const key = makePairKey(idA, idB);
-    setDedupOverrides((prev) => {
-      if (prev.splitPairs.includes(key)) return prev;
-      return { splitPairs: [...prev.splitPairs, key] };
-    });
-  };
-
-  const handleLinkRelatedPaper = (targetId: string, sourceId: string) => {
-    if (!targetId || !sourceId || targetId === sourceId) return;
-    setSavedPapers((prev) => {
-      const target = prev.find((p) => p.id === targetId);
-      const source = prev.find((p) => p.id === sourceId);
-      if (!target || !source) return prev;
-
-      const existing = target.relatedUrls ?? [];
-      const seenUrls = new Set(existing.map((r) => r.url));
-      const newLinks: RelatedPaperUrl[] = [...existing];
-
-      const inferredKind: RelatedPaperUrl['kind'] =
-        source.source === 'arxiv' ||
-        source.source === 'socarxiv' ||
-        (source.url || '').includes('osf.io/preprints') ||
-        (source.url || '').includes('biorxiv') ||
-        (source.url || '').includes('medrxiv')
-          ? 'preprint'
-          : 'published';
-
-      if (source.url && !seenUrls.has(source.url) && source.url !== target.url) {
-        seenUrls.add(source.url);
-        newLinks.push({
-          kind: inferredKind,
-          label: `${source.source.toUpperCase()} (${source.year ?? 's.d.'})`,
-          url: source.url,
-        });
-      }
-      if (source.pdfUrl && !seenUrls.has(source.pdfUrl) && source.pdfUrl !== target.pdfUrl) {
-        seenUrls.add(source.pdfUrl);
-        newLinks.push({
-          kind: inferredKind,
-          label: `${source.source.toUpperCase()} PDF`,
-          url: source.pdfUrl,
-        });
-      }
-      for (const extra of source.relatedUrls ?? []) {
-        if (extra.url && !seenUrls.has(extra.url)) {
-          seenUrls.add(extra.url);
-          newLinks.push(extra);
-        }
-      }
-
-      const mergedNotes =
-        source.researcherNotes.trim() && !target.researcherNotes.includes(source.researcherNotes.trim())
-          ? [target.researcherNotes.trim(), source.researcherNotes.trim()].filter(Boolean).join('\n\n')
-          : target.researcherNotes;
-
-      return prev
-        .filter((p) => p.id !== sourceId)
-        .map((p) =>
-          p.id === targetId
-            ? {
-                ...p,
-                relatedUrls: newLinks,
-                researcherNotes: mergedNotes,
-                pdfUrl: p.pdfUrl ?? source.pdfUrl,
-                doi: p.doi ?? source.doi,
-              }
-            : p
-        );
-    });
+    return result;
   };
 
   const dedupComputation = useMemo(
@@ -1776,7 +1239,7 @@ export default function AcademicCommandCenter() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
+                          onClick={() => workspaceActions.setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
                           className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
                         >
                           {t('quickSelectionAllBtn')}
@@ -1784,7 +1247,7 @@ export default function AcademicCommandCenter() {
                         <span className="text-[var(--divider)] text-xs">·</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedPlatformIds([])}
+                          onClick={() => workspaceActions.setSelectedPlatformIds([])}
                           className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                         >
                           {t('clearFilter')}
@@ -1804,7 +1267,7 @@ export default function AcademicCommandCenter() {
                         <button
                           key={preset.id}
                           type="button"
-                          onClick={() => handleTogglePreset(preset.id, preset.platformIds)}
+                          onClick={() => workspaceActions.togglePreset(preset, localizedPresets)}
                           title={preset.description}
                           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                             isFullyActive
@@ -2200,7 +1663,7 @@ export default function AcademicCommandCenter() {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => handleTogglePlatformSelection(platform.id)}
+                                onChange={() => workspaceActions.togglePlatform(platform.id)}
                                 className="mt-1 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
                                 title={t('includeInBatchTitle')}
                               />
@@ -2293,7 +1756,7 @@ export default function AcademicCommandCenter() {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => handleTogglePlatformSelection(platform.id)}
+                          onChange={() => workspaceActions.togglePlatform(platform.id)}
                           className="mt-1.5 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
                           title={t('includeInBatchTitle')}
                         />
@@ -2369,19 +1832,10 @@ export default function AcademicCommandCenter() {
             searchQuery={federatedQuery}
             statuses={sourceStatuses}
             isSearching={isSearchingApis}
-            savedIds={savedIdsSet}
-            savedPapers={savedPapers}
-            groups={libraryGroups}
-            activeSaveGroupId={activeSaveGroupId}
-            onSelectActiveSaveGroup={setActiveSaveGroupId}
-            onCreateGroup={handleCreateGroup}
-            onAssignPaperGroup={handleAssignPaperGroup}
-            onToggleSave={handleToggleSavePaper}
             deduplicationSummary={effectiveDedupSummary}
             dedupEnabled={dedupEnabled}
             onToggleDedup={setDedupEnabled}
             mergeClusters={dedupComputation.mergeClusters}
-            onSplitMergePair={handleSplitMergePair}
             institutionalProxy={userAccessConfig.institutionalProxy}
             selectedArea={selectedArea}
             onSelectArea={handleSelectUnifiedArea}
@@ -2394,32 +1848,9 @@ export default function AcademicCommandCenter() {
         {activeTab === 'saved' && (
           <Suspense fallback={null}>
             <SavedLiteratureDrawer
-              items={savedPapers}
-              groups={libraryGroups}
-              selectedPlatformIds={selectedPlatformIds}
-              ownedPlatformIds={userAccessConfig.ownedPlatformIds}
               userAccessConfig={userAccessConfig}
-              searchLogs={searchLogs}
-              dedupOverrides={dedupOverrides}
-              customColumns={customColumns}
-              onSaveCustomColumns={setCustomColumns}
-              activeSaveGroupId={activeSaveGroupId}
-              onSelectActiveSaveGroup={setActiveSaveGroupId}
-              onCreateGroup={handleCreateGroup}
-              onRenameGroup={handleRenameGroup}
-              onDeleteGroup={handleDeleteGroup}
-              onAssignPaperGroup={handleAssignPaperGroup}
               dedupSummary={effectiveDedupSummary}
               sourceBreakdown={sourceBreakdown}
-              onUpdateNotes={handleUpdateNotes}
-              onUpdateCustomField={handleUpdateCustomField}
-              onUpdateQualityAppraisal={handleUpdateQualityAppraisal}
-              onUpdateRelevance={handleUpdateRelevance}
-              onUpdateScreening={handleUpdateScreening}
-              onRemoveItem={handleRemoveSaved}
-              onLinkRelatedPaper={handleLinkRelatedPaper}
-              onClearAll={handleClearLibrary}
-              onImportPapers={handleImportSavedPapers}
               onRestoreBackup={handleRestoreWorkspaceBackup}
             />
           </Suspense>
@@ -2599,7 +2030,7 @@ export default function AcademicCommandCenter() {
               }));
               void executeFederatedSearch(entry.scope, entry.query, entry.yearFrom);
             }}
-            onClearLogs={() => setSearchLogs([])}
+            onClearLogs={workspaceActions.clearSearchLogs}
           />
         </Suspense>
       )}

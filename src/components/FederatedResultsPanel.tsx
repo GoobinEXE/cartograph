@@ -4,7 +4,6 @@ import {
   ApiSourceId,
   DeduplicationSummary,
   InstitutionalProxyConfig,
-  LibraryGroup,
   MergeClusterEntry,
   NormalizedPaper,
   RelevanceBreakdown,
@@ -26,6 +25,7 @@ import { rankPapersByRelevance } from '../utils/relevanceRanker';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { resolveUnpaywallPdf } from '../services/unpaywallResolver';
 import { useI18n } from '../i18n/context';
+import { useWorkspace } from '../state/workspace';
 import { CitationChaserModal } from './CitationChaserModal';
 import { MergeInspectorModal } from './MergeInspectorModal';
 import { UnifiedAreaFilterDrawer } from './UnifiedAreaFilterDrawer';
@@ -52,24 +52,16 @@ import {
 type FederatedSidebarSectionKey = 'areas' | 'slot' | 'sort' | 'access' | 'sources';
 const STORAGE_KEY_FEDERATED_DRAWERS = LAYOUT_STORAGE_KEYS.federatedSidebarDrawers;
 
+/** Search-session data from App; library data (saved papers, groups, save target) comes from the workspace store. */
 interface FederatedResultsPanelProps {
   papers: NormalizedPaper[];
   searchQuery?: string;
   statuses: SourceFetchStatus[];
   isSearching: boolean;
-  savedIds: Set<string>;
-  savedPapers?: SavedPaperItem[];
-  groups?: LibraryGroup[];
-  activeSaveGroupId?: string | null;
-  onSelectActiveSaveGroup?: (groupId: string | null) => void;
-  onCreateGroup?: (name: string, color?: string) => LibraryGroup;
-  onAssignPaperGroup?: (paperId: string, groupId: string | null) => void;
-  onToggleSave: (paper: NormalizedPaper, targetGroupId?: string | null) => void;
   deduplicationSummary?: DeduplicationSummary | null;
   dedupEnabled?: boolean;
   onToggleDedup?: (next: boolean) => void;
   mergeClusters?: MergeClusterEntry[];
-  onSplitMergePair?: (idA: string, idB: string) => void;
   institutionalProxy?: InstitutionalProxyConfig;
   selectedArea: 'all' | ThematicArea;
   onSelectArea: (area: 'all' | ThematicArea) => void;
@@ -82,19 +74,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   searchQuery = '',
   statuses,
   isSearching,
-  savedIds,
-  savedPapers = [],
-  groups = [],
-  activeSaveGroupId = null,
-  onSelectActiveSaveGroup,
-  onCreateGroup,
-  onAssignPaperGroup,
-  onToggleSave,
   deduplicationSummary,
   dedupEnabled = true,
   onToggleDedup,
   mergeClusters = [],
-  onSplitMergePair,
   institutionalProxy,
   selectedArea,
   onSelectArea,
@@ -102,6 +85,10 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   onOpenAccessSettings,
 }) => {
   const { language, t } = useI18n();
+  const { state: workspace, actions: workspaceActions } = useWorkspace();
+  const { savedPapers, libraryGroups: groups, activeSaveGroupId } = workspace;
+  const savedIds = useMemo(() => new Set(savedPapers.map((sp) => sp.id)), [savedPapers]);
+  const onToggleSave = workspaceActions.toggleSavePaper;
   const [onlyOpenAccess, setOnlyOpenAccess] = useState(false);
   const [hideAlreadySaved, setHideAlreadySaved] = useState(false);
   const [selectedSource, setSelectedSource] = useState<'all' | ApiSourceId>('all');
@@ -298,11 +285,9 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   const handleQuickCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = quickGroupName.trim();
-    if (!trimmed || !onCreateGroup) return;
-    const created = onCreateGroup(trimmed);
-    if (onSelectActiveSaveGroup) {
-      onSelectActiveSaveGroup(created.id);
-    }
+    if (!trimmed) return;
+    const created = workspaceActions.createGroup(trimmed);
+    workspaceActions.setActiveSaveGroup(created.id);
     setQuickGroupName('');
     setShowQuickGroupInput(false);
   };
@@ -624,12 +609,12 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {activeSaveGroupId && onSelectActiveSaveGroup && (
+              {activeSaveGroupId && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSelectActiveSaveGroup(null);
+                    workspaceActions.setActiveSaveGroup(null);
                   }}
                   className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                 >
@@ -646,27 +631,21 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
 
           {sidebarDrawers.slot && (
             <div className="space-y-2.5">
-              {onCreateGroup && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickGroupInput((v) => !v)}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
-                    title={t('createNewSlotTitle')}
-                  >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    <span>{t('newBtn')}</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickGroupInput((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+                  title={t('createNewSlotTitle')}
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>{t('newBtn')}</span>
+                </button>
+              </div>
 
               <select
                 value={activeSaveGroupId ?? ''}
-                onChange={(e) => {
-                  if (onSelectActiveSaveGroup) {
-                    onSelectActiveSaveGroup(e.target.value ? e.target.value : null);
-                  }
-                }}
+                onChange={(e) => workspaceActions.setActiveSaveGroup(e.target.value ? e.target.value : null)}
                 className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
               >
                 <option value="">{t('ungroupedOption')}</option>
@@ -1156,11 +1135,11 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     </button>
 
                     {/* If saved, allow switching its group directly from search results */}
-                    {isSaved && onAssignPaperGroup && (
+                    {isSaved && (
                       <select
                         value={assignedGroupId ?? ''}
                         onChange={(e) =>
-                          onAssignPaperGroup(paper.id, e.target.value ? e.target.value : null)
+                          workspaceActions.assignPaperGroup(paper.id, e.target.value ? e.target.value : null)
                         }
                         className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-medium text-[var(--text-primary)] cursor-pointer"
                         title={t('changePaperGroupTitle')}
@@ -1301,7 +1280,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
         isOpen={inspectorOpen}
         clusters={mergeClusters}
         focusClusterId={inspectorFocusClusterId}
-        onSplitPair={(idA, idB) => onSplitMergePair?.(idA, idB)}
+        onSplitPair={workspaceActions.splitMergePair}
         onClose={() => {
           setInspectorOpen(false);
           setInspectorFocusClusterId(null);

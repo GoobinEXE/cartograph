@@ -3,17 +3,13 @@ const BibliometricsPanel = lazy(() =>
   import('./BibliometricsPanel').then((m) => ({ default: m.BibliometricsPanel }))
 );
 import {
-  CustomExtractionColumn,
-  DedupOverrideRule,
   DeduplicationSummary,
   LibraryGroup,
   NormalizedPaper,
-  QualityAppraisalResult,
   QualityRating,
   QualityToolId,
   SavedPaperItem,
   ScreeningStatus,
-  SearchLogEntry,
   UserAccessConfig,
 } from '../types/academic';
 import {
@@ -50,6 +46,7 @@ import {
 } from '../utils/workspaceBackup';
 import { parseImportedReferences } from '../utils/bibImporter';
 import { useI18n } from '../i18n/context';
+import { useWorkspace, type BackupRestoreMode, type BackupRestoreResult } from '../state/workspace';
 import {
   AlertTriangle,
   BarChart3,
@@ -97,71 +94,47 @@ const GROUP_COLORS = [
 
 export type LibrarySlotView = 'all' | 'ungrouped' | string;
 
+/** Library data and mutations come from the workspace store; App passes search-session context. */
 interface SavedLiteratureDrawerProps {
-  items: SavedPaperItem[];
-  groups: LibraryGroup[];
-  selectedPlatformIds: string[];
-  ownedPlatformIds?: string[];
   userAccessConfig?: UserAccessConfig;
-  searchLogs?: SearchLogEntry[];
-  dedupOverrides?: DedupOverrideRule;
-  customColumns?: CustomExtractionColumn[];
-  onSaveCustomColumns?: (cols: CustomExtractionColumn[]) => void;
-  activeSaveGroupId: string | null;
-  onSelectActiveSaveGroup: (groupId: string | null) => void;
-  onCreateGroup: (name: string, color?: string) => LibraryGroup;
-  onRenameGroup: (groupId: string, newName: string) => void;
-  onDeleteGroup: (groupId: string) => void;
-  onAssignPaperGroup: (paperId: string, groupId: string | null) => void;
   dedupSummary?: DeduplicationSummary | null;
   sourceBreakdown?: Record<string, number>;
-  onUpdateNotes: (id: string, notes: string) => void;
-  onUpdateCustomField?: (id: string, columnId: string, value: string) => void;
-  onUpdateQualityAppraisal?: (id: string, appraisal: QualityAppraisalResult) => void;
-  onUpdateRelevance: (id: string, relevance: SavedPaperItem['relevanceTag']) => void;
-  onUpdateScreening: (id: string, status: ScreeningStatus, reason?: string) => void;
-  onRemoveItem: (id: string) => void;
-  onLinkRelatedPaper?: (targetId: string, sourceId: string) => void;
-  onClearAll: (onlyGroupId?: string | 'ungrouped') => void;
-  onImportPapers: (
-    imported: SavedPaperItem[],
-    targetGroupId?: string | null
-  ) => { added: number; skippedDuplicates: number };
-  onRestoreBackup: (
-    payload: CartographBackupPayload,
-    mode: 'merge' | 'replace'
-  ) => { papersAdded: number; groupsAdded: number };
+  /** App filters unknown portals and merges owned subscriptions into the access config. */
+  onRestoreBackup: (payload: CartographBackupPayload, mode: BackupRestoreMode) => BackupRestoreResult;
 }
 
 export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
-  items,
-  groups,
-  selectedPlatformIds,
-  ownedPlatformIds,
   userAccessConfig,
-  searchLogs,
-  dedupOverrides,
-  customColumns = [],
-  onSaveCustomColumns,
-  activeSaveGroupId,
-  onSelectActiveSaveGroup,
-  onCreateGroup,
-  onRenameGroup,
-  onDeleteGroup,
-  onAssignPaperGroup,
   dedupSummary,
   sourceBreakdown,
-  onUpdateNotes,
-  onUpdateCustomField,
-  onUpdateQualityAppraisal,
-  onUpdateRelevance,
-  onUpdateScreening,
-  onRemoveItem,
-  onLinkRelatedPaper,
-  onClearAll,
-  onImportPapers,
   onRestoreBackup,
 }) => {
+  const { state: workspace, actions } = useWorkspace();
+  const {
+    savedPapers: items,
+    libraryGroups: groups,
+    selectedPlatformIds,
+    searchLogs,
+    dedupOverrides,
+    customColumns,
+    activeSaveGroupId,
+  } = workspace;
+  const ownedPlatformIds = userAccessConfig?.ownedPlatformIds;
+  const onSaveCustomColumns = actions.setCustomColumns;
+  const onSelectActiveSaveGroup = actions.setActiveSaveGroup;
+  const onCreateGroup = actions.createGroup;
+  const onRenameGroup = actions.renameGroup;
+  const onDeleteGroup = actions.deleteGroup;
+  const onAssignPaperGroup = actions.assignPaperGroup;
+  const onUpdateNotes = actions.updateNotes;
+  const onUpdateCustomField = actions.updateCustomField;
+  const onUpdateQualityAppraisal = actions.updateQualityAppraisal;
+  const onUpdateRelevance = actions.updateRelevance;
+  const onUpdateScreening = actions.updateScreening;
+  const onRemoveItem = actions.removePaper;
+  const onLinkRelatedPaper = actions.linkRelatedPaper;
+  const onClearAll = actions.clearLibrary;
+  const onImportPapers = actions.importPapers;
   const { language, t } = useI18n();
   const isEn = language === 'en';
   const [selectedSlotView, setSelectedSlotView] = useState<LibrarySlotView>('all');
@@ -1292,23 +1265,21 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
               </button>
             )}
 
-            {onSaveCustomColumns && (
-              <button
-                type="button"
-                onClick={() => setShowCustomColsManager((prev) => !prev)}
-                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
-                  showCustomColsManager
-                    ? 'bg-[var(--bg-canvas)] text-[var(--link-academic)] shadow-xs'
-                    : 'bg-[var(--bg-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <SlidersHorizontal className="w-4 h-4 text-[var(--link-academic)]" />
-                <span>{t('customColsBtn', { count: customColumns.length })}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowCustomColsManager((prev) => !prev)}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
+                showCustomColsManager
+                  ? 'bg-[var(--bg-canvas)] text-[var(--link-academic)] shadow-xs'
+                  : 'bg-[var(--bg-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4 text-[var(--link-academic)]" />
+              <span>{t('customColsBtn', { count: customColumns.length })}</span>
+            </button>
           </div>
 
-          {showCustomColsManager && onSaveCustomColumns && (
+          {showCustomColsManager && (
             <div className="mt-3 p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">
@@ -1795,7 +1766,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                         </div>
 
                         {/* Custom Extraction Columns Inputs */}
-                        {customColumns.length > 0 && onUpdateCustomField && (
+                        {customColumns.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                             {customColumns.map((col) => (
                               <div key={col.id}>
@@ -1817,117 +1788,115 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                         )}
 
                         {/* Quality Appraisal Checklist Drawer (RoB 2 / JBI / CASP) */}
-                        {onUpdateQualityAppraisal && (
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedQuality((prev) => ({
-                                    ...prev,
-                                    [item.id]: !prev[item.id],
-                                  }))
-                                }
-                                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedQuality((prev) => ({
+                                  ...prev,
+                                  [item.id]: !prev[item.id],
+                                }))
+                              }
+                              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              <span>{t('qualityAppraisalBtn')}</span>
+                            </button>
+                            {item.qualityAppraisal && (
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                  item.qualityAppraisal.overall === 'low'
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : item.qualityAppraisal.overall === 'high'
+                                    ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                }`}
                               >
-                                <ShieldCheck className="w-4 h-4" />
-                                <span>{t('qualityAppraisalBtn')}</span>
-                              </button>
-                              {item.qualityAppraisal && (
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                    item.qualityAppraisal.overall === 'low'
-                                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                                      : item.qualityAppraisal.overall === 'high'
-                                      ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                  }`}
-                                >
-                                  {item.qualityAppraisal.tool.toUpperCase()} ·{' '}
-                                  {getQualityRatingLabel(
-                                    item.qualityAppraisal.overall,
-                                    language
-                                  )}
-                                </span>
-                              )}
-                            </div>
+                                {item.qualityAppraisal.tool.toUpperCase()} ·{' '}
+                                {getQualityRatingLabel(
+                                  item.qualityAppraisal.overall,
+                                  language
+                                )}
+                              </span>
+                            )}
+                          </div>
 
-                            {expandedQuality[item.id] && (() => {
-                              const currentAppraisal =
-                                item.qualityAppraisal ||
-                                createEmptyQualityAppraisal('rob2');
-                              const def = getQualityChecklistDefinition(
-                                currentAppraisal.tool,
-                                language
-                              );
-                              return (
-                                <div className="mt-2.5 p-3.5 bg-[var(--bg-canvas)] rounded-xl border border-[var(--divider)] space-y-3 text-xs">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-[var(--text-primary)]">
-                                        {t('qualityToolLabel')}
+                          {expandedQuality[item.id] && (() => {
+                            const currentAppraisal =
+                              item.qualityAppraisal ||
+                              createEmptyQualityAppraisal('rob2');
+                            const def = getQualityChecklistDefinition(
+                              currentAppraisal.tool,
+                              language
+                            );
+                            return (
+                              <div className="mt-2.5 p-3.5 bg-[var(--bg-canvas)] rounded-xl border border-[var(--divider)] space-y-3 text-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-[var(--text-primary)]">
+                                      {t('qualityToolLabel')}
+                                    </span>
+                                    <select
+                                      value={currentAppraisal.tool}
+                                      onChange={(e) =>
+                                        onUpdateQualityAppraisal(
+                                          item.id,
+                                          createEmptyQualityAppraisal(
+                                            e.target.value as QualityToolId
+                                          )
+                                        )
+                                      }
+                                      className="px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-primary)] font-medium cursor-pointer"
+                                    >
+                                      <option value="rob2">Cochrane RoB 2</option>
+                                      <option value="jbi_quasi">JBI Quasi-Experimental</option>
+                                      <option value="casp_qual">CASP Qualitative</option>
+                                    </select>
+                                  </div>
+                                  <span className="font-semibold text-[var(--text-primary)]">
+                                    {t('qualityOverallLabel')}{' '}
+                                    {getQualityRatingLabel(currentAppraisal.overall, language)}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                  {def.criteria.map((criterion) => (
+                                    <div
+                                      key={criterion.id}
+                                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1 border-t border-[var(--divider)]"
+                                    >
+                                      <span className="text-[var(--text-secondary)]">
+                                        {criterion.label}
                                       </span>
                                       <select
-                                        value={currentAppraisal.tool}
-                                        onChange={(e) =>
-                                          onUpdateQualityAppraisal(
-                                            item.id,
-                                            createEmptyQualityAppraisal(
-                                              e.target.value as QualityToolId
-                                            )
-                                          )
-                                        }
-                                        className="px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-primary)] font-medium cursor-pointer"
+                                        value={currentAppraisal.criteria[criterion.id] || 'unclear'}
+                                        onChange={(e) => {
+                                          const nextCriteria = {
+                                            ...currentAppraisal.criteria,
+                                            [criterion.id]: e.target.value as QualityRating,
+                                          };
+                                          onUpdateQualityAppraisal(item.id, {
+                                            ...currentAppraisal,
+                                            criteria: nextCriteria,
+                                            overall: computeOverallQuality(nextCriteria),
+                                            updatedAt: new Date().toISOString(),
+                                          });
+                                        }}
+                                        className="px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-primary)] shrink-0 cursor-pointer"
                                       >
-                                        <option value="rob2">Cochrane RoB 2</option>
-                                        <option value="jbi_quasi">JBI Quasi-Experimental</option>
-                                        <option value="casp_qual">CASP Qualitative</option>
+                                        <option value="low">{t('qualityScoreLow')}</option>
+                                        <option value="some_concerns">{t('qualityScoreSome')}</option>
+                                        <option value="high">{t('qualityScoreHigh')}</option>
+                                        <option value="unclear">{t('qualityScoreUnclear')}</option>
                                       </select>
                                     </div>
-                                    <span className="font-semibold text-[var(--text-primary)]">
-                                      {t('qualityOverallLabel')}{' '}
-                                      {getQualityRatingLabel(currentAppraisal.overall, language)}
-                                    </span>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    {def.criteria.map((criterion) => (
-                                      <div
-                                        key={criterion.id}
-                                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1 border-t border-[var(--divider)]"
-                                      >
-                                        <span className="text-[var(--text-secondary)]">
-                                          {criterion.label}
-                                        </span>
-                                        <select
-                                          value={currentAppraisal.criteria[criterion.id] || 'unclear'}
-                                          onChange={(e) => {
-                                            const nextCriteria = {
-                                              ...currentAppraisal.criteria,
-                                              [criterion.id]: e.target.value as QualityRating,
-                                            };
-                                            onUpdateQualityAppraisal(item.id, {
-                                              ...currentAppraisal,
-                                              criteria: nextCriteria,
-                                              overall: computeOverallQuality(nextCriteria),
-                                              updatedAt: new Date().toISOString(),
-                                            });
-                                          }}
-                                          className="px-2 py-1 rounded-md bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-primary)] shrink-0 cursor-pointer"
-                                        >
-                                          <option value="low">{t('qualityScoreLow')}</option>
-                                          <option value="some_concerns">{t('qualityScoreSome')}</option>
-                                          <option value="high">{t('qualityScoreHigh')}</option>
-                                          <option value="unclear">{t('qualityScoreUnclear')}</option>
-                                        </select>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  ))}
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        )}
+                              </div>
+                            );
+                          })()}
+                        </div>
 
                         {/* Researcher Notes Input */}
                         <div>
@@ -2005,7 +1974,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
 
                           <span>{t('citedByCount', { count: item.citationCount })}</span>
 
-                          {onLinkRelatedPaper && items.length > 1 && (
+                          {items.length > 1 && (
                             <button
                               type="button"
                               onClick={() => {
@@ -2050,7 +2019,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                           </div>
                         )}
 
-                        {linkingTargetId === item.id && onLinkRelatedPaper && (
+                        {linkingTargetId === item.id && (
                           <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs">
                             <select
                               value={linkCandidateId}
