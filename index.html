@@ -3,35 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (function () {
-        try {
-          var params = new URLSearchParams(window.location.search);
-          var qLang = (params.get('lang') || '').toLowerCase();
-          var stored = '';
-          try {
-            stored = (window.localStorage.getItem('cartograph_language') || '').toLowerCase();
-          } catch (e) {}
-          var resolved = '';
-          if (qLang === 'pt' || qLang === 'en') {
-            resolved = qLang;
-          } else if (stored === 'pt' || stored === 'en') {
-            resolved = stored;
-          } else {
-            var langs = Array.isArray(navigator.languages) && navigator.languages.length
-              ? navigator.languages
-              : [navigator.language || ''];
-            for (var i = 0; i < langs.length; i++) {
-              var tag = String(langs[i] || '').toLowerCase();
-              if (tag.indexOf('pt') === 0) { resolved = 'pt'; break; }
-              if (tag.indexOf('en') === 0) { resolved = 'en'; break; }
-            }
-            if (!resolved) resolved = 'en';
-          }
-          document.documentElement.lang = resolved === 'pt' ? 'pt-BR' : 'en';
-        } catch (e) {}
-      })();
-    </script>
 
     <!-- 3. Meta Title & Meta Description -->
     <title>Cartograph — Hub de Metabusca Científica &amp; Revisão de Literatura</title>
