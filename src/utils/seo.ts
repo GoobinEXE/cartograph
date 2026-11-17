@@ -232,16 +232,116 @@ const SEO_METADATA: Record<
         `The requested route was not found in Cartograph. Return to the ${PLATFORM_COUNT} scientific platforms directory or the ${OPEN_APIS}-API federated metasearch.`,
     },
   },
+  es: {
+    platforms: {
+      title: 'Cartograph — Metabuscador científico y revisión de literatura',
+      description: `Metabuscador científico y académico con ${OPEN_APIS} APIs abiertas en tiempo real, catálogo curado de ${PLATFORM_COUNT} plataformas, constructor booleano y cribado sistemático PRISMA 2020.`,
+    },
+    federated: {
+      title: `Metabúsqueda federada (${OPEN_APIS} APIs abiertas) · Cartograph`,
+      description: `Consulte en paralelo ${OPEN_APIS} bases abiertas, como OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, CORE, OpenAIRE, el Banco Mundial e Ipea.`,
+    },
+    saved: {
+      title: 'Biblioteca y cribado PRISMA 2020 · Cartograph',
+      description:
+        'Organice referencias en carpetas temáticas, aplique criterios de inclusión y exclusión PRISMA 2020, genere diagramas SVG y exporte en ABNT, APA 7, BibTeX y CSV.',
+    },
+    feedback: {
+      title: 'Comentarios y sugerencias de plataformas · Cartograph',
+      description:
+        'Sugiera nuevas bases científicas, proponga mejoras técnicas o informe problemas para ampliar el catálogo curado de Cartograph.',
+    },
+    cartograph: {
+      title: 'Acerca de Cartograph — Arquitectura y metodología científica',
+      description:
+        'Arquitectura determinista de Cartograph v2.4: deduplicación multicriterio Jaro-Winkler, análisis de resúmenes estructurados y reproducibilidad PRISMA 2020.',
+    },
+    apis: {
+      title: `Catálogo de las ${TOTAL_APIS} APIs científicas federadas · Cartograph`,
+      description: `Documentación y licencias de las ${TOTAL_APIS} APIs que consulta Cartograph (${OPEN_APIS} abiertas y ${BYOK_APIS} con clave propia): OpenAlex, PubMed, Semantic Scholar, arXiv, CORE y más.`,
+    },
+    citation: {
+      title: 'Cómo citar Cartograph (APA 7, ABNT, BibTeX)',
+      description:
+        'Formatos oficiales para citar el metabuscador Cartograph en artículos, tesis y revisiones sistemáticas de la literatura.',
+    },
+    copyright: {
+      title: 'Derechos de autor, propiedad intelectual y licencias · Cartograph',
+      description:
+        'Titularidad del software Cartograph, aviso sobre marcas de terceros y licencia CC0 de los metadatos abiertos.',
+    },
+    privacy: {
+      title: 'Política de privacidad (RGPD / LGPD) y términos de uso · Cartograph',
+      description:
+        'Privacidad desde el diseño conforme al RGPD y la LGPD: almacenamiento local en el navegador, protección de credenciales institucionales y límites de responsabilidad académica.',
+    },
+    notFound: {
+      title: '404 — Coordenada no encontrada · Cartograph',
+      description: `La ruta solicitada no existe en Cartograph. Vuelva al directorio de ${PLATFORM_COUNT} plataformas científicas o al metabuscador federado de ${OPEN_APIS} APIs.`,
+    },
+  },
+  fr: {
+    platforms: {
+      title: 'Cartograph — Métamoteur scientifique et revue de littérature',
+      description: `Métamoteur scientifique et académique avec ${OPEN_APIS} API ouvertes en temps réel, catalogue de ${PLATFORM_COUNT} plateformes, constructeur booléen et sélection systématique PRISMA 2020.`,
+    },
+    federated: {
+      title: `Recherche fédérée (${OPEN_APIS} API ouvertes) · Cartograph`,
+      description: `Interrogez en parallèle ${OPEN_APIS} bases ouvertes, dont OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, CORE, OpenAIRE, la Banque mondiale et l’Ipea.`,
+    },
+    saved: {
+      title: 'Bibliothèque et sélection PRISMA 2020 · Cartograph',
+      description:
+        'Classez vos références par dossiers thématiques, appliquez les critères d’inclusion et d’exclusion PRISMA 2020, générez des diagrammes SVG et exportez en ABNT, APA 7, BibTeX et CSV.',
+    },
+    feedback: {
+      title: 'Commentaires et suggestions de plateformes · Cartograph',
+      description:
+        'Proposez de nouvelles bases scientifiques, suggérez des améliorations techniques ou signalez un problème pour enrichir le catalogue de Cartograph.',
+    },
+    cartograph: {
+      title: 'À propos de Cartograph — Architecture et méthodologie scientifique',
+      description:
+        'Architecture déterministe de Cartograph v2.4 : déduplication multicritère Jaro-Winkler, analyse des résumés structurés et reproductibilité PRISMA 2020.',
+    },
+    apis: {
+      title: `Catalogue des ${TOTAL_APIS} API scientifiques fédérées · Cartograph`,
+      description: `Documentation et licences des ${TOTAL_APIS} API interrogées par Cartograph (${OPEN_APIS} ouvertes et ${BYOK_APIS} avec votre propre clé) : OpenAlex, PubMed, Semantic Scholar, arXiv, CORE et d’autres.`,
+    },
+    citation: {
+      title: 'Citer Cartograph (APA 7, ABNT, BibTeX)',
+      description:
+        'Formats officiels pour citer le métamoteur Cartograph dans des articles, des thèses et des revues systématiques de la littérature.',
+    },
+    copyright: {
+      title: 'Droit d’auteur, propriété intellectuelle et licences · Cartograph',
+      description:
+        'Titularité du logiciel Cartograph, mention relative aux marques de tiers et licence CC0 des métadonnées ouvertes.',
+    },
+    privacy: {
+      title: 'Politique de confidentialité (RGPD / LGPD) et conditions d’utilisation · Cartograph',
+      description:
+        'Protection des données dès la conception, conforme au RGPD et à la LGPD : stockage local dans le navigateur, protection des identifiants institutionnels et limites de responsabilité académique.',
+    },
+    notFound: {
+      title: '404 — Coordonnée introuvable · Cartograph',
+      description: `Le chemin demandé n’existe pas dans Cartograph. Revenez au répertoire de ${PLATFORM_COUNT} plateformes scientifiques ou à la recherche fédérée sur ${OPEN_APIS} API.`,
+    },
+  },
 };
 
 const HTML_LANG_MAP: Record<LanguageCode, string> = {
   pt: 'pt-BR',
   en: 'en',
+  es: 'es',
+  fr: 'fr',
 };
 
 const OG_LOCALE_MAP: Record<LanguageCode, string> = {
   pt: 'pt_BR',
   en: 'en_US',
+  es: 'es_ES',
+  fr: 'fr_FR',
 };
 
 function setMetaContent(selector: string, content: string): void {

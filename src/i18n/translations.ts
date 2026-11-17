@@ -1,7 +1,9 @@
 import { en } from './locales/en';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
 import { pt } from './locales/pt';
 
-export type SupportedLanguage = 'pt' | 'en';
+export type SupportedLanguage = 'pt' | 'en' | 'es' | 'fr';
 export type LanguageCode = SupportedLanguage;
 
 export interface Translations {
@@ -699,6 +701,8 @@ export interface Translations {
 export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
   pt,
   en,
+  es,
+  fr,
 };
 
 /**
