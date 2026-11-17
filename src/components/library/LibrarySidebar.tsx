@@ -9,6 +9,7 @@ import { LAYOUT_STORAGE_KEYS } from '../../utils/layoutPreferences';
 import type { CartographBackupPayload } from '../../utils/workspaceBackup';
 import { CollapsibleSection, SidebarDrawersHeader } from '../ui/CollapsibleSection';
 import { usePersistedDrawers } from '../ui/usePersistedDrawers';
+import { ResponsiveSidebar } from '../ui/ResponsiveSidebar';
 import { LibraryBackupSection } from './LibraryBackupSection';
 import { LibrarySlotsSection } from './LibrarySlotsSection';
 import { NewGroupSection } from './NewGroupSection';
@@ -59,10 +60,7 @@ export function LibrarySidebar({
   });
 
   return (
-    <aside
-      className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
-      aria-label={t('savedSidebarAria')}
-    >
+    <ResponsiveSidebar ariaLabel={t('savedSidebarAria')} triggerLabel={t('mobileLibraryPanelBtn')}>
       <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
       {/* 1. Sort Controls (Primary ordering control — top priority) */}
@@ -184,6 +182,6 @@ export function LibrarySidebar({
         ownedPlatformIds={ownedPlatformIds}
         onRestoreBackup={onRestoreBackup}
       />
-    </aside>
+    </ResponsiveSidebar>
   );
 }
