@@ -1,7 +1,7 @@
 import { NormalizedPaper } from '../types/academic';
 import { extractArxivId, extractPmid, normalizeDoi } from '../utils/deduplication';
 import { asArray, asRecord, asRecords, asString, firstString, isRecord } from '../utils/json';
-import { extractYear, nonNegativeCount } from './adapterUtils';
+import { extractYear, nonNegativeCount, localizeUntitledPapers } from './adapterUtils';
 import { normalizeOpenAlexWork } from './citationChaser';
 import { fetchJsonDirect } from './httpClient';
 
@@ -198,7 +198,8 @@ async function resolveSingleArxiv(arxivId: string, signal?: AbortSignal): Promis
 
 export async function resolveIdentifierBatch(
   rawText: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  language?: string
 ): Promise<BatchResolveResult> {
   const tokens = parseIdentifierBatch(rawText);
   const papers: NormalizedPaper[] = [];
@@ -225,7 +226,7 @@ export async function resolveIdentifierBatch(
   }
 
   return {
-    papers,
+    papers: localizeUntitledPapers(papers, language),
     unresolved,
     totalTokens: tokens.length,
   };

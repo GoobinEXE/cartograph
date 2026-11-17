@@ -2,7 +2,7 @@ import { NormalizedPaper, UserAccessConfig } from '../types/academic';
 import { getActiveByokEntry } from '../utils/accessConfig';
 import { deduplicatePapersAdvanced, normalizeDoi } from '../utils/deduplication';
 import { asArray, asRecord, asRecords, asString, asStringList, firstString, isRecord, type JsonRecord } from '../utils/json';
-import { UNTITLED_PAPER_TITLE, nonNegativeCount } from './adapterUtils';
+import { UNTITLED_PAPER_TITLE, localizeUntitledPapers, nonNegativeCount } from './adapterUtils';
 import { HttpStatusError, fetchJsonDirect } from './httpClient';
 
 export type CitationChaseDirection = 'references' | 'citations' | 'both';
@@ -138,7 +138,7 @@ async function resolveOpenAlexWorkSeed(paper: NormalizedPaper, signal?: AbortSig
 export async function chasePaperCitations(
   paper: NormalizedPaper,
   direction: CitationChaseDirection = 'both',
-  options?: { accessConfig?: UserAccessConfig; signal?: AbortSignal; limit?: number }
+  options?: { accessConfig?: UserAccessConfig; signal?: AbortSignal; limit?: number; language?: string }
 ): Promise<CitationChaseResult> {
   const limit = Math.min(Math.max(options?.limit ?? 20, 5), 40);
   const signal = options?.signal;
@@ -226,8 +226,8 @@ export async function chasePaperCitations(
 
   return {
     seedTitle: paper.title,
-    references: deduplicatePapersAdvanced(references).papers,
-    citations: deduplicatePapersAdvanced(citations).papers,
+    references: localizeUntitledPapers(deduplicatePapersAdvanced(references).papers, options?.language),
+    citations: localizeUntitledPapers(deduplicatePapersAdvanced(citations).papers, options?.language),
     sourceUsed: usedOpenAlex && usedS2 ? 'both' : usedS2 ? 'semanticscholar' : 'openalex',
     warnings,
   };

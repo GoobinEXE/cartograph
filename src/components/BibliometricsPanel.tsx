@@ -22,14 +22,20 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
   const handleExportSvg = () => {
     if (!svgExportRef.current) return;
     const serializer = new XMLSerializer();
-    // Theme tokens (var(--chart-1), currentColor) do not resolve in a standalone file:
-    // bake the current computed colors into the exported markup.
-    const rootStyle = getComputedStyle(document.documentElement);
-    const textColor = getComputedStyle(svgExportRef.current).color || '#111827';
+    // Theme tokens (var(--chart-1), currentColor) do not resolve in a standalone file, and
+    // exported charts land on white pages (theses, papers): always bake the light-theme
+    // values, read from the tokens through a probe element scoped to data-theme="light".
+    const probe = document.createElement('div');
+    probe.setAttribute('data-theme', 'light');
+    probe.style.display = 'none';
+    document.body.appendChild(probe);
+    const lightTokens = getComputedStyle(probe);
+    const textColor = lightTokens.getPropertyValue('--text-primary').trim() || 'black';
     const rawSvg = serializer
       .serializeToString(svgExportRef.current)
-      .replace(/var\((--[a-z0-9-]+)\)/gi, (match, name: string) => rootStyle.getPropertyValue(name).trim() || match)
+      .replace(/var\((--[a-z0-9-]+)\)/gi, (match, name: string) => lightTokens.getPropertyValue(name).trim() || match)
       .replace(/currentColor/g, textColor);
+    probe.remove();
     const stamp = new Date().toISOString().slice(0, 10);
     triggerFileDownload(
       `cartograph-bibliometrics-${stamp}.svg`,

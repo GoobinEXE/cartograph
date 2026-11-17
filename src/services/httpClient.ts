@@ -16,10 +16,11 @@ import {
  *
  * - Tauri desktop: call the upstream directly through the native HTTP plugin (no CORS,
  *   scope `https://**` in src-tauri/capabilities). BYOK keys go straight to the provider.
- * - Web: call the same-origin proxy. A JSON/XML answer means the proxy exists, so its
- *   status is final (a 4xx/429 from the upstream is not retried elsewhere). An HTML answer
- *   or a network failure means there is no proxy on this origin (static hosting, Vite
- *   without the bridge); only then the cloud proxy and finally the direct URL are tried.
+ * - Web: call the same-origin proxy. A JSON/XML answer means the proxy exists: success is
+ *   returned, and an error skips the cloud proxy (same code, same failure) and tries the
+ *   direct URL once, reporting the proxy status if the browser cannot reach the upstream.
+ *   An HTML answer or a network failure means there is no proxy on this origin (static
+ *   hosting, Vite without the bridge); then the cloud proxy and the direct URL are tried.
  * - BYOK on the web uses the same-origin proxy only: personal keys never leave for a
  *   second host.
  */
@@ -87,6 +88,7 @@ export async function crossPlatformFetch(
   if (currentOrigin() !== CLOUD_PROXY_ORIGIN) proxyCandidates.push(`${CLOUD_PROXY_ORIGIN}${proxyPath}`);
 
   let lastNetworkError: string | null = null;
+  let proxyErrorStatus: number | null = null;
   for (const candidate of proxyCandidates) {
     let res: Response;
     try {
@@ -98,7 +100,11 @@ export async function crossPlatformFetch(
     }
     if (isProxyPayload(res)) {
       if (res.ok) return res;
-      throw new HttpStatusError(res.status);
+      // A proxy answered with an error (query rejected by its validation, upstream
+      // blocking server egress IPs, rate limit). The cloud proxy runs the same code and
+      // would fail the same way, so skip it and give the browser's own route one try.
+      proxyErrorStatus = res.status;
+      break;
     }
     // HTML or unknown payload: no proxy deployed on this origin, try the next candidate.
     throwIfAborted(init?.signal);
@@ -111,6 +117,8 @@ export async function crossPlatformFetch(
     throw new HttpStatusError(res.status);
   } catch (err) {
     if (isAbortError(err) || err instanceof HttpStatusError) throw err;
+    // Direct access blocked (typically CORS): the proxy status explains the failure better.
+    if (proxyErrorStatus !== null) throw new HttpStatusError(proxyErrorStatus);
     throw new Error(lastNetworkError || (err instanceof Error ? err.message : String(err)));
   }
 }

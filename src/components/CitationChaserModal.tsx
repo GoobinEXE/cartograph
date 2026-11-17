@@ -30,7 +30,7 @@ export const CitationChaserModal: React.FC<CitationChaserModalProps> = ({
   onToggleSave,
   onClose,
 }) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [activeDirection, setActiveDirection] = useState<'citations' | 'references'>('citations');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CitationChaseResult | null>(null);
@@ -49,6 +49,7 @@ export const CitationChaserModal: React.FC<CitationChaserModalProps> = ({
     chasePaperCitations(seedPaper, 'both', {
       accessConfig,
       signal: controller.signal,
+      language,
     })
       .then((res) => {
         if (!controller.signal.aborted) {

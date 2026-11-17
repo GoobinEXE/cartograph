@@ -57,3 +57,36 @@ test('calculatePrisma2020Counts tallies identified, duplicates, excluded reasons
   assert.match(methodText, /120 registros/);
   assert.match(methodText, /2 estudos atenderam/);
 });
+
+test('generatePrismaMethodologyText keeps reason labels in the prose language for es/fr users', async () => {
+  const { calculatePrisma2020Counts, generatePrismaMethodologyText, getScreeningReasonLabels } = await import(
+    '../src/utils/prismaFlow.ts'
+  );
+  const items = [
+    {
+      id: 'x1',
+      title: 'Excluded study',
+      authors: [],
+      year: 2020,
+      venue: '',
+      doi: null,
+      url: 'https://example.org',
+      pdfUrl: null,
+      isOpenAccess: false,
+      citationCount: 0,
+      abstractText: null,
+      source: 'openalex',
+      sourceLabel: '',
+      savedAt: '2026-01-01T00:00:00.000Z',
+      researcherNotes: '',
+      relevanceTag: 'alta',
+      screeningStatus: 'excluded',
+      exclusionReason: 'populacao_inadequada',
+    },
+  ] as unknown as Parameters<typeof calculatePrisma2020Counts>[0];
+  const counts = calculatePrisma2020Counts(items, 0, 0, {}, 'es');
+  const text = generatePrismaMethodologyText(counts, 'es');
+  assert.ok(text.includes(getScreeningReasonLabels('en').populacao_inadequada), text);
+  assert.equal(text.includes(getScreeningReasonLabels('es').populacao_inadequada), false);
+  assert.ok(text.includes('Academic Databases'));
+});

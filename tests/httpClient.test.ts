@@ -75,11 +75,29 @@ test('crossPlatformFetch returns the same-origin proxy JSON response without fur
   );
 });
 
-test('crossPlatformFetch treats a proxy JSON error status as final', async () => {
-  const calls = stubFetch([jsonResponse(429, { error: 'rate limited' })]);
+test('crossPlatformFetch skips the cloud proxy after a proxy JSON error and reports it if direct is blocked', async () => {
+  const calls = stubFetch([jsonResponse(429, { error: 'rate limited' }), new TypeError('Failed to fetch')]);
 
   await assert.rejects(crossPlatformFetch(PROXY_PATH, DIRECT_URL), isHttpStatus(429));
-  assert.equal(calls.length, 1);
+  assert.deepEqual(
+    calls.map((c) => c.url),
+    [PROXY_PATH, DIRECT_URL]
+  );
+});
+
+test('crossPlatformFetch recovers through the direct URL when the proxy rejects the request', async () => {
+  // e.g. a Boolean query longer than the proxy limit (400) or an upstream blocking server IPs (403)
+  const direct = jsonResponse(200, { results: [1] });
+  const calls = stubFetch([jsonResponse(400, { error: 'query too long' }), direct]);
+
+  const res = await crossPlatformFetch(PROXY_PATH, DIRECT_URL);
+  assert.equal(res, direct);
+  assert.equal(calls.length, 2);
+});
+
+test('crossPlatformFetch reports the direct status when the upstream itself answers with an error', async () => {
+  stubFetch([jsonResponse(403, { error: 'blocked' }), jsonResponse(404)]);
+  await assert.rejects(crossPlatformFetch(PROXY_PATH, DIRECT_URL), isHttpStatus(404));
 });
 
 test('crossPlatformFetch moves to the cloud proxy when the same origin answers with HTML', async () => {
