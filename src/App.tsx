@@ -116,7 +116,7 @@ type PlatformSortMode = 'curated' | 'trust' | 'name' | 'access';
 
 export default function AcademicCommandCenter() {
   const { language, isAutoLanguage, setLanguage, resetToSystemLanguage, t, availableLanguages } = useI18n();
-  const { state: workspace, actions: workspaceActions } = useWorkspace();
+  const { state: workspace, actions: workspaceActions, isHydrated: isWorkspaceHydrated } = useWorkspace();
   const { savedPapers, selectedPlatformIds, searchLogs, dedupOverrides } = workspace;
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -1744,8 +1744,9 @@ export default function AcademicCommandCenter() {
           />
         )}
 
-        {/* TAB 3: SAVED LITERATURE REVIEW MATRIX */}
-        {activeTab === 'saved' && (
+        {/* TAB 3: SAVED LITERATURE REVIEW MATRIX (after hydration: no flash of an empty library,
+            and first-run drawer defaults see the stored groups) */}
+        {activeTab === 'saved' && isWorkspaceHydrated && (
           <Suspense fallback={null}>
             <SavedLiteratureDrawer
               userAccessConfig={userAccessConfig}
