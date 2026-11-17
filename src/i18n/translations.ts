@@ -643,9 +643,79 @@ export interface Translations {
   meshSuggesterPh: string;
   meshSuggestBtn: string;
   meshEmptyResult: string;
+  sourceErrUnknown: string;
+  sourceErrOfflineMsg: string;
+  sourceErrOfflineDetail: string;
+  sourceErrTimeoutMsg: string;
+  sourceErrTimeoutDetail: string;
+  sourceErrRateLimitMsg: string;
+  sourceErrRateLimitDetail: string;
+  sourceErrRejectedQueryMsg: string;
+  sourceErrRejectedQueryDetail: string;
+  sourceErrKeyRejectedMsg: string;
+  sourceErrKeyRejectedDetail: string;
+  sourceErrForbiddenMsg: string;
+  sourceErrForbiddenDetail: string;
+  sourceErrNotFoundMsg: string;
+  sourceErrNotFoundProxyDetail: string;
+  sourceErrNotFoundDirectDetail: string;
+  sourceErrServerMsg: string;
+  sourceErrServerDetail: string;
+  sourceErrS2ThrottleMsg: string;
+  sourceErrS2ThrottleDetail: string;
+  sourceErrProxyUnreachableMsg: string;
+  sourceErrProxyUnreachableDetail: string;
+  sourceErrBlockedMsg: string;
+  sourceErrBlockedDetail: string;
+  sourceErrMaintenanceMsg: string;
+  sourceErrMaintenanceDetail: string;
+  sourceErrGenericMsg: string;
+  sourceErrGenericDetail: string;
+  untitledPaperTitle: string;
+  screeningReasonPopulation: string;
+  screeningReasonDesign: string;
+  screeningReasonOutcome: string;
+  screeningReasonFullText: string;
+  screeningReasonDuplicate: string;
+  screeningReasonRetracted: string;
+  screeningReasonOther: string;
+  prismaFallbackSourceLabel: string;
+  backupErrEmpty: string;
+  backupErrInvalidJson: string;
+  backupErrInvalidStructure: string;
+  backupErrUnknownSchema: string;
+  backupErrMissingPapers: string;
+  privacyMetricsTitle: string;
+  privacyMetricsBody: string;
+  privacyMetricsStatusOn: string;
+  privacyMetricsStatusOff: string;
+  privacyMetricsTurnOff: string;
+  privacyMetricsTurnOn: string;
+  picoPopulationPh: string;
+  picoInterventionPh: string;
+  picoComparisonPh: string;
 }
 
 export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
   pt,
   en,
 };
+
+/**
+ * Resolves a dictionary key with `{param}` interpolation and English fallback. Pure (no
+ * React), so services, exporters and the ErrorBoundary can localize without the provider.
+ */
+export function translate(
+  language: SupportedLanguage | string,
+  key: keyof Translations,
+  params?: Record<string, string | number>
+): string {
+  const dictionary = TRANSLATIONS[language as SupportedLanguage] || TRANSLATIONS.en;
+  let str = dictionary[key] || TRANSLATIONS.en[key] || String(key);
+  if (params) {
+    Object.entries(params).forEach(([paramKey, paramValue]) => {
+      str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+    });
+  }
+  return str;
+}

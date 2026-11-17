@@ -16,6 +16,10 @@
   --btn-primary-bg: #111827;
   --btn-primary-fg: #FFFFFF;
   --accent-blue-tint: rgba(26, 86, 219, 0.08);
+  /* Categorical chart series (bibliometrics): contrast-checked against both canvases. */
+  --chart-1: #0284C7;
+  --chart-2: #047857;
+  --chart-3: #4F46E5;
 }
 
 [data-theme="dark"] {
@@ -33,6 +37,9 @@
   --btn-primary-bg: #F3F4F6;
   --btn-primary-fg: #0E1015;
   --accent-blue-tint: rgba(96, 165, 250, 0.12);
+  --chart-1: #38BDF8;
+  --chart-2: #34D399;
+  --chart-3: #818CF8;
 }
 
 @layer base {

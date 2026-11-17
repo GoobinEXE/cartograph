@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { SupportedLanguage, TRANSLATIONS, Translations } from './translations';
+import { SupportedLanguage, TRANSLATIONS, Translations, translate } from './translations';
+
+export { translate };
 
 export const STORAGE_KEY_LANGUAGE = 'cartograph_language';
 
@@ -9,23 +11,35 @@ export interface LanguageOption {
   nativeLabel: string;
 }
 
-export const AVAILABLE_LANGUAGES: LanguageOption[] = [
-  { code: 'pt', label: 'Português', nativeLabel: 'Português (BR/PT)' },
-  { code: 'en', label: 'English', nativeLabel: 'English (US/UK)' },
-];
+/** Native names shown in the language menu; only languages present in TRANSLATIONS are offered. */
+const LANGUAGE_NAMES: Record<string, Omit<LanguageOption, 'code'>> = {
+  pt: { label: 'Português', nativeLabel: 'Português (BR/PT)' },
+  en: { label: 'English', nativeLabel: 'English (US/UK)' },
+  es: { label: 'Español', nativeLabel: 'Español' },
+  fr: { label: 'Français', nativeLabel: 'Français' },
+};
+
+export const AVAILABLE_LANGUAGES: LanguageOption[] = (Object.keys(TRANSLATIONS) as SupportedLanguage[]).map(
+  (code) => ({ code, ...(LANGUAGE_NAMES[code] ?? { label: code, nativeLabel: code }) })
+);
 
 export function isSupportedLanguage(value: string | null | undefined): value is SupportedLanguage {
-  return value === 'pt' || value === 'en';
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(TRANSLATIONS, value);
 }
 
+/** First browser/OS locale whose primary subtag is a supported UI language; English otherwise. */
 export function resolveLanguageFromTags(tags: readonly string[]): SupportedLanguage {
   for (const rawLang of tags) {
     if (!rawLang) continue;
     const primary = rawLang.trim().toLowerCase().split(/[-_]/)[0];
-    if (primary === 'pt') return 'pt';
-    if (primary === 'en') return 'en';
+    if (isSupportedLanguage(primary)) return primary;
   }
   return 'en';
+}
+
+/** Value for <html lang>. */
+export function htmlLangFor(language: SupportedLanguage): string {
+  return language === 'pt' ? 'pt-BR' : language;
 }
 
 export function detectSystemLanguage(): SupportedLanguage {
@@ -86,25 +100,6 @@ export function detectBrowserLanguage(): SupportedLanguage {
   return detectSystemLanguage();
 }
 
-/**
- * Resolves a dictionary key with `{param}` interpolation and English fallback. Exported for
- * components that must render outside the provider tree or after it failed (ErrorBoundary).
- */
-export function translate(
-  language: SupportedLanguage,
-  key: keyof Translations,
-  params?: Record<string, string | number>
-): string {
-  const dictionary = TRANSLATIONS[language] || TRANSLATIONS.en;
-  let str = dictionary[key] || TRANSLATIONS.en[key] || String(key);
-  if (params) {
-    Object.entries(params).forEach(([paramKey, paramValue]) => {
-      str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
-    });
-  }
-  return str;
-}
-
 interface I18nContextType {
   language: SupportedLanguage;
   isAutoLanguage: boolean;
@@ -128,7 +123,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAutoLanguage(false);
     try {
       localStorage.setItem(STORAGE_KEY_LANGUAGE, lang);
-      document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en';
+      document.documentElement.lang = htmlLangFor(lang);
     } catch {
       // ignore storage error
     }
@@ -140,14 +135,14 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAutoLanguage(true);
     try {
       localStorage.removeItem(STORAGE_KEY_LANGUAGE);
-      document.documentElement.lang = systemLang === 'pt' ? 'pt-BR' : 'en';
+      document.documentElement.lang = htmlLangFor(systemLang);
     } catch {
       // ignore storage error
     }
   }, []);
 
   useEffect(() => {
-    document.documentElement.lang = language === 'pt' ? 'pt-BR' : 'en';
+    document.documentElement.lang = htmlLangFor(language);
   }, [language]);
 
   useEffect(() => {

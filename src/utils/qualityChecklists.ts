@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import { SupportedLanguage } from '../i18n/translations';
 import {
   QualityAppraisalResult,
@@ -154,7 +155,7 @@ export function getQualityChecklistDefinition(
   criteria: Array<{ id: string; label: string }>;
 } {
   const def = QUALITY_CHECKLISTS[tool];
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   return {
     id: def.id,
     title: isEn ? def.titleEn : def.titlePt,
@@ -169,7 +170,7 @@ export function getQualityRatingLabel(
   rating: QualityRating,
   language: SupportedLanguage
 ): string {
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   switch (rating) {
     case 'low':
       return isEn ? 'Low risk / Adequate' : 'Baixo risco / Adequado';

@@ -9,7 +9,7 @@ import {
 } from '../types/academic';
 import { deduplicatePapersAdvanced } from '../utils/deduplication';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
-import { SupportedLanguage } from '../i18n/translations';
+import { SupportedLanguage, Translations, translate } from '../i18n/translations';
 import { API_SOURCE_REGISTRY, sourceMatchesScope } from '../data/apiSources';
 import { buildByokCacheSignature, getActiveByokEntry } from '../utils/accessConfig';
 import { crossPlatformFetch, isTauriRuntime } from './httpClient';
@@ -55,181 +55,65 @@ function diagnoseSourceError(
   language: SupportedLanguage = 'pt',
   usedCredential = false
 ): { errorMessage: string; errorDetail: string; rawError: string } {
-  const isEn = language === 'en';
+  const tr = (key: keyof Translations) => translate(language, key, { label });
+  const diagnosis = (messageKey: keyof Translations, detailKey: keyof Translations) => ({
+    errorMessage: tr(messageKey),
+    errorDetail: tr(detailKey),
+    rawError,
+  });
   const viaProxy = API_SOURCE_REGISTRY[sourceId]?.transport !== 'direct';
-  const rawError = err instanceof Error ? err.message : String(err || (isEn ? 'Unknown error' : 'Erro desconhecido'));
+  const rawError = err instanceof Error ? err.message : String(err || tr('sourceErrUnknown'));
   const normalized = rawError.toLowerCase();
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return {
-      errorMessage: isEn
-        ? 'Internet connection unavailable on this device.'
-        : 'Conexão com a internet indisponível no dispositivo.',
-      errorDetail: isEn
-        ? 'Restore network access and run the search again.'
-        : 'Restabeleça o acesso à rede e execute a pesquisa novamente.',
-      rawError,
-    };
+    return diagnosis('sourceErrOfflineMsg', 'sourceErrOfflineDetail');
   }
-
-  if (normalized.includes('timeout') || normalized.includes('12s')) {
-    return {
-      errorMessage: isEn
-        ? `${label} exceeded the response timeout for this query.`
-        : `${label} excedeu o tempo limite de resposta para esta consulta.`,
-      errorDetail: isEn
-        ? 'Query complexity or temporary repository slowness prevented records from returning. Reduce the number of keywords or retry in a few moments.'
-        : 'O volume de termos pesquisados ou a lentidão momentânea da base impediu o retorno dos registros. Reduza o número de palavras-chave ou repita a operação em instantes.',
-      rawError,
-    };
+  if (normalized.includes('timeout')) {
+    return diagnosis('sourceErrTimeoutMsg', 'sourceErrTimeoutDetail');
   }
 
   const httpMatch = rawError.match(/\bHTTP\s+(\d{3})\b/i);
   if (httpMatch) {
     const status = Number(httpMatch[1]);
-    if (status === 429) {
-      return {
-        errorMessage: isEn
-          ? `${label} reached its temporary rate limit for consecutive queries.`
-          : `${label} atingiu o limite temporário de consultas consecutivas.`,
-        errorDetail: isEn
-          ? 'The provider restricts consecutive request volume. Wait about 1 minute before querying this source again.'
-          : 'O provedor restringe o volume de pesquisas enviadas em sequência. Aguarde aproximadamente 1 minuto antes de realizar uma nova consulta nesta fonte.',
-        rawError,
-      };
-    }
+    if (status === 429) return diagnosis('sourceErrRateLimitMsg', 'sourceErrRateLimitDetail');
     if (status === 400 || status === 422) {
-      return {
-        errorMessage: isEn
-          ? `${label} rejected the query terms or filters provided.`
-          : `${label} recusou os termos ou filtros informados nesta pesquisa.`,
-        errorDetail: isEn
-          ? 'Boolean operators (AND, OR, NOT), quotes, special symbols, or year filters may not be supported by this source. Try direct keywords.'
-          : 'Operadores lógicos (AND, OR, NOT), aspas, símbolos especiais ou filtros de ano podem ser incompatíveis com esta base. Utilize apenas palavras-chave diretas.',
-        rawError,
-      };
+      return diagnosis('sourceErrRejectedQueryMsg', 'sourceErrRejectedQueryDetail');
     }
     if (status === 401 || status === 403) {
-      if (usedCredential) {
-        return {
-          errorMessage: isEn
-            ? `${label} rejected the configured API key or institutional token.`
-            : `${label} recusou a chave de API ou token institucional configurado.`,
-          errorDetail: isEn
-            ? 'Review your key and optional InstToken in Institutional Access & API Keys settings.'
-            : 'Verifique sua chave e o InstToken opcional nas configurações de Acesso Institucional & Chaves de API.',
-          rawError,
-        };
-      }
-      return {
-        errorMessage: isEn
-          ? `Automated access to ${label} is restricted by the origin portal.`
-          : `O acesso automatizado ao ${label} encontra-se restrito pelo portal de origem.`,
-        errorDetail: isEn
-          ? 'Select another available source or open the portal directly in the "Platforms & Portals" tab.'
-          : 'Selecione outra base disponível ou acesse o portal diretamente pela aba "Bases & Portais".',
-        rawError,
-      };
+      return usedCredential
+        ? diagnosis('sourceErrKeyRejectedMsg', 'sourceErrKeyRejectedDetail')
+        : diagnosis('sourceErrForbiddenMsg', 'sourceErrForbiddenDetail');
     }
     if (status === 404) {
-      return {
-        errorMessage: isEn
-          ? `The ${label} search service is unavailable at the configured endpoint.`
-          : `O serviço de pesquisa do ${label} encontra-se indisponível no endereço configurado.`,
-        errorDetail: viaProxy
-          ? (isEn
-              ? 'The proxy service for this source is currently inactive. Use the remaining sources while connectivity is restored.'
-              : 'O serviço intermediário de acesso a esta base está inativo no momento. Utilize as demais fontes enquanto a conexão é restabelecida.')
-          : (isEn
-              ? 'The repository may be undergoing maintenance or its search endpoint may be temporarily disabled.'
-              : 'A base pode estar em manutenção ou com o serviço de busca temporariamente desativado.'),
-        rawError,
-      };
+      return diagnosis(
+        'sourceErrNotFoundMsg',
+        viaProxy ? 'sourceErrNotFoundProxyDetail' : 'sourceErrNotFoundDirectDetail'
+      );
     }
-    if (status >= 500) {
-      return {
-        errorMessage: isEn
-          ? `${label} experienced an internal error while processing the request.`
-          : `${label} apresentou instabilidade interna ao processar a solicitação.`,
-        errorDetail: isEn
-          ? 'The failure occurred on the scientific database provider side. Wait a few minutes before retrying.'
-          : 'A falha ocorreu no sistema do provedor da base científica. Aguarde alguns minutos antes de repetir a consulta.',
-        rawError,
-      };
-    }
+    if (status >= 500) return diagnosis('sourceErrServerMsg', 'sourceErrServerDetail');
   }
 
-  const isNetworkOrCors =
-    normalized.includes('load failed') ||
-    normalized.includes('failed to fetch') ||
-    normalized.includes('networkerror') ||
-    normalized.includes('network request failed') ||
-    normalized.includes('err_failed');
-
+  const isNetworkOrCors = [
+    'load failed',
+    'failed to fetch',
+    'networkerror',
+    'network request failed',
+    'err_failed',
+  ].some((marker) => normalized.includes(marker));
   if (isNetworkOrCors) {
     if (sourceId === 'semanticscholar') {
-      return {
-        errorMessage: isEn
-          ? 'Semantic Scholar reached its public request limit or temporarily restricted access.'
-          : 'O Semantic Scholar atingiu o limite de consultas públicas ou restringiu temporariamente o acesso.',
-        errorDetail: isEn
-          ? 'Under high load, Semantic Scholar throttles requests briefly without returning CORS details to the browser. Wait about 1 minute to retry or use the other sources.'
-          : 'Sob alta demanda, o Semantic Scholar interrompe novas pesquisas por alguns instantes sem retornar detalhes ao navegador. Aguarde aproximadamente 1 minuto para consultar esta base novamente ou utilize as demais fontes.',
-        rawError,
-      };
+      return diagnosis('sourceErrS2ThrottleMsg', 'sourceErrS2ThrottleDetail');
     }
-
-    if (viaProxy) {
-      return {
-        errorMessage: isEn
-          ? `Could not connect to ${label}.`
-          : `Não foi possível estabelecer conexão com o ${label}.`,
-        errorDetail: isEn
-          ? 'The proxy service required for this source is unavailable or blocked right now. Retry later or select another source.'
-          : 'O serviço intermediário necessário para consultar esta base está indisponível ou bloqueado no momento. Repita a operação mais tarde ou selecione outra fonte.',
-        rawError,
-      };
-    }
-
-    return {
-      errorMessage: isEn
-        ? `Communication with ${label} was blocked or interrupted during the query.`
-        : `A comunicação com o ${label} foi bloqueada ou interrompida durante a consulta.`,
-      errorDetail: isEn
-        ? 'This may be caused by temporary origin rate limits or browser extensions/network tools such as VPNs, antivirus shields, or content blockers. Retry shortly.'
-        : 'A restrição pode decorrer de limite temporário do portal de origem ou de bloqueios externos no navegador, como VPN, antivírus ou bloqueadores de conteúdo. Repita a pesquisa em instantes.',
-      rawError,
-    };
+    return viaProxy
+      ? diagnosis('sourceErrProxyUnreachableMsg', 'sourceErrProxyUnreachableDetail')
+      : diagnosis('sourceErrBlockedMsg', 'sourceErrBlockedDetail');
   }
 
-  if (
-    normalized.includes('json') ||
-    normalized.includes('unexpected token') ||
-    normalized.includes('syntaxerror') ||
-    normalized.includes('xml') ||
-    normalized.includes('domparser') ||
-    normalized.includes('html')
-  ) {
-    return {
-      errorMessage: isEn
-        ? `${label} returned a notice or maintenance page instead of bibliographic records.`
-        : `${label} retornou uma página de aviso ou manutenção em vez dos registros bibliográficos.`,
-      errorDetail: isEn
-        ? 'The portal may be undergoing scheduled updates. Try querying again later.'
-        : 'O portal pode estar passando por atualização programada. Repita a consulta mais tarde.',
-      rawError,
-    };
+  if (['json', 'unexpected token', 'syntaxerror', 'xml', 'domparser', 'html'].some((m) => normalized.includes(m))) {
+    return diagnosis('sourceErrMaintenanceMsg', 'sourceErrMaintenanceDetail');
   }
 
-  return {
-    errorMessage: isEn
-      ? `Could not complete the search in ${label}.`
-      : `Não foi possível concluir a pesquisa em ${label}.`,
-    errorDetail: isEn
-      ? 'Retry in a few moments or switch back to "All sources" to view results from the remaining databases.'
-      : 'Repita a operação em alguns instantes ou retorne para "Todas as fontes" para visualizar os resultados das demais bases.',
-    rawError,
-  };
+  return diagnosis('sourceErrGenericMsg', 'sourceErrGenericDetail');
 }
 
 function runWithSourceAbortAndTimeout<T>(
@@ -395,7 +279,8 @@ export async function runFederatedSearch(
           if (res.length > 0) {
             const rankedRes = res.map((paper, rankIdx) => ({
               ...paper,
-              title: language === 'en' && paper.title === UNTITLED_PAPER_TITLE ? 'Untitled' : paper.title,
+              title:
+                paper.title === UNTITLED_PAPER_TITLE ? translate(language, 'untitledPaperTitle') : paper.title,
               sourceRanks: {
                 ...(paper.sourceRanks ?? {}),
                 [src.id]: paper.sourceRanks?.[src.id] ?? rankIdx + 1,

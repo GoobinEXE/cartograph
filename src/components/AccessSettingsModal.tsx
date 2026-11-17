@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import React, { useEffect, useState } from 'react';
 import {
   Check,
@@ -401,7 +402,7 @@ export const AccessSettingsModal: React.FC<AccessSettingsModalProps> = ({
                             </span>
                           </div>
                           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                            {language === 'en' ? provider.descriptionEn : provider.descriptionPt}
+                            {proseLanguage(language) === 'en' ? provider.descriptionEn : provider.descriptionPt}
                           </p>
                         </div>
 

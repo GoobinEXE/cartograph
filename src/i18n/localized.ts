@@ -15,3 +15,26 @@ export function localize(text: LocalizedText, language: string): string {
   const variant = (text as unknown as Record<string, string | undefined>)[language];
   return variant && variant.trim() ? variant : text.en;
 }
+
+export type ProseLanguage = 'pt' | 'en';
+
+/**
+ * Long-form content (About pages, legal text, export headings, methodology paragraphs) is
+ * written in Portuguese and English. Every other UI language reads the English version;
+ * short interface strings live in the dictionary and exist in all UI languages.
+ */
+export function proseLanguage(language: string): ProseLanguage {
+  return language === 'pt' ? 'pt' : 'en';
+}
+
+const INTL_LOCALES: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es',
+  fr: 'fr-FR',
+};
+
+/** BCP 47 locale for Intl date/number formatting in the given UI language. */
+export function intlLocale(language: string): string {
+  return INTL_LOCALES[language] ?? 'en-US';
+}

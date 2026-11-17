@@ -79,6 +79,20 @@ function loadGtagScript(): void {
   document.head.appendChild(script);
 }
 
+/**
+ * Usage metrics run unless the researcher explicitly refused them. Vercel Web Analytics and
+ * Speed Insights are cookieless and aggregate; an explicit 'denied' still stops them, the
+ * custom events below and Google Analytics.
+ */
+export function isAnalyticsAllowed(): boolean {
+  return getAnalyticsConsent() !== 'denied';
+}
+
+/** Drop-in `beforeSend` for <Analytics /> and <SpeedInsights />: cancels events after an opt-out. */
+export function analyticsBeforeSend<T>(event: T): T | null {
+  return isAnalyticsAllowed() ? event : null;
+}
+
 export function grantAnalyticsConsent(): void {
   if (typeof window === 'undefined') return;
   try {
@@ -132,7 +146,7 @@ export function trackAcademicEvent(
   eventName: AnalyticsEventName,
   params: AnalyticsEventParams = {}
 ): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !isAnalyticsAllowed()) return;
 
   try {
     if (typeof window.gtag === 'function' && GA_MEASUREMENT_ID) {

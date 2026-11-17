@@ -8,7 +8,8 @@ import {
   TOTAL_FEDERATED_SOURCE_COUNT,
 } from '../data/apiSources';
 import { API_SOURCE_DOCS } from '../data/apiSourceDocs';
-import { localize } from '../i18n/localized';
+import { intlLocale, localize, proseLanguage } from '../i18n/localized';
+import { denyAnalyticsConsent, grantAnalyticsConsent, isAnalyticsAllowed } from '../utils/analytics';
 import { useI18n } from '../i18n/context';
 import {
   ArrowLeft,
@@ -41,8 +42,9 @@ export const AboutView: React.FC<AboutViewProps> = ({
   onSelectSection,
   onNavigateTab,
 }) => {
-  const { language } = useI18n();
-  const isEn = language === 'en';
+  const { language, t } = useI18n();
+  const [metricsAllowed, setMetricsAllowed] = useState<boolean>(() => isAnalyticsAllowed());
+  const isEn = proseLanguage(language) === 'en';
   const [internalSection, setInternalSection] = useState<AboutSectionId>('cartograph');
   const [copiedCitation, setCopiedCitation] = useState<'abnt' | 'apa' | 'bibtex' | null>(null);
 
@@ -50,7 +52,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
   const currentYear = new Date().getFullYear();
 
   const citationFormats = {
-    abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR')}.`,
+    abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString(intlLocale(language))}.`,
     apa: `Cartograph. (2026). Cartograph: Scientific Metasearch Hub & PRISMA 2020 Systematic Review Workstation (Version 2.4) [Computer software]. https://cartographsearch.com`,
     bibtex: `@software{cartograph_2026,
   author       = {{Cartograph}},
@@ -837,6 +839,35 @@ export const AboutView: React.FC<AboutViewProps> = ({
                   </a>
                   .
                 </p>
+              </section>
+
+              <section className="space-y-3" aria-labelledby="privacy-metrics-title">
+                <h2
+                  id="privacy-metrics-title"
+                  className="text-xl font-heading font-semibold text-[var(--text-primary)]"
+                >
+                  {t('privacyMetricsTitle')}
+                </h2>
+                <p>{t('privacyMetricsBody')}</p>
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--divider)] bg-[var(--bg-subtle)] px-4 py-3">
+                  <span role="status" className="text-sm text-[var(--text-primary)]">
+                    {metricsAllowed ? t('privacyMetricsStatusOn') : t('privacyMetricsStatusOff')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (metricsAllowed) {
+                        denyAnalyticsConsent();
+                      } else {
+                        grantAnalyticsConsent();
+                      }
+                      setMetricsAllowed(isAnalyticsAllowed());
+                    }}
+                    className="ml-auto px-3.5 py-1.5 rounded-full text-[13px] font-semibold border border-[var(--divider)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                  >
+                    {metricsAllowed ? t('privacyMetricsTurnOff') : t('privacyMetricsTurnOn')}
+                  </button>
+                </div>
               </section>
             </div>
           </article>

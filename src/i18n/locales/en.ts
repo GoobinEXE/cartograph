@@ -666,4 +666,72 @@ export const en: Translations = {
   meshSuggesterPh: 'Search descriptor (e.g., telehealth, diabetes)...',
   meshSuggestBtn: 'Suggest MeSH',
   meshEmptyResult: 'No matching MeSH descriptors found.',
+  sourceErrUnknown: 'Unknown error',
+  sourceErrOfflineMsg: 'Internet connection unavailable on this device.',
+  sourceErrOfflineDetail: 'Restore network access and run the search again.',
+  sourceErrTimeoutMsg: '{label} exceeded the response timeout for this query.',
+  sourceErrTimeoutDetail:
+    'Query complexity or temporary repository slowness prevented records from returning. Reduce the number of keywords or retry in a few moments.',
+  sourceErrRateLimitMsg: '{label} reached its temporary rate limit for consecutive queries.',
+  sourceErrRateLimitDetail:
+    'The provider restricts consecutive request volume. Wait about 1 minute before querying this source again.',
+  sourceErrRejectedQueryMsg: '{label} rejected the query terms or filters provided.',
+  sourceErrRejectedQueryDetail:
+    'Boolean operators (AND, OR, NOT), quotes, special symbols, or year filters may not be supported by this source. Try direct keywords.',
+  sourceErrKeyRejectedMsg: '{label} rejected the configured API key or institutional token.',
+  sourceErrKeyRejectedDetail:
+    'Review your key and optional InstToken in Institutional Access & API Keys settings.',
+  sourceErrForbiddenMsg: 'Automated access to {label} is restricted by the origin portal.',
+  sourceErrForbiddenDetail:
+    'Select another available source or open the portal directly in the "Platforms & Portals" tab.',
+  sourceErrNotFoundMsg: 'The {label} search service is unavailable at the configured endpoint.',
+  sourceErrNotFoundProxyDetail:
+    'The proxy service for this source is currently inactive. Use the remaining sources while connectivity is restored.',
+  sourceErrNotFoundDirectDetail:
+    'The repository may be undergoing maintenance or its search endpoint may be temporarily disabled.',
+  sourceErrServerMsg: '{label} experienced an internal error while processing the request.',
+  sourceErrServerDetail:
+    'The failure occurred on the scientific database provider side. Wait a few minutes before retrying.',
+  sourceErrS2ThrottleMsg:
+    'Semantic Scholar reached its public request limit or temporarily restricted access.',
+  sourceErrS2ThrottleDetail:
+    'Under high load, Semantic Scholar throttles requests briefly without returning CORS details to the browser. Wait about 1 minute to retry or use the other sources.',
+  sourceErrProxyUnreachableMsg: 'Could not connect to {label}.',
+  sourceErrProxyUnreachableDetail:
+    'The proxy service required for this source is unavailable or blocked right now. Retry later or select another source.',
+  sourceErrBlockedMsg:
+    'Communication with {label} was blocked or interrupted during the query.',
+  sourceErrBlockedDetail:
+    'This may be caused by temporary origin rate limits or browser extensions/network tools such as VPNs, antivirus shields, or content blockers. Retry shortly.',
+  sourceErrMaintenanceMsg:
+    '{label} returned a notice or maintenance page instead of bibliographic records.',
+  sourceErrMaintenanceDetail:
+    'The portal may be undergoing scheduled updates. Try querying again later.',
+  sourceErrGenericMsg: 'Could not complete the search in {label}.',
+  sourceErrGenericDetail:
+    'Retry in a few moments or switch back to "All sources" to view results from the remaining databases.',
+  untitledPaperTitle: 'Untitled',
+  screeningReasonPopulation: 'Population/sample out of scope',
+  screeningReasonDesign: 'Incompatible study design',
+  screeningReasonOutcome: 'Outcome of interest not assessed',
+  screeningReasonFullText: 'Full text unavailable/unretrieved',
+  screeningReasonDuplicate: 'Residual duplicate from another database',
+  screeningReasonRetracted: 'Retracted publication / erratum notice',
+  screeningReasonOther: 'Other specific methodological criterion',
+  prismaFallbackSourceLabel: 'Academic Databases',
+  backupErrEmpty: 'Empty JSON file.',
+  backupErrInvalidJson: 'Invalid or corrupted JSON.',
+  backupErrInvalidStructure: 'Invalid backup structure.',
+  backupErrUnknownSchema: 'Backup schema format not recognized by Cartograph.',
+  backupErrMissingPapers: 'Missing papers list in backup file.',
+  privacyMetricsTitle: 'Anonymous usage metrics',
+  privacyMetricsBody:
+    'Cartograph records aggregate page views and performance metrics (Vercel Web Analytics and Speed Insights) without cookies and without identifying the researcher. Search terms, saved papers, and API keys are never sent. The choice below applies to this browser and also covers Google Analytics when it is configured.',
+  privacyMetricsStatusOn: 'Collection allowed in this browser.',
+  privacyMetricsStatusOff: 'Collection turned off in this browser.',
+  privacyMetricsTurnOff: 'Turn off metrics',
+  privacyMetricsTurnOn: 'Allow metrics',
+  picoPopulationPh: 'e.g., older adults, adolescents',
+  picoInterventionPh: 'e.g., telehealth, mindfulness',
+  picoComparisonPh: 'e.g., placebo, usual care',
 };

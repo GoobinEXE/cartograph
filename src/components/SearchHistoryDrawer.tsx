@@ -1,3 +1,4 @@
+import { intlLocale } from '../i18n/localized';
 import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
@@ -150,7 +151,7 @@ export const SearchHistoryDrawer: React.FC<SearchHistoryDrawerProps> = ({
               const sourceEntries = Object.entries(entry.bySource);
               const isExpanded = Boolean(expandedLogIds[entry.id]);
               const formattedDate = new Date(entry.executedAt).toLocaleString(
-                language === 'en' ? 'en-US' : 'pt-BR'
+                intlLocale(language)
               );
 
               return (

@@ -1,4 +1,4 @@
-import { SupportedLanguage } from '../i18n/translations';
+import { SupportedLanguage, translate } from '../i18n/translations';
 import {
   CustomExtractionColumn,
   DedupOverrideRule,
@@ -398,26 +398,19 @@ export function parseWorkspaceBackup(
   rawJson: string,
   language: SupportedLanguage = 'pt'
 ): BackupParseResult {
-  const isEn = language === 'en';
   if (!rawJson || !rawJson.trim()) {
-    return { ok: false, error: isEn ? 'Empty JSON file.' : 'Arquivo JSON vazio.' };
+    return { ok: false, error: translate(language, 'backupErrEmpty') };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawJson);
   } catch {
-    return {
-      ok: false,
-      error: isEn ? 'Invalid or corrupted JSON.' : 'JSON inválido ou corrompido.',
-    };
+    return { ok: false, error: translate(language, 'backupErrInvalidJson') };
   }
 
   if (!parsed || typeof parsed !== 'object') {
-    return {
-      ok: false,
-      error: isEn ? 'Invalid backup structure.' : 'Estrutura de backup inválida.',
-    };
+    return { ok: false, error: translate(language, 'backupErrInvalidStructure') };
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -425,21 +418,11 @@ export function parseWorkspaceBackup(
     obj.schema !== CARTOGRAPH_BACKUP_SCHEMA &&
     obj.schema !== CARTOGRAPH_BACKUP_SCHEMA_V2
   ) {
-    return {
-      ok: false,
-      error: isEn
-        ? 'Backup schema format not recognized by Cartograph.'
-        : 'Formato de schema não reconhecido pelo Cartograph.',
-    };
+    return { ok: false, error: translate(language, 'backupErrUnknownSchema') };
   }
 
   if (!Array.isArray(obj.savedPapers)) {
-    return {
-      ok: false,
-      error: isEn
-        ? 'Missing papers list in backup file.'
-        : 'Lista de artigos ausente no arquivo de backup.',
-    };
+    return { ok: false, error: translate(language, 'backupErrMissingPapers') };
   }
 
   const groups = Array.isArray(obj.groups)

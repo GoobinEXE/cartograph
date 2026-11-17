@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import { SupportedLanguage } from '../i18n/translations';
 import { ExtractedPaperMetadata } from '../types/academic';
 
@@ -106,7 +107,7 @@ export function detectStudyDesign(
   const combined = `${title} ${publicationType || ''} ${abstractText || ''}`;
   for (const item of STUDY_DESIGN_PATTERNS) {
     if (item.regex.test(combined)) {
-      return language === 'en' ? item.labelEn : item.labelPt;
+      return proseLanguage(language) === 'en' ? item.labelEn : item.labelPt;
     }
   }
   return undefined;

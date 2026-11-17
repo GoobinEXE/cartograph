@@ -667,4 +667,74 @@ export const pt: Translations = {
   meshSuggesterPh: 'Buscar termo em inglês (ex.: telehealth, diabetes)...',
   meshSuggestBtn: 'Sugerir MeSH',
   meshEmptyResult: 'Nenhum descritor MeSH encontrado para o termo.',
+  sourceErrUnknown: 'Erro desconhecido',
+  sourceErrOfflineMsg: 'Conexão com a internet indisponível no dispositivo.',
+  sourceErrOfflineDetail: 'Restabeleça o acesso à rede e execute a pesquisa novamente.',
+  sourceErrTimeoutMsg: '{label} excedeu o tempo limite de resposta para esta consulta.',
+  sourceErrTimeoutDetail:
+    'O volume de termos pesquisados ou a lentidão momentânea da base impediu o retorno dos registros. Reduza o número de palavras-chave ou repita a operação em instantes.',
+  sourceErrRateLimitMsg: '{label} atingiu o limite temporário de consultas consecutivas.',
+  sourceErrRateLimitDetail:
+    'O provedor restringe o volume de pesquisas enviadas em sequência. Aguarde aproximadamente 1 minuto antes de realizar uma nova consulta nesta fonte.',
+  sourceErrRejectedQueryMsg: '{label} recusou os termos ou filtros informados nesta pesquisa.',
+  sourceErrRejectedQueryDetail:
+    'Operadores lógicos (AND, OR, NOT), aspas, símbolos especiais ou filtros de ano podem ser incompatíveis com esta base. Utilize apenas palavras-chave diretas.',
+  sourceErrKeyRejectedMsg: '{label} recusou a chave de API ou token institucional configurado.',
+  sourceErrKeyRejectedDetail:
+    'Verifique sua chave e o InstToken opcional nas configurações de Acesso Institucional & Chaves de API.',
+  sourceErrForbiddenMsg:
+    'O acesso automatizado ao {label} encontra-se restrito pelo portal de origem.',
+  sourceErrForbiddenDetail:
+    'Selecione outra base disponível ou acesse o portal diretamente pela aba "Bases & Portais".',
+  sourceErrNotFoundMsg:
+    'O serviço de pesquisa do {label} encontra-se indisponível no endereço configurado.',
+  sourceErrNotFoundProxyDetail:
+    'O serviço intermediário de acesso a esta base está inativo no momento. Utilize as demais fontes enquanto a conexão é restabelecida.',
+  sourceErrNotFoundDirectDetail:
+    'A base pode estar em manutenção ou com o serviço de busca temporariamente desativado.',
+  sourceErrServerMsg: '{label} apresentou instabilidade interna ao processar a solicitação.',
+  sourceErrServerDetail:
+    'A falha ocorreu no sistema do provedor da base científica. Aguarde alguns minutos antes de repetir a consulta.',
+  sourceErrS2ThrottleMsg:
+    'O Semantic Scholar atingiu o limite de consultas públicas ou restringiu temporariamente o acesso.',
+  sourceErrS2ThrottleDetail:
+    'Sob alta demanda, o Semantic Scholar interrompe novas pesquisas por alguns instantes sem retornar detalhes ao navegador. Aguarde aproximadamente 1 minuto para consultar esta base novamente ou utilize as demais fontes.',
+  sourceErrProxyUnreachableMsg: 'Não foi possível estabelecer conexão com o {label}.',
+  sourceErrProxyUnreachableDetail:
+    'O serviço intermediário necessário para consultar esta base está indisponível ou bloqueado no momento. Repita a operação mais tarde ou selecione outra fonte.',
+  sourceErrBlockedMsg:
+    'A comunicação com o {label} foi bloqueada ou interrompida durante a consulta.',
+  sourceErrBlockedDetail:
+    'A restrição pode decorrer de limite temporário do portal de origem ou de bloqueios externos no navegador, como VPN, antivírus ou bloqueadores de conteúdo. Repita a pesquisa em instantes.',
+  sourceErrMaintenanceMsg:
+    '{label} retornou uma página de aviso ou manutenção em vez dos registros bibliográficos.',
+  sourceErrMaintenanceDetail:
+    'O portal pode estar passando por atualização programada. Repita a consulta mais tarde.',
+  sourceErrGenericMsg: 'Não foi possível concluir a pesquisa em {label}.',
+  sourceErrGenericDetail:
+    'Repita a operação em alguns instantes ou retorne para "Todas as fontes" para visualizar os resultados das demais bases.',
+  untitledPaperTitle: 'Sem título',
+  screeningReasonPopulation: 'População/Amostra fora do escopo',
+  screeningReasonDesign: 'Delineamento de estudo não compatível',
+  screeningReasonOutcome: 'Desfecho de interesse não avaliado',
+  screeningReasonFullText: 'Texto completo não recuperado/indisponível',
+  screeningReasonDuplicate: 'Duplicata residual de outra base',
+  screeningReasonRetracted: 'Artigo retratado pelo periódico/editora',
+  screeningReasonOther: 'Outro critério metodológico específico',
+  prismaFallbackSourceLabel: 'Bases Acadêmicas',
+  backupErrEmpty: 'Arquivo JSON vazio.',
+  backupErrInvalidJson: 'JSON inválido ou corrompido.',
+  backupErrInvalidStructure: 'Estrutura de backup inválida.',
+  backupErrUnknownSchema: 'Formato de schema não reconhecido pelo Cartograph.',
+  backupErrMissingPapers: 'Lista de artigos ausente no arquivo de backup.',
+  privacyMetricsTitle: 'Métricas de uso anônimas',
+  privacyMetricsBody:
+    'O Cartograph registra visualizações de página e métricas de desempenho agregadas (Vercel Web Analytics e Speed Insights), sem cookies e sem identificar o pesquisador. Termos de busca, artigos salvos e chaves de API nunca são enviados. A escolha abaixo vale para este navegador e também se aplica ao Google Analytics, quando configurado.',
+  privacyMetricsStatusOn: 'Coleta permitida neste navegador.',
+  privacyMetricsStatusOff: 'Coleta desativada neste navegador.',
+  privacyMetricsTurnOff: 'Desativar métricas',
+  privacyMetricsTurnOn: 'Permitir métricas',
+  picoPopulationPh: 'ex.: older adults, adolescents',
+  picoInterventionPh: 'ex.: telehealth, mindfulness',
+  picoComparisonPh: 'ex.: placebo, usual care',
 };

@@ -1,3 +1,4 @@
+import { intlLocale } from '../i18n/localized';
 import React, { useState } from 'react';
 import { FeedbackType, UserFeedbackItem } from '../types/academic';
 import { useI18n } from '../i18n/context';
@@ -118,7 +119,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) =>
   };
 
   const handleCopyMarkdown = async (item: UserFeedbackItem) => {
-    const locale = language === 'en' ? 'en-US' : 'pt-BR';
+    const locale = intlLocale(language);
     const text = `### ${t('feedbackMarkdownHeader')} ${item.subject}
 - **${t('feedbackMarkdownType')}** ${item.type}
 - **${t('feedbackMarkdownRating')}** ${item.rating}/5
@@ -358,7 +359,7 @@ ${item.message}`;
                         {item.type}
                       </span>
                       <span className="text-xs text-[var(--text-muted)]">
-                        {new Date(item.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'pt-BR')}
+                        {new Date(item.createdAt).toLocaleDateString(intlLocale(language))}
                       </span>
                       <span className="text-xs text-amber-400">
                         {'★'.repeat(item.rating)}

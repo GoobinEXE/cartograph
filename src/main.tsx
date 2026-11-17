@@ -5,6 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import AcademicCommandCenter from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { I18nProvider } from './i18n/context';
+import { analyticsBeforeSend } from './utils/analytics';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -13,8 +14,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ErrorBoundary>
         <AcademicCommandCenter />
       </ErrorBoundary>
-      <Analytics />
-      <SpeedInsights />
+      <Analytics beforeSend={analyticsBeforeSend} />
+      <SpeedInsights beforeSend={analyticsBeforeSend} />
     </I18nProvider>
   </React.StrictMode>
 );

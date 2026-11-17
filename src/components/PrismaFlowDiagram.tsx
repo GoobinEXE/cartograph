@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import React, { useState } from 'react';
 import { Prisma2020Counts } from '../types/academic';
 import { generatePrismaMethodologyText } from '../utils/prismaFlow';
@@ -12,7 +13,7 @@ interface PrismaFlowDiagramProps {
 
 export const PrismaFlowDiagram: React.FC<PrismaFlowDiagramProps> = ({ counts }) => {
   const { language } = useI18n();
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   const [copiedText, setCopiedText] = useState(false);
 
   const handleCopyMethodology = async () => {

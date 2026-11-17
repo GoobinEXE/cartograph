@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import { SupportedLanguage } from '../i18n/translations';
 import {
   CustomExtractionColumn,
@@ -102,7 +103,7 @@ export function exportSavedPapersCsv(
   language: SupportedLanguage = 'pt',
   customColumns: CustomExtractionColumn[] = []
 ): string {
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   const baseHeaders = isEn
     ? [
         'Group_Slot',
@@ -350,7 +351,7 @@ export function exportSynthesisLatexTable(
   items: SavedPaperItem[],
   language: SupportedLanguage = 'pt'
 ): string {
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   const colStudy = isEn ? 'Study (Author, Year)' : 'Estudo (Autor, Ano)';
   const colDesign = isEn ? 'Design' : 'Delineamento';
   const colSample = isEn ? 'Sample ($N$)' : 'Amostra ($N$)';
@@ -395,7 +396,7 @@ export function exportSynthesisMarkdown(
   language: SupportedLanguage = 'pt',
   customColumns: CustomExtractionColumn[] = []
 ): string {
-  const isEn = language === 'en';
+  const isEn = proseLanguage(language) === 'en';
   const today = new Date().toISOString().slice(0, 10);
   const escapeMdCell = (val: string | number | null | undefined) =>
     String(val ?? '-')
