@@ -1,5 +1,5 @@
-import { ApiSourceId, ByokCredentialEntry, NormalizedPaper } from '../types/academic';
-import { cleanDoi, crossPlatformFetch, fetchViaByokProxy } from './httpClient';
+import { ByokCredentialEntry, NormalizedPaper } from '../types/academic';
+import { cleanDoi, fetchFreeProxyJson, fetchViaByokProxy } from './httpClient';
 
 function extractYear(raw: unknown): number | null {
   if (typeof raw === 'number' && Number.isFinite(raw) && raw > 1800 && raw < 2100) {
@@ -87,19 +87,8 @@ export async function searchOpenAire(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const yearParam = yearFrom && yearFrom > 1900 ? `&fromPublicationDate=${yearFrom}-01-01` : '';
-  const directUrl = `https://api.openaire.eu/graph/v2/researchProducts?search=${encodeURIComponent(
-    query
-  )}&type=publication&page=1&pageSize=8${yearParam}`;
-  const proxyUrl = `/api/academic-proxy?provider=openaire&q=${encodeURIComponent(
-    query
-  )}&limit=8${yearFrom && yearFrom > 1900 ? `&yearFrom=${yearFrom}` : ''}`;
-
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseOpenAireResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('openaire', query, 8, yearFrom, signal);
+  return parseOpenAireResults(data, yearFrom);
 }
 
 export function parseOsfPreprintsResults(
@@ -148,15 +137,8 @@ export async function searchOsfPreprints(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://api.osf.io/v2/preprints/?filter[title,description]=${encodeURIComponent(
-    query
-  )}&page[size]=8`;
-  const proxyUrl = `/api/academic-proxy?provider=osf&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseOsfPreprintsResults(await res.json(), 'osf', 'OSF Preprints', yearFrom);
+  const data = await fetchFreeProxyJson('osf', query, 8, yearFrom, signal);
+  return parseOsfPreprintsResults(data, 'osf', 'OSF Preprints', yearFrom);
 }
 
 export async function searchSocArxiv(
@@ -164,15 +146,8 @@ export async function searchSocArxiv(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://api.osf.io/v2/preprints/?filter[provider]=socarxiv&filter[title,description]=${encodeURIComponent(
-    query
-  )}&page[size]=8`;
-  const proxyUrl = `/api/academic-proxy?provider=socarxiv&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseOsfPreprintsResults(await res.json(), 'socarxiv', 'SocArXiv (OSF)', yearFrom);
+  const data = await fetchFreeProxyJson('socarxiv', query, 8, yearFrom, signal);
+  return parseOsfPreprintsResults(data, 'socarxiv', 'SocArXiv (OSF)', yearFrom);
 }
 
 export function parseEricResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -209,13 +184,8 @@ export async function searchEric(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://api.ies.ed.gov/eric/?search=${encodeURIComponent(query)}&format=json&rows=8`;
-  const proxyUrl = `/api/academic-proxy?provider=eric&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseEricResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('eric', query, 8, yearFrom, signal);
+  return parseEricResults(data, yearFrom);
 }
 
 export function parsePlosResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -257,15 +227,8 @@ export async function searchPlos(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://api.plos.org/search?q=${encodeURIComponent(
-    query
-  )}&wt=json&rows=8&fl=id,title_display,author_display,journal,publication_date,abstract,article_type`;
-  const proxyUrl = `/api/academic-proxy?provider=plos&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parsePlosResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('plos', query, 8, yearFrom, signal);
+  return parsePlosResults(data, yearFrom);
 }
 
 export function parseOasisbrResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -312,15 +275,8 @@ export async function searchOasisbr(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://oasisbr.ibict.br/vufind/api/v1/search?lookfor=${encodeURIComponent(
-    query
-  )}&type=AllFields&limit=8&field[]=id&field[]=title&field[]=authors&field[]=publicationDates&field[]=urls&field[]=summary&field[]=formats`;
-  const proxyUrl = `/api/academic-proxy?provider=oasisbr&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseOasisbrResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('oasisbr', query, 8, yearFrom, signal);
+  return parseOasisbrResults(data, yearFrom);
 }
 
 export function parseDataverseResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -356,15 +312,8 @@ export async function searchHarvardDataverse(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://dataverse.harvard.edu/api/search?q=${encodeURIComponent(
-    query
-  )}&type=dataset&per_page=8`;
-  const proxyUrl = `/api/academic-proxy?provider=dataverse&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseDataverseResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('dataverse', query, 8, yearFrom, signal);
+  return parseDataverseResults(data, yearFrom);
 }
 
 export function parseCoreResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -422,18 +371,7 @@ export async function searchCore(
     const res = await fetchViaByokProxy('core', query, 8, byokEntry, yearFrom, signal);
     return parseCoreResults(await res.json(), yearFrom);
   }
-  const yearSuffix = yearFrom && yearFrom > 1900 ? ` AND yearPublished>=${yearFrom}` : '';
-  const directUrl = `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(
-    query + yearSuffix
-  )}&limit=8`;
-  const proxyUrl = `/api/academic-proxy?provider=core&q=${encodeURIComponent(query)}&limit=8${
-    yearFrom && yearFrom > 1900 ? `&yearFrom=${yearFrom}` : ''
-  }`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseCoreResults(await res.json(), yearFrom);
+  return parseCoreResults(await fetchFreeProxyJson('core', query, 8, yearFrom, signal), yearFrom);
 }
 
 export function parseWorldBankWdsResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
@@ -491,15 +429,8 @@ export async function searchWorldBankWds(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://search.worldbank.org/api/v3/wds?format=json&qterm=${encodeURIComponent(
-    query
-  )}&rows=8&fl=id,display_title,authors,docdt,pdfurl,url,abstracts,docty,repnme`;
-  const proxyUrl = `/api/academic-proxy?provider=worldbank_wds&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseWorldBankWdsResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('worldbank_wds', query, 8, yearFrom, signal);
+  return parseWorldBankWdsResults(data, yearFrom);
 }
 
 export function parseDspace7Results(
@@ -561,16 +492,9 @@ export async function searchWorldBankOkr(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://openknowledge.worldbank.org/server/api/discover/search/objects?query=${encodeURIComponent(
-    query
-  )}&size=8`;
-  const proxyUrl = `/api/academic-proxy?provider=worldbank_okr&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
+  const data = await fetchFreeProxyJson('worldbank_okr', query, 8, yearFrom, signal);
   return parseDspace7Results(
-    await res.json(),
+    data,
     'https://openknowledge.worldbank.org',
     'worldbank_okr',
     'World Bank OKR',
@@ -583,16 +507,9 @@ export async function searchIpeaRcipea(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://repositorio.ipea.gov.br/server/api/discover/search/objects?query=${encodeURIComponent(
-    query
-  )}&size=8`;
-  const proxyUrl = `/api/academic-proxy?provider=ipea&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
+  const data = await fetchFreeProxyJson('ipea', query, 8, yearFrom, signal);
   return parseDspace7Results(
-    await res.json(),
+    data,
     'https://repositorio.ipea.gov.br',
     'ipea',
     'IPEA (RCIpea)',
@@ -656,13 +573,8 @@ export async function searchUnDigitalLibrary(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const directUrl = `https://digitallibrary.un.org/search?p=${encodeURIComponent(query)}&of=recjson&rg=8`;
-  const proxyUrl = `/api/academic-proxy?provider=undl&q=${encodeURIComponent(query)}&limit=8`;
-  const res = await crossPlatformFetch(proxyUrl, directUrl, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  return parseUndlResults(await res.json(), yearFrom);
+  const data = await fetchFreeProxyJson('undl', query, 8, yearFrom, signal);
+  return parseUndlResults(data, yearFrom);
 }
 
 // ---------------------------------------------------------------------------
@@ -947,24 +859,3 @@ export async function searchGovInfoByok(
   const res = await fetchViaByokProxy('govinfo', query, 8, credential, yearFrom, signal);
   return parseGovInfoResults(await res.json(), yearFrom);
 }
-
-export type SourceRunner = (q: string, y?: number, sig?: AbortSignal) => Promise<NormalizedPaper[]>;
-
-export const FREE_EXTENSION_SOURCE_RUNNERS: Array<{
-  id: ApiSourceId;
-  label: string;
-  fn: SourceRunner;
-}> = [
-  { id: 'openaire', label: 'OpenAIRE Graph', fn: searchOpenAire },
-  { id: 'osf', label: 'OSF Preprints', fn: searchOsfPreprints },
-  { id: 'eric', label: 'ERIC (IES)', fn: searchEric },
-  { id: 'plos', label: 'PLOS Open Access', fn: searchPlos },
-  { id: 'oasisbr', label: 'Oasisbr (IBICT)', fn: searchOasisbr },
-  { id: 'dataverse', label: 'Harvard Dataverse', fn: searchHarvardDataverse },
-  { id: 'core', label: 'CORE.ac.uk', fn: searchCore },
-  { id: 'worldbank_wds', label: 'World Bank Reports', fn: searchWorldBankWds },
-  { id: 'worldbank_okr', label: 'World Bank OKR', fn: searchWorldBankOkr },
-  { id: 'socarxiv', label: 'SocArXiv (OSF)', fn: searchSocArxiv },
-  { id: 'ipea', label: 'IPEA (RCIpea)', fn: searchIpeaRcipea },
-  { id: 'undl', label: 'UN Digital Library', fn: searchUnDigitalLibrary },
-];

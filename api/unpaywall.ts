@@ -7,6 +7,7 @@ import {
   type MinimalResponse,
   setEdgeCacheHeaders,
 } from './_security.js';
+import { buildUnpaywallUpstreamUrl } from '../shared/upstreams.mjs';
 
 const DOI_FORMAT_RE = /^10\.\d{4,9}\/[^\s]+$/i;
 const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,9 +51,7 @@ export default async function handler(
     : process.env.UNPAYWALL_EMAIL || DEFAULT_POLITE_EMAIL;
 
   try {
-    const upstreamUrl = `https://api.unpaywall.org/v2/${encodeURIComponent(
-      rawDoi
-    )}?email=${encodeURIComponent(politeEmail)}`;
+    const upstreamUrl = buildUnpaywallUpstreamUrl(rawDoi, politeEmail);
     const response = await fetch(upstreamUrl, {
       headers: {
         'User-Agent': CARTOGRAPH_USER_AGENT,

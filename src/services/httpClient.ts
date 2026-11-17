@@ -1,4 +1,13 @@
 import { ByokCredentialEntry, ByokProviderId } from '../types/academic';
+import {
+  buildByokProxyPath,
+  buildDedicatedProxyPath,
+  buildDedicatedUpstreamUrl,
+  buildFreeProxyPath,
+  buildFreeProxyUpstreamUrl,
+  type DedicatedProxySource,
+  type FreeProxyProvider,
+} from '../../shared/upstreams.mjs';
 
 export function isTauriRuntime(): boolean {
   return (
@@ -95,10 +104,7 @@ export async function fetchViaByokProxy(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<Response> {
-  const yearParam = yearFrom && yearFrom > 1900 ? `&yearFrom=${yearFrom}` : '';
-  const proxyUrl = `/api/byok-proxy?provider=${encodeURIComponent(
-    provider
-  )}&q=${encodeURIComponent(query)}&limit=${limit}${yearParam}`;
+  const proxyUrl = buildByokProxyPath(provider, query, limit, yearFrom);
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -118,4 +124,34 @@ export async function fetchViaByokProxy(
     throw new Error(`HTTP ${res.status}`);
   }
   return res;
+}
+
+/** Generic academic proxy source: same-origin proxy first, upstream URL as direct fallback. */
+export async function fetchFreeProxyJson(
+  provider: FreeProxyProvider,
+  query: string,
+  limit: number,
+  yearFrom?: number,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await crossPlatformFetch(
+    buildFreeProxyPath(provider, query, limit, yearFrom),
+    buildFreeProxyUpstreamUrl(provider, query, limit, yearFrom),
+    { headers: { Accept: 'application/json' }, signal }
+  );
+  return (await res.json()) as unknown;
+}
+
+/** Sources with a dedicated proxy route (/api/arxiv, /api/zenodo, /api/osti, /api/ntrs). */
+export function fetchDedicatedSource(
+  source: DedicatedProxySource,
+  query: string,
+  limit: number,
+  init?: RequestInit
+): Promise<Response> {
+  return crossPlatformFetch(
+    buildDedicatedProxyPath(source, query, limit),
+    buildDedicatedUpstreamUrl(source, query, limit),
+    init
+  );
 }

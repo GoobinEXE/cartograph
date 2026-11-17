@@ -32,7 +32,7 @@ import {
   launchUrlsCrossPlatform,
   runFederatedSearch,
 } from './services/academicAggregator';
-import { mapAreaToSearchScope } from './data/apiSources';
+import { OPEN_FEDERATED_SOURCE_COUNT, mapAreaToSearchScope } from './data/apiSources';
 import { renderAreaIcon } from './utils/areaIcons';
 import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { parseAbstractMetadata } from './utils/abstractParser';
@@ -2500,7 +2500,7 @@ export default function AcademicCommandCenter() {
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
                 }`}
               >
-                {t('footerApis')}
+                {t('footerApis', { count: OPEN_FEDERATED_SOURCE_COUNT })}
               </button>
               <button
                 type="button"

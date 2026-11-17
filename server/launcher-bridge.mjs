@@ -4,6 +4,18 @@ import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildNativeOpenCommand } from './nativeOpen.mjs';
+import {
+  CARTOGRAPH_USER_AGENT,
+  DEDICATED_PROXY_ROUTES,
+  buildByokUpstreamSpec,
+  buildDedicatedUpstreamUrl,
+  buildFreeProxyUpstreamUrl,
+  buildTranslateUpstreamUrl,
+  buildUnpaywallUpstreamUrl,
+  isByokUpstreamProvider,
+  isFreeProxyProvider,
+  normalizeYearFrom,
+} from '../shared/upstreams.mjs';
 
 const BRIDGE_PORT = Number(process.env.PORT || process.env.BRIDGE_PORT || 4789);
 const BRIDGE_HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -13,8 +25,6 @@ const IS_CLOUD_ENV = Boolean(
     process.env.FLY_APP_NAME ||
     (process.env.PORT && BRIDGE_HOST !== '127.0.0.1' && BRIDGE_HOST !== 'localhost')
 );
-const CARTOGRAPH_USER_AGENT =
-  'Cartograph/2.4 (Academic Metasearch Hub; https://cartographsearch.com)';
 const args = new Set(process.argv.slice(2));
 
 const ALLOWED_LOCAL_ORIGIN_RE = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/i;
@@ -190,16 +200,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && reqUrl.pathname === '/api/arxiv') {
     const query = reqUrl.searchParams.get('q') || '';
-    const maxResults = Math.min(Math.max(1, Number(reqUrl.searchParams.get('max_results') || 12)), 25);
+    const maxResults = Math.min(Math.max(1, Number(reqUrl.searchParams.get(DEDICATED_PROXY_ROUTES.arxiv.limitParam) || DEDICATED_PROXY_ROUTES.arxiv.defaultLimit)), DEDICATED_PROXY_ROUTES.arxiv.maxLimit);
     if (!query.trim() || query.trim().length > 300) {
       sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
       return;
     }
 
     try {
-      const arxivUrl = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(
-        query.trim()
-      )}&start=0&max_results=${maxResults}&sortBy=relevance&sortOrder=descending`;
+      const arxivUrl = buildDedicatedUpstreamUrl('arxiv', query.trim(), maxResults);
       const response = await fetch(arxivUrl, {
         headers: { 'User-Agent': CARTOGRAPH_USER_AGENT },
         signal: AbortSignal.timeout(10_000),
@@ -226,16 +234,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && reqUrl.pathname === '/api/zenodo') {
     const query = (reqUrl.searchParams.get('q') || '').trim();
-    const size = Math.min(Math.max(1, Number(reqUrl.searchParams.get('size') || 8)), 20);
+    const size = Math.min(Math.max(1, Number(reqUrl.searchParams.get(DEDICATED_PROXY_ROUTES.zenodo.limitParam) || DEDICATED_PROXY_ROUTES.zenodo.defaultLimit)), DEDICATED_PROXY_ROUTES.zenodo.maxLimit);
     if (!query || query.length > 300) {
       sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
       return;
     }
 
     try {
-      const zenodoUrl = `https://zenodo.org/api/records?q=${encodeURIComponent(
-        query
-      )}&size=${size}&sort=bestmatch`;
+      const zenodoUrl = buildDedicatedUpstreamUrl('zenodo', query, size);
       const response = await fetch(zenodoUrl, {
         headers: {
           Accept: 'application/json',
@@ -261,16 +267,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && reqUrl.pathname === '/api/osti') {
     const query = (reqUrl.searchParams.get('q') || '').trim();
-    const rows = Math.min(Math.max(1, Number(reqUrl.searchParams.get('rows') || 8)), 20);
+    const rows = Math.min(Math.max(1, Number(reqUrl.searchParams.get(DEDICATED_PROXY_ROUTES.osti.limitParam) || DEDICATED_PROXY_ROUTES.osti.defaultLimit)), DEDICATED_PROXY_ROUTES.osti.maxLimit);
     if (!query || query.length > 300) {
       sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
       return;
     }
 
     try {
-      const ostiUrl = `https://www.osti.gov/api/v1/records?q=${encodeURIComponent(
-        query
-      )}&rows=${rows}`;
+      const ostiUrl = buildDedicatedUpstreamUrl('osti', query, rows);
       const response = await fetch(ostiUrl, {
         headers: {
           Accept: 'application/json',
@@ -296,16 +300,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && reqUrl.pathname === '/api/ntrs') {
     const query = (reqUrl.searchParams.get('q') || '').trim();
-    const size = Math.min(Math.max(1, Number(reqUrl.searchParams.get('size') || 8)), 20);
+    const size = Math.min(Math.max(1, Number(reqUrl.searchParams.get(DEDICATED_PROXY_ROUTES.ntrs.limitParam) || DEDICATED_PROXY_ROUTES.ntrs.defaultLimit)), DEDICATED_PROXY_ROUTES.ntrs.maxLimit);
     if (!query || query.length > 300) {
       sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
       return;
     }
 
     try {
-      const ntrsUrl = `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(
-        query
-      )}&page%5Bsize%5D=${size}`;
+      const ntrsUrl = buildDedicatedUpstreamUrl('ntrs', query, size);
       const response = await fetch(ntrsUrl, {
         headers: {
           Accept: 'application/json',
@@ -333,38 +335,17 @@ const server = http.createServer(async (req, res) => {
     const provider = (reqUrl.searchParams.get('provider') || '').trim().toLowerCase();
     const query = (reqUrl.searchParams.get('q') || '').trim();
     const limit = Math.min(Math.max(1, Number(reqUrl.searchParams.get('limit') || 8)), 15);
-    const yearRaw = Number(reqUrl.searchParams.get('yearFrom'));
-    const yearFrom = Number.isFinite(yearRaw) && yearRaw > 1900 ? Math.floor(yearRaw) : undefined;
+    const yearFrom = normalizeYearFrom(reqUrl.searchParams.get('yearFrom'));
     if (!query || query.length > 300) {
       sendJson(res, 400, { ok: false, error: 'Parâmetro q inválido ou ausente' }, req);
       return;
     }
 
-    const enc = encodeURIComponent(query);
-    const freeUrls = {
-      openaire: `https://api.openaire.eu/graph/v2/researchProducts?search=${enc}&type=publication&page=1&pageSize=${limit}${
-        yearFrom ? `&fromPublicationDate=${yearFrom}-01-01` : ''
-      }`,
-      osf: `https://api.osf.io/v2/preprints/?filter[title,description]=${enc}&page[size]=${limit}`,
-      socarxiv: `https://api.osf.io/v2/preprints/?filter[provider]=socarxiv&filter[title,description]=${enc}&page[size]=${limit}`,
-      eric: `https://api.ies.ed.gov/eric/?search=${enc}&format=json&rows=${limit}`,
-      plos: `https://api.plos.org/search?q=${enc}&wt=json&rows=${limit}&fl=id,title_display,author_display,journal,publication_date,abstract`,
-      oasisbr: `https://oasisbr.ibict.br/vufind/api/v1/search?lookfor=${enc}&type=AllFields&limit=${limit}&field[]=id&field[]=title&field[]=authors&field[]=publicationDates&field[]=urls&field[]=summary`,
-      dataverse: `https://dataverse.harvard.edu/api/search?q=${enc}&type=dataset&per_page=${limit}`,
-      core: `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(
-        query + (yearFrom ? ` AND yearPublished>=${yearFrom}` : '')
-      )}&limit=${limit}`,
-      worldbank_wds: `https://search.worldbank.org/api/v3/wds?format=json&qterm=${enc}&rows=${limit}&fl=id,display_title,authors,docdt,pdfurl,url,abstracts,docty,repnme`,
-      worldbank_okr: `https://openknowledge.worldbank.org/server/api/discover/search/objects?query=${enc}&size=${limit}`,
-      ipea: `https://repositorio.ipea.gov.br/server/api/discover/search/objects?query=${enc}&size=${limit}`,
-      undl: `https://digitallibrary.un.org/search?p=${enc}&of=recjson&rg=${limit}`,
-    };
-
-    const targetUrl = freeUrls[provider];
-    if (!targetUrl) {
+    if (!isFreeProxyProvider(provider)) {
       sendJson(res, 400, { ok: false, error: 'Provedor acadêmico inválido' }, req);
       return;
     }
+    const targetUrl = buildFreeProxyUpstreamUrl(provider, query, limit, yearFrom);
 
     try {
       const response = await fetch(targetUrl, {
@@ -398,8 +379,7 @@ const server = http.createServer(async (req, res) => {
     const provider = (reqUrl.searchParams.get('provider') || '').trim().toLowerCase();
     const query = (reqUrl.searchParams.get('q') || '').trim();
     const limit = Math.min(Math.max(1, Number(reqUrl.searchParams.get('limit') || 8)), 15);
-    const yearRaw = Number(reqUrl.searchParams.get('yearFrom'));
-    const yearFrom = Number.isFinite(yearRaw) && yearRaw > 1900 ? Math.floor(yearRaw) : undefined;
+    const yearFrom = normalizeYearFrom(reqUrl.searchParams.get('yearFrom'));
     const apiKey = String(req.headers['x-cartograph-key'] || '').trim();
     const instToken = String(req.headers['x-cartograph-inst-token'] || '').trim();
 
@@ -412,89 +392,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const enc = encodeURIComponent(query);
-    const baseHeaders = { Accept: 'application/json', 'User-Agent': CARTOGRAPH_USER_AGENT };
-    const specs = {
-      semanticscholar: {
-        url: `https://api.semanticscholar.org/graph/v1/paper/search?query=${enc}&limit=${limit}${
-          yearFrom ? `&year=${yearFrom}-` : ''
-        }&fields=paperId,title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,abstract,externalIds,url`,
-        method: 'GET',
-        headers: { ...baseHeaders, 'x-api-key': apiKey },
-      },
-      core: {
-        url: `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(
-          query + (yearFrom ? ` AND yearPublished>=${yearFrom}` : '')
-        )}&limit=${limit}`,
-        method: 'GET',
-        headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` },
-      },
-      springer: {
-        url: `https://api.springernature.com/openaccess/json?q=${encodeURIComponent(
-          query + (yearFrom ? ` year:${yearFrom}` : '')
-        )}&p=${limit}`,
-        method: 'GET',
-        headers: { ...baseHeaders, 'X-ApiKey': apiKey },
-      },
-      scopus: {
-        url: `https://api.elsevier.com/content/search/scopus?query=${encodeURIComponent(
-          `TITLE-ABS-KEY(${query})${yearFrom ? ` AND PUBYEAR > ${yearFrom - 1}` : ''}`
-        )}&count=${limit}`,
-        method: 'GET',
-        headers: {
-          ...baseHeaders,
-          'X-ELS-APIKey': apiKey,
-          ...(instToken ? { 'X-ELS-Insttoken': instToken } : {}),
-        },
-      },
-      sciencedirect: {
-        url: `https://api.elsevier.com/content/search/sciencedirect?query=${enc}&count=${limit}`,
-        method: 'GET',
-        headers: {
-          ...baseHeaders,
-          'X-ELS-APIKey': apiKey,
-          ...(instToken ? { 'X-ELS-Insttoken': instToken } : {}),
-        },
-      },
-      ieeexplore: {
-        url: `https://ieeexploreapi.ieee.org/api/v1/search/articles?querytext=${enc}&max_records=${limit}${
-          yearFrom ? `&start_year=${yearFrom}` : ''
-        }&apikey=${encodeURIComponent(apiKey)}`,
-        method: 'GET',
-        headers: baseHeaders,
-      },
-      lens: {
-        url: 'https://api.lens.org/scholarly/search',
-        method: 'POST',
-        headers: {
-          ...baseHeaders,
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          query: yearFrom
-            ? { bool: { must: [{ query_string: { query } }, { range: { year_published: { gte: yearFrom } } }] } }
-            : { query_string: { query } },
-          size: limit,
-        }),
-      },
-      fedinprint: {
-        url: `https://fedinprint.org/api/item?q=${enc}&limit=${limit}`,
-        method: 'GET',
-        headers: { ...baseHeaders, 'X-API-Key': apiKey },
-      },
-      govinfo: {
-        url: `https://api.congress.gov/v3/bill?query=${enc}&limit=${limit}&format=json`,
-        method: 'GET',
-        headers: { ...baseHeaders, 'X-Api-Key': apiKey },
-      },
-    };
-
-    const spec = specs[provider];
-    if (!spec) {
+    if (!isByokUpstreamProvider(provider)) {
       sendJson(res, 400, { ok: false, error: 'Provedor BYOK inválido' }, req);
       return;
     }
+    const spec = buildByokUpstreamSpec(provider, {
+      query,
+      limit,
+      apiKey,
+      instToken: instToken || undefined,
+      yearFrom,
+      userAgent: CARTOGRAPH_USER_AGENT,
+    });
 
     try {
       const response = await fetch(spec.url, {
@@ -537,7 +446,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
+      const apiUrl = buildTranslateUpstreamUrl(text, from, to, process.env.MYMEMORY_EMAIL);
       const response = await fetch(apiUrl, {
         headers: { 'User-Agent': CARTOGRAPH_USER_AGENT },
         signal: AbortSignal.timeout(6_000),
@@ -584,9 +493,7 @@ const server = http.createServer(async (req, res) => {
       : 'researcher@cartographsearch.com';
 
     try {
-      const upstreamUrl = `https://api.unpaywall.org/v2/${encodeURIComponent(
-        rawDoi
-      )}?email=${encodeURIComponent(politeEmail)}`;
+      const upstreamUrl = buildUnpaywallUpstreamUrl(rawDoi, politeEmail);
       const response = await fetch(upstreamUrl, {
         headers: {
           'User-Agent': CARTOGRAPH_USER_AGENT,

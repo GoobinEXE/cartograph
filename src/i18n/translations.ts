@@ -279,6 +279,14 @@ export interface Translations {
   errorBoundaryBackupSaved: string;
   errorBoundaryBackupRejected: string;
   errorBoundaryBackupFailed: string;
+  notFoundCode: string;
+  notFoundTitle: string;
+  notFoundDescription: string;
+  notFoundBtnPlatforms: string;
+  notFoundBtnFederated: string;
+  notFoundBtnSaved: string;
+  notFoundBtnSearch: string;
+  notFoundPathLabel: string;
   allLibraryPapersTitle: string;
   groupFallbackName: string;
   slotAllDesc: string;
@@ -930,6 +938,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
       'Registros ilegíveis guardados à parte no campo emergencyRecovery: {count}. Eles não são restaurados automaticamente.',
     errorBoundaryBackupFailed:
       'Não foi possível gerar o backup. Os dados continuam no navegador; recarregue a página e tente de novo pela Biblioteca.',
+    notFoundCode: 'HTTP 404 · COORDENADA NÃO ENCONTRADA',
+    notFoundTitle: 'Esta rota não existe no índice do Cartograph',
+    notFoundDescription:
+      'O caminho solicitado não corresponde a uma vista ativa ou documento técnico do Cartograph. Use os atalhos abaixo para voltar ao diretório de {platforms} plataformas científicas, consultar as {apis} APIs abertas federadas ou revisar sua biblioteca PRISMA 2020.',
+    notFoundBtnPlatforms: 'Diretório de {platforms} Plataformas',
+    notFoundBtnFederated: 'Metabuscador ({apis} APIs)',
+    notFoundBtnSaved: 'Biblioteca & PRISMA 2020',
+    notFoundBtnSearch: 'Focar na Barra de Busca',
+    notFoundPathLabel: 'Caminho requisitado:',
     allLibraryPapersTitle: 'Todos os Artigos da Biblioteca',
     groupFallbackName: 'Grupo',
     slotAllDesc: 'Exibindo todos os artigos salvos em todos os grupos e itens sem grupo.',
@@ -974,7 +991,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     footerBrandTitle: 'Sobre o Cartograph — Arquitetura e Metodologia',
     footerNavAria: 'Links institucionais e legais do rodapé',
     footerAbout: 'Sobre o Cartograph',
-    footerApis: '15 APIs Abertas',
+    footerApis: '{count} APIs Abertas',
     footerCitation: 'Como Citar',
     footerCopyright: 'Direitos Autorais & Licenças',
     footerPrivacy: 'Privacidade (LGPD) & Termos',
@@ -1588,6 +1605,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
       'Unreadable records kept apart in the emergencyRecovery field: {count}. They are not restored automatically.',
     errorBoundaryBackupFailed:
       'The backup could not be generated. Your data is still in the browser; reload the page and try again from the Library.',
+    notFoundCode: 'HTTP 404 · COORDINATE NOT FOUND',
+    notFoundTitle: 'This route does not exist in the Cartograph index',
+    notFoundDescription:
+      'The requested path does not match an active view or technical document in Cartograph. Use the shortcuts below to return to the {platforms} scientific platforms directory, query the {apis} federated open APIs, or review your PRISMA 2020 library.',
+    notFoundBtnPlatforms: '{platforms} Platforms Directory',
+    notFoundBtnFederated: 'Federated Search ({apis} APIs)',
+    notFoundBtnSaved: 'Library & PRISMA 2020',
+    notFoundBtnSearch: 'Focus Search Bar',
+    notFoundPathLabel: 'Requested path:',
     allLibraryPapersTitle: 'All Library Papers',
     groupFallbackName: 'Group',
     slotAllDesc: 'Showing all saved papers across all groups and ungrouped items.',
@@ -1632,7 +1658,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     footerBrandTitle: 'About Cartograph — Architecture & Methodology',
     footerNavAria: 'Footer institutional and legal links',
     footerAbout: 'About Cartograph',
-    footerApis: '15 Open APIs',
+    footerApis: '{count} Open APIs',
     footerCitation: 'How to Cite',
     footerCopyright: 'Copyright & Licenses',
     footerPrivacy: 'Privacy (GDPR / LGPD) & Terms',

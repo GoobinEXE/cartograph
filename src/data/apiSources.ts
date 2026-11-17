@@ -3,6 +3,7 @@ import {
   ByokProviderId,
   SearchScopeId,
   SourceCategoryTag,
+  SourceTransport,
   ThematicArea,
   UserAccessConfig,
 } from '../types/academic';
@@ -12,17 +13,21 @@ export interface ApiSourceMetadata {
   label: string;
   categories: SourceCategoryTag[];
   authorityWeight: number;
+  transport: SourceTransport;
+  /** True when the source only runs with a user-supplied key (transport 'byok'). */
   requiresByok: boolean;
+  /** Optional or mandatory BYOK credential slot that upgrades this source. */
   byokProviderId?: ByokProviderId;
 }
 
 export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
-  // Original 15 open sources
+  // Core open sources (direct or dedicated proxy)
   openalex: {
     id: 'openalex',
     label: 'OpenAlex',
     categories: ['general', 'econ-policy', 'health', 'exact-tech'],
     authorityWeight: 1.12,
+    transport: 'direct',
     requiresByok: false,
   },
   semanticscholar: {
@@ -30,6 +35,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Semantic Scholar',
     categories: ['general', 'econ-policy', 'health', 'exact-tech'],
     authorityWeight: 1.12,
+    transport: 'direct',
     requiresByok: false,
     byokProviderId: 'semanticscholar',
   },
@@ -38,6 +44,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'PubMed (NIH)',
     categories: ['health'],
     authorityWeight: 1.15,
+    transport: 'direct',
     requiresByok: false,
   },
   europepmc: {
@@ -45,6 +52,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Europe PMC',
     categories: ['health'],
     authorityWeight: 1.12,
+    transport: 'direct',
     requiresByok: false,
   },
   arxiv: {
@@ -52,6 +60,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'arXiv (Cornell)',
     categories: ['general', 'exact-tech', 'econ-policy'],
     authorityWeight: 1.0,
+    transport: 'proxy',
     requiresByok: false,
   },
   crossref: {
@@ -59,6 +68,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Crossref DOI',
     categories: ['general', 'econ-policy', 'health', 'exact-tech'],
     authorityWeight: 1.05,
+    transport: 'direct',
     requiresByok: false,
   },
   doaj: {
@@ -66,6 +76,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'DOAJ Open Access',
     categories: ['general', 'econ-policy', 'health'],
     authorityWeight: 1.05,
+    transport: 'direct',
     requiresByok: false,
   },
   zenodo: {
@@ -73,6 +84,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Zenodo (CERN)',
     categories: ['general', 'exact-tech', 'datasets'],
     authorityWeight: 0.85,
+    transport: 'proxy',
     requiresByok: false,
   },
   hal: {
@@ -80,6 +92,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'HAL Science (CNRS)',
     categories: ['general', 'econ-policy', 'exact-tech'],
     authorityWeight: 0.98,
+    transport: 'direct',
     requiresByok: false,
   },
   datacite: {
@@ -87,6 +100,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'DataCite Commons',
     categories: ['general', 'datasets', 'exact-tech'],
     authorityWeight: 0.8,
+    transport: 'direct',
     requiresByok: false,
   },
   inspire: {
@@ -94,6 +108,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'INSPIRE-HEP (CERN)',
     categories: ['exact-tech'],
     authorityWeight: 0.95,
+    transport: 'direct',
     requiresByok: false,
   },
   figshare: {
@@ -101,6 +116,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Figshare Data',
     categories: ['datasets', 'general'],
     authorityWeight: 0.78,
+    transport: 'direct',
     requiresByok: false,
   },
   gbif: {
@@ -108,6 +124,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'GBIF Biodiversity',
     categories: ['health', 'datasets'],
     authorityWeight: 0.95,
+    transport: 'direct',
     requiresByok: false,
   },
   osti: {
@@ -115,6 +132,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'OSTI.GOV (DOE)',
     categories: ['exact-tech'],
     authorityWeight: 0.92,
+    transport: 'proxy',
     requiresByok: false,
   },
   ntrs: {
@@ -122,6 +140,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'NASA NTRS',
     categories: ['exact-tech'],
     authorityWeight: 0.92,
+    transport: 'proxy',
     requiresByok: false,
   },
 
@@ -131,6 +150,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'OpenAIRE Graph',
     categories: ['general', 'econ-policy', 'exact-tech'],
     authorityWeight: 1.1,
+    transport: 'proxy',
     requiresByok: false,
   },
   osf: {
@@ -138,6 +158,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'OSF Preprints',
     categories: ['general', 'econ-policy'],
     authorityWeight: 0.95,
+    transport: 'proxy',
     requiresByok: false,
   },
   eric: {
@@ -145,6 +166,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'ERIC (IES)',
     categories: ['general', 'econ-policy'],
     authorityWeight: 1.02,
+    transport: 'proxy',
     requiresByok: false,
   },
   plos: {
@@ -152,6 +174,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'PLOS Open Access',
     categories: ['general', 'health'],
     authorityWeight: 1.04,
+    transport: 'proxy',
     requiresByok: false,
   },
   oasisbr: {
@@ -159,6 +182,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Oasisbr (IBICT)',
     categories: ['general', 'econ-policy'],
     authorityWeight: 0.96,
+    transport: 'proxy',
     requiresByok: false,
   },
   dataverse: {
@@ -166,6 +190,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Harvard Dataverse',
     categories: ['general', 'econ-policy', 'datasets'],
     authorityWeight: 0.88,
+    transport: 'proxy',
     requiresByok: false,
   },
   core: {
@@ -173,6 +198,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'CORE.ac.uk',
     categories: ['general', 'econ-policy', 'exact-tech'],
     authorityWeight: 1.06,
+    transport: 'proxy',
     requiresByok: false,
     byokProviderId: 'core',
   },
@@ -183,6 +209,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'World Bank Reports',
     categories: ['econ-policy'],
     authorityWeight: 1.08,
+    transport: 'proxy',
     requiresByok: false,
   },
   worldbank_okr: {
@@ -190,6 +217,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'World Bank OKR',
     categories: ['econ-policy', 'general'],
     authorityWeight: 1.06,
+    transport: 'proxy',
     requiresByok: false,
   },
   socarxiv: {
@@ -197,6 +225,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'SocArXiv (OSF)',
     categories: ['econ-policy', 'general'],
     authorityWeight: 0.98,
+    transport: 'proxy',
     requiresByok: false,
   },
   ipea: {
@@ -204,6 +233,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'IPEA (RCIpea)',
     categories: ['econ-policy'],
     authorityWeight: 1.0,
+    transport: 'proxy',
     requiresByok: false,
   },
   undl: {
@@ -211,6 +241,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'UN Digital Library',
     categories: ['econ-policy', 'general'],
     authorityWeight: 1.02,
+    transport: 'proxy',
     requiresByok: false,
   },
 
@@ -220,6 +251,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Scopus (Elsevier)',
     categories: ['general', 'econ-policy', 'health', 'exact-tech'],
     authorityWeight: 1.18,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'scopus',
   },
@@ -228,6 +260,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'ScienceDirect (Elsevier)',
     categories: ['general', 'econ-policy', 'health', 'exact-tech'],
     authorityWeight: 1.15,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'sciencedirect',
   },
@@ -236,6 +269,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'IEEE Xplore',
     categories: ['exact-tech', 'general'],
     authorityWeight: 1.16,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'ieeexplore',
   },
@@ -244,6 +278,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Springer Nature',
     categories: ['general', 'health', 'exact-tech', 'econ-policy'],
     authorityWeight: 1.14,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'springer',
   },
@@ -252,6 +287,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'The Lens.org',
     categories: ['general', 'exact-tech', 'econ-policy'],
     authorityWeight: 1.08,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'lens',
   },
@@ -260,6 +296,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Fed in Print (FED)',
     categories: ['econ-policy'],
     authorityWeight: 1.08,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'fedinprint',
   },
@@ -268,6 +305,7 @@ export const API_SOURCE_REGISTRY: Record<ApiSourceId, ApiSourceMetadata> = {
     label: 'Congress.gov / GovInfo',
     categories: ['econ-policy'],
     authorityWeight: 1.04,
+    transport: 'byok',
     requiresByok: true,
     byokProviderId: 'govinfo',
   },
@@ -325,3 +363,15 @@ export function countSourcesForScope(
     return Boolean(entry?.enabled && entry?.apiKey?.trim());
   }).length;
 }
+
+/** Sources queried with no user credential (some accept an optional key for higher quotas). */
+export const OPEN_FEDERATED_SOURCE_COUNT = Object.values(API_SOURCE_REGISTRY).filter(
+  (meta) => !meta.requiresByok
+).length;
+
+/** Sources that only run once the researcher supplies their own key (BYOK). */
+export const BYOK_FEDERATED_SOURCE_COUNT = Object.values(API_SOURCE_REGISTRY).filter(
+  (meta) => meta.requiresByok
+).length;
+
+export const TOTAL_FEDERATED_SOURCE_COUNT = Object.keys(API_SOURCE_REGISTRY).length;

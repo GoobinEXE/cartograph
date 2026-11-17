@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import type { AboutSectionId } from '../components/AboutView';
 import type { LanguageCode } from '../i18n/translations';
+import { PLATFORMS } from '../data/platforms';
+import {
+  BYOK_FEDERATED_SOURCE_COUNT as BYOK_APIS,
+  OPEN_FEDERATED_SOURCE_COUNT as OPEN_APIS,
+  TOTAL_FEDERATED_SOURCE_COUNT as TOTAL_APIS,
+} from '../data/apiSources';
+
+const PLATFORM_COUNT = PLATFORMS.length;
 
 export const CANONICAL_ORIGIN = 'https://cartographsearch.com';
 
@@ -124,12 +132,12 @@ const SEO_METADATA: Record<
     platforms: {
       title: 'Cartograph — Hub de Metabusca Científica & Revisão de Literatura',
       description:
-        'Metabuscador científico e acadêmico com 15 APIs abertas em tempo real, catálogo curado de 111 plataformas, construtor booleano e triagem sistemática PRISMA 2020.',
+        `Metabuscador científico e acadêmico com ${OPEN_APIS} APIs abertas em tempo real, catálogo curado de ${PLATFORM_COUNT} plataformas, construtor booleano e triagem sistemática PRISMA 2020.`,
     },
     federated: {
-      title: 'Metabuscador Integrado (15 APIs Abertas) · Cartograph',
+      title: `Metabuscador Integrado (${OPEN_APIS} APIs Abertas) · Cartograph`,
       description:
-        'Consulte simultaneamente OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI e NASA.',
+        `Consulte em paralelo ${OPEN_APIS} bases abertas, como OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, CORE, OpenAIRE, Banco Mundial e Ipea.`,
     },
     saved: {
       title: 'Biblioteca de Fichamento & Triagem PRISMA 2020 · Cartograph',
@@ -147,9 +155,9 @@ const SEO_METADATA: Record<
         'Conheça a engenharia determinística do Cartograph v2.4: deduplicação multicritério Jaro-Winkler, parser de resumos estruturados e reprodutibilidade PRISMA 2020.',
     },
     apis: {
-      title: 'Catálogo das 15 APIs Científicas Abertas Federadas · Cartograph',
+      title: `Catálogo das ${TOTAL_APIS} APIs Científicas Federadas · Cartograph`,
       description:
-        'Documentação técnica e licenças das 15 APIs públicas consultadas em paralelo pelo Cartograph: OpenAlex, PubMed, Semantic Scholar, arXiv, CERN Zenodo e mais.',
+        `Documentação e licenças das ${TOTAL_APIS} APIs consultadas pelo Cartograph (${OPEN_APIS} abertas e ${BYOK_APIS} com chave própria): OpenAlex, PubMed, Semantic Scholar, arXiv, CORE e mais.`,
     },
     citation: {
       title: 'Como Citar o Cartograph (ABNT NBR 6023, APA 7 e BibTeX)',
@@ -169,19 +177,19 @@ const SEO_METADATA: Record<
     notFound: {
       title: '404 — Coordenada Não Encontrada · Cartograph',
       description:
-        'A rota solicitada não foi encontrada no índice do Cartograph. Retorne ao diretório de 111 plataformas científicas ou ao metabuscador federado.',
+        `A rota solicitada não foi encontrada no índice do Cartograph. Retorne ao diretório de ${PLATFORM_COUNT} plataformas científicas ou ao metabuscador federado.`,
     },
   },
   en: {
     platforms: {
       title: 'Cartograph — Scientific Metasearch & Literature Review Hub',
       description:
-        'Scientific and academic metasearch hub featuring 15 live open APIs, 111 curated platforms, Boolean query builder, deduplication, and PRISMA 2020 systematic workflow.',
+        `Scientific and academic metasearch hub featuring ${OPEN_APIS} live open APIs, ${PLATFORM_COUNT} curated platforms, Boolean query builder, deduplication, and PRISMA 2020 systematic workflow.`,
     },
     federated: {
-      title: 'Federated Metasearch (15 Live Open APIs) · Cartograph',
+      title: `Federated Metasearch (${OPEN_APIS} Live Open APIs) · Cartograph`,
       description:
-        'Query OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI, and NASA in parallel.',
+        `Query ${OPEN_APIS} open sources in parallel, including OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv, Crossref, CORE, OpenAIRE, the World Bank, and Ipea.`,
     },
     saved: {
       title: 'Saved Literature & PRISMA 2020 Screening · Cartograph',
@@ -199,9 +207,9 @@ const SEO_METADATA: Record<
         'Explore the deterministic architecture of Cartograph v2.4: multi-criteria deduplication, structured abstract parsing, and PRISMA 2020 compliance.',
     },
     apis: {
-      title: '15 Federated Open Scientific APIs Catalog · Cartograph',
+      title: `${TOTAL_APIS} Federated Scientific APIs Catalog · Cartograph`,
       description:
-        'Technical specifications and open licenses of the 15 scientific APIs aggregated by Cartograph: OpenAlex, PubMed, Semantic Scholar, arXiv, CERN Zenodo, and more.',
+        `Documentation and licenses of the ${TOTAL_APIS} APIs queried by Cartograph (${OPEN_APIS} open, ${BYOK_APIS} with your own key): OpenAlex, PubMed, Semantic Scholar, arXiv, CORE, and more.`,
     },
     citation: {
       title: 'How to Cite Cartograph (APA 7th, ABNT, BibTeX)',
@@ -221,7 +229,7 @@ const SEO_METADATA: Record<
     notFound: {
       title: '404 — Coordinate Not Found · Cartograph',
       description:
-        'The requested route was not found in Cartograph. Return to the 111 scientific platforms directory or the 15-API federated metasearch.',
+        `The requested route was not found in Cartograph. Return to the ${PLATFORM_COUNT} scientific platforms directory or the ${OPEN_APIS}-API federated metasearch.`,
     },
   },
 };

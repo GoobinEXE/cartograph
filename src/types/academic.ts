@@ -81,6 +81,12 @@ export type SearchScopeId = 'all' | 'general' | 'econ-policy' | 'health' | 'exac
 
 export type SourceCategoryTag = 'general' | 'econ-policy' | 'health' | 'exact-tech' | 'datasets';
 
+/**
+ * How the browser reaches a federated source: straight to the upstream API (CORS-enabled),
+ * through a same-origin proxy route, or through the BYOK proxy with the user's own key.
+ */
+export type SourceTransport = 'direct' | 'proxy' | 'byok';
+
 export type ByokProviderId =
   | 'semanticscholar'
   | 'core'

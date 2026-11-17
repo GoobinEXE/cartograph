@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import { PLATFORMS } from '../data/platforms';
+import {
+  API_SOURCE_REGISTRY,
+  BYOK_FEDERATED_SOURCE_COUNT,
+  OPEN_FEDERATED_SOURCE_COUNT,
+  TOTAL_FEDERATED_SOURCE_COUNT,
+} from '../data/apiSources';
+import { API_SOURCE_DOCS } from '../data/apiSourceDocs';
+import { localize } from '../i18n/localized';
 import { useI18n } from '../i18n/context';
 import {
   ArrowLeft,
@@ -28,168 +36,6 @@ interface AboutViewProps {
   onNavigateTab?: (tab: 'platforms' | 'federated' | 'saved' | 'feedback' | 'about') => void;
 }
 
-interface FederatedApiDoc {
-  name: string;
-  org: string;
-  license: string;
-  licenseEn: string;
-  scope: string;
-  scopeEn: string;
-}
-
-const FEDERATED_APIS_LIST: FederatedApiDoc[] = [
-  {
-    name: 'OpenAlex API',
-    org: 'OurResearch',
-    license: 'CC0 1.0 (Domínio Público)',
-    licenseEn: 'CC0 1.0 (Public Domain)',
-    scope:
-      'Mais de 250 milhões de obras científicas, conceitos, grafo de citações e links diretos de PDF em Acesso Aberto.',
-    scopeEn:
-      'Over 250 million scholarly works, concepts, citation graphs, and direct Open Access PDF links.',
-  },
-  {
-    name: 'Semantic Scholar Graph API',
-    org: 'Allen Institute for AI (AI2)',
-    license: 'AI2 Open Research Corpus',
-    licenseEn: 'AI2 Open Research Corpus',
-    scope:
-      'Indexação multidisciplinar, métricas de citações influentes, resumos estruturados e localização de PDFs abertos.',
-    scopeEn:
-      'Multidisciplinary indexing, influential citation metrics, structured abstracts, and open PDF discovery.',
-  },
-  {
-    name: 'PubMed / MEDLINE (NCBI Entrez)',
-    org: 'National Library of Medicine (NIH)',
-    license: 'NLM Public Domain / Open',
-    licenseEn: 'NLM Public Domain / Open',
-    scope:
-      'Base biomédica e clínica oficial com resolução de identificadores PMID, PMCID, vocabulário MeSH e textos completos no PMC.',
-    scopeEn:
-      'Official biomedical and clinical database with PMID, PMCID, MeSH vocabulary, and PubMed Central full-text resolution.',
-  },
-  {
-    name: 'Europe PMC REST API',
-    org: 'EMBL-EBI',
-    license: 'EMBL-EBI Open Science',
-    licenseEn: 'EMBL-EBI Open Science',
-    scope:
-      'Literatura europeia e global em ciências da vida, biociências e ensaios clínicos com rastreamento de financiamento.',
-    scopeEn:
-      'European and global life sciences literature, biosciences, and clinical trials with funding attribution.',
-  },
-  {
-    name: 'arXiv API',
-    org: 'Cornell University',
-    license: 'arXiv Open Metadata',
-    licenseEn: 'arXiv Open Metadata',
-    scope:
-      'Repositório primário de preprints em Ciência da Computação, Física, Matemática, Biologia Quantitativa, Estatística e Economia.',
-    scopeEn:
-      'Primary preprint repository for Computer Science, Physics, Mathematics, Quantitative Biology, Statistics, and Economics.',
-  },
-  {
-    name: 'Crossref REST API',
-    org: 'Crossref DOI Foundation',
-    license: 'CC0 1.0 (Metadados)',
-    licenseEn: 'CC0 1.0 (Metadata)',
-    scope:
-      'Registro mundial de Digital Object Identifiers (DOIs) e metadados editoriais auditados de periódicos revisados por pares.',
-    scopeEn:
-      'Global Digital Object Identifier (DOI) registry and audited publisher metadata for peer-reviewed journals.',
-  },
-  {
-    name: 'DOAJ API v4',
-    org: 'Directory of Open Access Journals',
-    license: 'CC0 / Open Access',
-    licenseEn: 'CC0 / Open Access',
-    scope:
-      'Artigos publicados exclusivamente em periódicos científicos de Acesso Aberto com revisão por pares auditada.',
-    scopeEn:
-      'Articles published exclusively in audited, peer-reviewed Open Access scientific journals.',
-  },
-  {
-    name: 'Zenodo / OpenAIRE API',
-    org: 'CERN',
-    license: 'CERN Open Data / CC',
-    licenseEn: 'CERN Open Data / CC',
-    scope:
-      'Conjuntos de dados empíricos, pacotes de replicação, softwares científicos e relatórios técnicos depositados no CERN.',
-    scopeEn:
-      'Empirical datasets, replication packages, scientific software, and technical reports hosted by CERN.',
-  },
-  {
-    name: 'HAL Open Science API',
-    org: 'CNRS (França)',
-    license: 'Open Archive France',
-    licenseEn: 'Open Archive France',
-    scope:
-      'Repositório nacional multi-institucional francês com mais de 3,5 milhões de artigos e teses acadêmicas.',
-    scopeEn:
-      'French national multi-institutional open repository with over 3.5 million scholarly articles and theses.',
-  },
-  {
-    name: 'DataCite Commons API',
-    org: 'DataCite e.V.',
-    license: 'CC0 1.0 (Domínio Público)',
-    licenseEn: 'CC0 1.0 (Public Domain)',
-    scope:
-      'Consórcio global de DOIs para datasets, repositórios institucionais, OSF Preprints, Dryad e Figshare.',
-    scopeEn:
-      'Global DOI consortium covering datasets, institutional repositories, OSF Preprints, Dryad, and Figshare.',
-  },
-  {
-    name: 'INSPIRE-HEP API',
-    org: 'CERN / DESY / Fermilab / SLAC',
-    license: 'CC0 / Open High-Energy Physics',
-    licenseEn: 'CC0 / Open High-Energy Physics',
-    scope:
-      'Literatura internacional de física de altas energias, aceleradores, cosmologia e computação quântica.',
-    scopeEn:
-      'International high-energy physics, particle accelerators, cosmology, and quantum computing literature.',
-  },
-  {
-    name: 'Figshare REST API v2',
-    org: 'Digital Science',
-    license: 'CC0 / CC-BY',
-    licenseEn: 'CC0 / CC-BY',
-    scope:
-      'Repositório de dados suplementares, figuras técnicas, scripts de análise e resultados experimentais abertos.',
-    scopeEn:
-      'Repository for supplementary datasets, technical figures, analysis scripts, and open experimental outputs.',
-  },
-  {
-    name: 'GBIF Literature API',
-    org: 'Global Biodiversity Information Facility',
-    license: 'CC0 / CC-BY',
-    licenseEn: 'CC0 / CC-BY',
-    scope:
-      'Publicações revisadas por pares que utilizam dados globais de biodiversidade, ecologia e modelagem climática.',
-    scopeEn:
-      'Peer-reviewed publications citing global biodiversity, ecology, and climate modeling records.',
-  },
-  {
-    name: 'OSTI.GOV API',
-    org: 'U.S. Department of Energy (DOE)',
-    license: 'U.S. Government Open Data',
-    licenseEn: 'U.S. Government Open Data',
-    scope:
-      'Relatórios técnicos, patentes energéticas e resultados de pesquisa dos laboratórios nacionais dos Estados Unidos.',
-    scopeEn:
-      'Technical reports, energy patents, and research outputs from U.S. Department of Energy national laboratories.',
-  },
-  {
-    name: 'NASA NTRS API',
-    org: 'NASA STI Program',
-    license: 'U.S. Government Public Domain',
-    licenseEn: 'U.S. Government Public Domain',
-    scope:
-      'NASA Technical Reports Server com estudos de engenharia aeroespacial, propulsão, ciência planetária e materiais.',
-    scopeEn:
-      'NASA Technical Reports Server covering aerospace engineering, propulsion, planetary science, and materials.',
-  },
-];
-
 export const AboutView: React.FC<AboutViewProps> = ({
   activeSection: controlledSection,
   onSelectSection,
@@ -212,7 +58,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
   year         = {2026},
   version      = {2.4.0},
   url          = {https://cartographsearch.com},
-  note         = {Federated metasearch across 15 open scientific APIs and ${PLATFORMS.length} curated academic platforms}
+  note         = {Federated metasearch across ${OPEN_FEDERATED_SOURCE_COUNT} open scientific APIs, ${BYOK_FEDERATED_SOURCE_COUNT} researcher-key APIs, and ${PLATFORMS.length} curated academic platforms}
 }`,
   };
 
@@ -232,7 +78,9 @@ export const AboutView: React.FC<AboutViewProps> = ({
     },
     {
       id: 'apis',
-      label: isEn ? '15 Federated APIs' : '15 APIs Federadas',
+      label: isEn
+        ? `${TOTAL_FEDERATED_SOURCE_COUNT} Federated APIs`
+        : `${TOTAL_FEDERATED_SOURCE_COUNT} APIs Federadas`,
       shortDesc: isEn
         ? 'Real-time open source specifications'
         : 'Especificação das fontes em tempo real',
@@ -352,7 +200,9 @@ export const AboutView: React.FC<AboutViewProps> = ({
                 {isEn ? 'Real-Time APIs' : 'APIs em Tempo Real'}
               </dt>
               <dd className="font-medium text-[var(--text-primary)]">
-                {isEn ? '15 open sources' : '15 fontes abertas'}
+                {isEn
+                  ? `${OPEN_FEDERATED_SOURCE_COUNT} open + ${BYOK_FEDERATED_SOURCE_COUNT} with your key`
+                  : `${OPEN_FEDERATED_SOURCE_COUNT} abertas + ${BYOK_FEDERATED_SOURCE_COUNT} com chave própria`}
               </dd>
             </div>
             <div className="flex justify-between gap-2">
@@ -449,11 +299,11 @@ export const AboutView: React.FC<AboutViewProps> = ({
               <p className="text-[var(--text-secondary)]">
                 {isEn ? (
                   <>
-                    Contemporary scientific output is distributed across institutional repositories, government archives, preprint servers, and commercial publishers. Cartograph unifies bibliographic discovery in one command interface, combining <strong>direct federated search across 15 open APIs</strong> with a <strong>curated directory of {PLATFORMS.length} specialized platforms</strong>.
+                    Contemporary scientific output is distributed across institutional repositories, government archives, preprint servers, and commercial publishers. Cartograph unifies bibliographic discovery in one command interface, combining <strong>direct federated search across {OPEN_FEDERATED_SOURCE_COUNT} open APIs</strong> with a <strong>curated directory of {PLATFORMS.length} specialized platforms</strong>.
                   </>
                 ) : (
                   <>
-                    A produção científica contemporânea encontra-se distribuída em centenas de repositórios institucionais, bases governamentais, servidores de preprints e editoras comerciais. O Cartograph unifica a descoberta bibliográfica em uma interface de comando única, combinando <strong>consulta federada direta em 15 APIs abertas</strong> com um <strong>catálogo estruturado de {PLATFORMS.length} plataformas especializadas</strong>.
+                    A produção científica contemporânea encontra-se distribuída em centenas de repositórios institucionais, bases governamentais, servidores de preprints e editoras comerciais. O Cartograph unifica a descoberta bibliográfica em uma interface de comando única, combinando <strong>consulta federada direta em {OPEN_FEDERATED_SOURCE_COUNT} APIs abertas</strong> com um <strong>catálogo estruturado de {PLATFORMS.length} plataformas especializadas</strong>.
                   </>
                 )}
               </p>
@@ -465,12 +315,14 @@ export const AboutView: React.FC<AboutViewProps> = ({
               <div className="divide-y divide-[var(--divider)] border-y border-[var(--divider)]">
                 <div className="py-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
                   <div className="font-semibold text-base text-[var(--text-primary)]">
-                    {isEn ? 'Federated Search Across 15 Open APIs' : 'Metabusca Federada em 15 APIs Abertas'}
+                    {isEn
+                      ? `Federated Search Across ${OPEN_FEDERATED_SOURCE_COUNT} Open APIs`
+                      : `Metabusca Federada em ${OPEN_FEDERATED_SOURCE_COUNT} APIs Abertas`}
                   </div>
                   <div className="text-base text-[var(--text-secondary)] leading-relaxed">
                     {isEn
-                      ? 'Parallel asynchronous querying across OpenAlex, Semantic Scholar, PubMed/MEDLINE, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV, and NASA NTRS. If one external source experiences high latency or rate limiting, the remaining sources continue returning results without interruption.'
-                      : 'Consulta assíncrona paralela em bases mundiais como OpenAlex, Semantic Scholar, PubMed/MEDLINE, Europe PMC, arXiv, Crossref, DOAJ, CERN Zenodo, HAL, DataCite, INSPIRE-HEP, Figshare, GBIF, OSTI.GOV e NASA NTRS. Caso uma base externa apresente latência elevada ou limite de requisições, as demais continuam operando sem interrupção.'}
+                      ? `Parallel asynchronous querying of ${OPEN_FEDERATED_SOURCE_COUNT} open sources: general indexes (OpenAlex, Semantic Scholar, Crossref, OpenAIRE), biomedicine (PubMed/MEDLINE, Europe PMC, PLOS), preprints (arXiv, OSF, SocArXiv), repositories and datasets (CERN Zenodo, HAL, CORE, DataCite, Figshare, Harvard Dataverse), and economics and public policy (World Bank, Ipea, UN Digital Library, Oasisbr). With your own keys, ${BYOK_FEDERATED_SOURCE_COUNT} more sources join the search, among them Scopus, IEEE Xplore, and Springer Nature. If one source responds slowly or hits a rate limit, the others keep returning results.`
+                      : `Consulta assíncrona paralela em ${OPEN_FEDERATED_SOURCE_COUNT} fontes abertas: índices gerais (OpenAlex, Semantic Scholar, Crossref, OpenAIRE), biomedicina (PubMed/MEDLINE, Europe PMC, PLOS), preprints (arXiv, OSF, SocArXiv), repositórios e dados (CERN Zenodo, HAL, CORE, DataCite, Figshare, Harvard Dataverse) e economia e políticas públicas (Banco Mundial, Ipea, UN Digital Library, Oasisbr). Com chaves próprias, mais ${BYOK_FEDERATED_SOURCE_COUNT} fontes entram na busca, entre elas Scopus, IEEE Xplore e Springer Nature. Se uma base responder devagar ou atingir o limite de requisições, as demais continuam retornando resultados.`}
                   </div>
                 </div>
 
@@ -534,7 +386,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
           </article>
         )}
 
-        {/* SECTION 2: 15 FEDERATED SCIENTIFIC APIS */}
+        {/* SECTION 2: FEDERATED SCIENTIFIC APIS (generated from API_SOURCE_REGISTRY) */}
         {currentSection === 'apis' && (
           <article className="space-y-8">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
@@ -543,13 +395,13 @@ export const AboutView: React.FC<AboutViewProps> = ({
               </div>
               <h1 className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)]">
                 {isEn
-                  ? '15 Federated Scientific and Technical APIs'
-                  : '15 APIs Científicas e Tecnológicas Federadas'}
+                  ? `${TOTAL_FEDERATED_SOURCE_COUNT} Federated Scientific and Technical APIs`
+                  : `${TOTAL_FEDERATED_SOURCE_COUNT} APIs Científicas e Tecnológicas Federadas`}
               </h1>
               <p className="text-base text-[var(--text-secondary)] leading-relaxed max-w-3xl">
                 {isEn
-                  ? 'Complete specification of the REST/XML programming interfaces queried in parallel by the Cartograph aggregation engine.'
-                  : 'Relação completa das interfaces de programação (APIs REST/XML) consultadas em paralelo pelo motor de agregação do Cartograph durante a busca integrada.'}
+                  ? `Complete list of the REST/XML programming interfaces queried in parallel by the Cartograph aggregation engine. ${OPEN_FEDERATED_SOURCE_COUNT} run without any key; the ${BYOK_FEDERATED_SOURCE_COUNT} marked BYOK run only with a key you configure in Access Settings.`
+                  : `Relação completa das interfaces de programação (APIs REST/XML) consultadas em paralelo pelo motor de agregação do Cartograph. ${OPEN_FEDERATED_SOURCE_COUNT} funcionam sem chave; as ${BYOK_FEDERATED_SOURCE_COUNT} marcadas como BYOK só rodam com uma chave sua, configurada em Acesso Institucional & Chaves de API.`}
               </p>
             </header>
 
@@ -565,25 +417,33 @@ export const AboutView: React.FC<AboutViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--divider)] text-sm sm:text-base">
-                  {FEDERATED_APIS_LIST.map((api, idx) => (
-                    <tr key={api.name} className="hover:bg-[var(--bg-subtle)]/40 transition-colors">
-                      <td className="py-4 pr-4 text-sm text-[var(--text-muted)] align-top">
-                        {idx + 1}.
-                      </td>
-                      <td className="py-4 px-4 font-semibold text-[var(--text-primary)] align-top">
-                        {api.name}
-                      </td>
-                      <td className="py-4 px-4 text-[var(--meta-green)] font-medium align-top">
-                        {api.org}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-secondary)] align-top">
-                        {isEn ? api.licenseEn : api.license}
-                      </td>
-                      <td className="py-4 pl-4 text-[var(--text-secondary)] leading-relaxed align-top">
-                        {isEn ? api.scopeEn : api.scope}
-                      </td>
-                    </tr>
-                  ))}
+                  {Object.values(API_SOURCE_REGISTRY).map((meta, idx) => {
+                    const doc = API_SOURCE_DOCS[meta.id];
+                    return (
+                      <tr key={meta.id} className="hover:bg-[var(--bg-subtle)]/40 transition-colors">
+                        <td className="py-4 pr-4 text-sm text-[var(--text-muted)] align-top font-mono tabular-nums">
+                          {idx + 1}.
+                        </td>
+                        <td className="py-4 px-4 font-semibold text-[var(--text-primary)] align-top">
+                          <span>{doc.apiName}</span>
+                          {meta.requiresByok && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium bg-[var(--accent-blue-tint)] text-[var(--link-academic)] align-middle">
+                              BYOK
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-[var(--meta-green)] font-medium align-top">
+                          {doc.organization}
+                        </td>
+                        <td className="py-4 px-4 text-sm text-[var(--text-secondary)] align-top">
+                          {localize(doc.license, language)}
+                        </td>
+                        <td className="py-4 pl-4 text-[var(--text-secondary)] leading-relaxed align-top">
+                          {localize(doc.scope, language)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
