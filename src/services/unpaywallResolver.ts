@@ -1,4 +1,5 @@
-import { cleanDoi, crossPlatformFetch } from './httpClient';
+import { crossPlatformFetch } from './httpClient';
+import { normalizeDoi } from '../utils/deduplication';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 
 export interface UnpaywallResolution {
@@ -19,7 +20,7 @@ export async function resolveUnpaywallPdf(
   politeEmail?: string,
   signal?: AbortSignal
 ): Promise<UnpaywallResolution> {
-  const doi = cleanDoi(rawDoi);
+  const doi = normalizeDoi(rawDoi);
   if (!doi || !/^10\.\d{4,9}\/[^\s]+$/i.test(doi)) {
     return {
       ok: false,

@@ -1,6 +1,6 @@
 import { NormalizedPaper } from '../types/academic';
 import { extractArxivId, extractPmid } from '../utils/deduplication';
-import { cleanDoi } from './httpClient';
+import { normalizeDoi } from '../utils/deduplication';
 import { normalizeOpenAlexWork } from './citationChaser';
 
 export interface ParsedIdentifierToken {
@@ -26,7 +26,7 @@ export function parseIdentifierBatch(rawText: string): ParsedIdentifierToken[] {
 
   for (const raw of chunks) {
     const cleanToken = raw.replace(/[).,;]+$/g, '');
-    const normalizedDoi = cleanDoi(cleanToken);
+    const normalizedDoi = normalizeDoi(cleanToken);
     if (normalizedDoi && /^10\.\d{4,9}\/[^\s]+$/i.test(normalizedDoi)) {
       const key = `doi:${normalizedDoi}`;
       if (!seen.has(key)) {
@@ -124,7 +124,7 @@ async function resolveSingleDoi(doi: string, signal?: AbortSignal): Promise<Norm
       sourceLabel: 'Crossref DOI',
       isRetracted: Boolean(retractionEntry),
       retractionNoticeUrl: retractionEntry?.DOI
-        ? `https://doi.org/${cleanDoi(String(retractionEntry.DOI)) || retractionEntry.DOI}`
+        ? `https://doi.org/${normalizeDoi(String(retractionEntry.DOI)) || retractionEntry.DOI}`
         : null,
     };
   } catch (err) {
@@ -148,7 +148,7 @@ async function resolveSinglePmid(pmid: string, signal?: AbortSignal): Promise<No
 
     const articleIds = Array.isArray(doc.articleids) ? doc.articleids : [];
     const doiObj = articleIds.find((a: Record<string, any>) => a?.idtype === 'doi');
-    const doi = cleanDoi(doiObj?.value);
+    const doi = normalizeDoi(doiObj?.value);
     const authors = Array.isArray(doc.authors)
       ? doc.authors.slice(0, 5).map((a: Record<string, any>) => a?.name).filter(Boolean)
       : [];

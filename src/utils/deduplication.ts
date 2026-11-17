@@ -8,18 +8,9 @@ import {
   SavedPaperItem,
 } from '../types/academic';
 
-/**
- * Normalizes a DOI string to a standard lowercase prefix-free representation.
- */
-export function normalizeDoi(doi: string | null | undefined): string | null {
-  if (!doi) return null;
-  const cleaned = doi
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
-    .replace(/^doi:\s*/i, '');
-  return cleaned || null;
-}
+import { normalizeDoi } from '../../shared/identifiers.mjs';
+
+export { normalizeDoi };
 
 /**
  * Extracts a normalized arXiv identifier if present in ID or URL.

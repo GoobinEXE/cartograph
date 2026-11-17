@@ -1,27 +1,82 @@
 import { ByokCredentialEntry, NormalizedPaper } from '../types/academic';
-import { cleanDoi, fetchDedicatedSource, fetchViaByokProxy } from './httpClient';
+import {
+  asArray,
+  asNumber,
+  asRecord,
+  asRecords,
+  asString,
+  asStringList,
+  firstString,
+  isRecord,
+  stableHashId,
+} from '../utils/json';
+import { UNTITLED_PAPER_TITLE, extractYear, filterByYear, nonNegativeCount } from './adapterUtils';
+import { fetchDedicatedSource, fetchJsonDirect, fetchViaByokProxy } from './httpClient';
+import { normalizeDoi } from '../utils/deduplication';
 
 /**
- * Adapters for the 15 original open sources (OpenAlex through NASA NTRS). Each one maps a
- * provider response to NormalizedPaper; orchestration lives in academicAggregator.ts and the
- * per-source wiring in sourceRunners.ts.
+ * Adapters for the 15 original open sources (OpenAlex through NASA NTRS). Each source has a
+ * pure `parse*` function (unit-testable with fixtures) and a `search*` function that only
+ * fetches. Orchestration lives in academicAggregator.ts; per-source wiring in sourceRunners.ts.
  */
 
-function reconstructOpenAlexAbstract(
-  invertedIndex?: Record<string, number[]> | null
-): string | null {
-  if (!invertedIndex || typeof invertedIndex !== 'object') return null;
+const stripTags = (value: string): string => value.replace(/<\/?[^>]+(>|$)/g, '').trim();
+
+function joinName(...parts: unknown[]): string | undefined {
+  const joined = parts
+    .map((part) => asString(part))
+    .filter(Boolean)
+    .join(' ');
+  return joined || undefined;
+}
+
+function reconstructOpenAlexAbstract(invertedIndex: unknown): string | null {
+  if (!isRecord(invertedIndex)) return null;
   const entries: Array<[number, string]> = [];
   for (const [word, positions] of Object.entries(invertedIndex)) {
-    if (Array.isArray(positions)) {
-      for (const pos of positions) {
-        entries.push([pos, word]);
-      }
+    for (const pos of asArray(positions)) {
+      if (typeof pos === 'number') entries.push([pos, word]);
     }
   }
   if (entries.length === 0) return null;
   entries.sort((a, b) => a[0] - b[0]);
   return entries.map((e) => e[1]).join(' ');
+}
+
+// --- OpenAlex ---------------------------------------------------------------
+
+export function parseOpenAlexResults(data: unknown): NormalizedPaper[] {
+  return asRecords(asRecord(data).results).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(item.doi));
+    const openAccess = asRecord(item.open_access);
+    const primaryLocation = asRecord(item.primary_location);
+    const pdfUrl =
+      firstString(openAccess.oa_url, asRecord(item.best_oa_location).pdf_url, primaryLocation.pdf_url) ?? null;
+    return {
+      id: `openalex-${asString(item.id) ?? idx}`,
+      title: firstString(item.display_name, item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(item.authorships)
+        .slice(0, 5)
+        .map((a) => asString(asRecord(a.author).display_name))
+        .filter((a): a is string => Boolean(a)),
+      year: asNumber(item.publication_year) ?? null,
+      venue:
+        firstString(asRecord(primaryLocation.source).display_name, asRecord(item.host_venue).display_name) ??
+        'OpenAlex Indexed Venue',
+      doi,
+      url:
+        asString(primaryLocation.landing_page_url) ??
+        (doi ? `https://doi.org/${doi}` : asString(item.id) ?? 'https://openalex.org'),
+      pdfUrl,
+      isOpenAccess: Boolean(openAccess.is_oa || pdfUrl),
+      citationCount: nonNegativeCount(item.cited_by_count),
+      abstractText: reconstructOpenAlexAbstract(item.abstract_inverted_index),
+      source: 'openalex',
+      sourceLabel: 'OpenAlex',
+      publicationType: asString(item.type),
+      isRetracted: Boolean(item.is_retracted),
+    };
+  });
 }
 
 export async function searchOpenAlex(
@@ -30,59 +85,34 @@ export async function searchOpenAlex(
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const filterParts = [`default.search:${encodeURIComponent(query)}`];
-  if (yearFrom && yearFrom > 1900) {
-    filterParts.push(`from_publication_date:${yearFrom}-01-01`);
-  }
-  const url = `https://api.openalex.org/works?filter=${filterParts.join(
-    ','
-  )}&per-page=12&sort=relevance_score:desc`;
+  if (yearFrom && yearFrom > 1900) filterParts.push(`from_publication_date:${yearFrom}-01-01`);
+  const url = `https://api.openalex.org/works?filter=${filterParts.join(',')}&per-page=12&sort=relevance_score:desc`;
+  return parseOpenAlexResults(await fetchJsonDirect(url, 'OpenAlex', { signal }));
+}
 
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`OpenAlex HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results : [];
+// --- Semantic Scholar -------------------------------------------------------
 
-  return results.map((item: Record<string, any>, idx: number): NormalizedPaper => {
-    const doi = cleanDoi(item.doi);
-    const authors = Array.isArray(item.authorships)
-      ? item.authorships
-          .slice(0, 5)
-          .map((a: Record<string, any>) => a?.author?.display_name)
-          .filter(Boolean)
-      : [];
-    const pdfUrl =
-      item?.open_access?.oa_url ||
-      item?.best_oa_location?.pdf_url ||
-      item?.primary_location?.pdf_url ||
-      null;
-    const landingUrl =
-      item?.primary_location?.landing_page_url ||
-      (doi ? `https://doi.org/${doi}` : item.id || 'https://openalex.org');
-
+export function parseSemanticScholarResults(data: unknown): NormalizedPaper[] {
+  return asRecords(asRecord(data).data).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(asRecord(item.externalIds).DOI));
+    const pdfUrl = asString(asRecord(item.openAccessPdf).url) ?? null;
     return {
-      id: `openalex-${item.id || idx}`,
-      title: String(item.display_name || item.title || 'Sem título'),
-      authors,
-      year: typeof item.publication_year === 'number' ? item.publication_year : null,
-      venue:
-        item?.primary_location?.source?.display_name ||
-        item?.host_venue?.display_name ||
-        'OpenAlex Indexed Venue',
+      id: `s2-${asString(item.paperId) ?? idx}`,
+      title: asString(item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(item.authors)
+        .slice(0, 5)
+        .map((a) => asString(a.name))
+        .filter((a): a is string => Boolean(a)),
+      year: asNumber(item.year) ?? null,
+      venue: asString(item.venue) ?? 'Semantic Scholar',
       doi,
-      url: landingUrl,
+      url: asString(item.url) ?? (doi ? `https://doi.org/${doi}` : 'https://www.semanticscholar.org'),
       pdfUrl,
-      isOpenAccess: Boolean(item?.open_access?.is_oa || pdfUrl),
-      citationCount: typeof item.cited_by_count === 'number' ? item.cited_by_count : 0,
-      abstractText: reconstructOpenAlexAbstract(item.abstract_inverted_index),
-      source: 'openalex',
-      sourceLabel: 'OpenAlex',
-      publicationType: item.type || undefined,
-      isRetracted: Boolean(item.is_retracted),
+      isOpenAccess: Boolean(item.isOpenAccess || pdfUrl),
+      citationCount: nonNegativeCount(item.citationCount),
+      abstractText: asString(item.abstract) ?? null,
+      source: 'semanticscholar',
+      sourceLabel: 'Semantic Scholar',
     };
   });
 }
@@ -93,49 +123,59 @@ export async function searchSemanticScholar(
   signal?: AbortSignal,
   byokEntry?: ByokCredentialEntry | null
 ): Promise<NormalizedPaper[]> {
-  let res: Response;
   if (byokEntry) {
-    res = await fetchViaByokProxy('semanticscholar', query, 10, byokEntry, yearFrom, signal);
-  } else {
-    const yearParam = yearFrom && yearFrom > 1900 ? `&year=${yearFrom}-` : '';
-    const fields =
-      'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,abstract,url';
-    const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(
-      query
-    )}&limit=10&fields=${fields}${yearParam}`;
-
-    res = await fetch(url, { signal });
-    if (!res.ok) {
-      throw new Error(`Semantic Scholar HTTP ${res.status}`);
-    }
+    const res = await fetchViaByokProxy('semanticscholar', query, 10, byokEntry, yearFrom, signal);
+    return parseSemanticScholarResults(await res.json());
   }
-  const data = await res.json();
-  const list = Array.isArray(data?.data) ? data.data : [];
+  const yearParam = yearFrom && yearFrom > 1900 ? `&year=${yearFrom}-` : '';
+  const fields = 'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,abstract,url';
+  const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(
+    query
+  )}&limit=10&fields=${fields}${yearParam}`;
+  return parseSemanticScholarResults(await fetchJsonDirect(url, 'Semantic Scholar', { signal }));
+}
 
-  return list.map((item: Record<string, any>, idx: number): NormalizedPaper => {
-    const doi = cleanDoi(item?.externalIds?.DOI);
-    const pdfUrl = item?.openAccessPdf?.url || null;
-    const authors = Array.isArray(item.authors)
-      ? item.authors
-          .slice(0, 5)
-          .map((a: Record<string, any>) => a?.name)
-          .filter(Boolean)
-      : [];
+// --- Crossref ---------------------------------------------------------------
+
+export function parseCrossrefResults(data: unknown): NormalizedPaper[] {
+  return asRecords(asRecord(asRecord(data).message).items).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(item.DOI));
+    const dateParts = asArray(
+      asArray(asRecord(item.published)['date-parts'])[0] ?? asArray(asRecord(item.issued)['date-parts'])[0]
+    );
+    const pdfLink = asRecords(item.link).find(
+      (l) => l['content-type'] === 'application/pdf' || (asString(l.URL) ?? '').endsWith('.pdf')
+    );
+    const pdfUrl = asString(pdfLink?.URL) ?? null;
+    const retraction = asRecords(item['update-to']).find(
+      (u) =>
+        asString(u.type)?.toLowerCase() === 'retraction' ||
+        (asString(u.label)?.toLowerCase() ?? '').includes('retract')
+    );
+    const retractionDoi = asString(retraction?.DOI);
+    const abstract = asString(item.abstract);
 
     return {
-      id: `s2-${item.paperId || idx}`,
-      title: String(item.title || 'Sem título'),
-      authors,
-      year: typeof item.year === 'number' ? item.year : null,
-      venue: String(item.venue || 'Semantic Scholar'),
+      id: `crossref-${doi ?? idx}`,
+      title: asString(asArray(item.title)[0]) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(item.author)
+        .slice(0, 5)
+        .map((a) => joinName(a.given, a.family))
+        .filter((a): a is string => Boolean(a)),
+      year: asNumber(dateParts[0]) ?? null,
+      venue:
+        firstString(asArray(item['container-title'])[0], item.publisher) ?? 'Crossref Registered Journal',
       doi,
-      url: item.url || (doi ? `https://doi.org/${doi}` : 'https://www.semanticscholar.org'),
+      url: asString(item.URL) ?? (doi ? `https://doi.org/${doi}` : 'https://search.crossref.org'),
       pdfUrl,
-      isOpenAccess: Boolean(item.isOpenAccess || pdfUrl),
-      citationCount: typeof item.citationCount === 'number' ? item.citationCount : 0,
-      abstractText: typeof item.abstract === 'string' ? item.abstract : null,
-      source: 'semanticscholar',
-      sourceLabel: 'Semantic Scholar',
+      isOpenAccess: Boolean(pdfUrl),
+      citationCount: nonNegativeCount(item['is-referenced-by-count']),
+      abstractText: abstract ? stripTags(abstract) : null,
+      source: 'crossref',
+      sourceLabel: 'Crossref DOI',
+      publicationType: asString(item.type),
+      isRetracted: Boolean(retraction),
+      retractionNoticeUrl: retractionDoi ? `https://doi.org/${normalizeDoi(retractionDoi) ?? retractionDoi}` : null,
     };
   });
 }
@@ -145,82 +185,41 @@ export async function searchCrossref(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const filterParam =
-    yearFrom && yearFrom > 1900 ? `&filter=from-pub-date:${yearFrom}-01-01` : '';
-  const url = `https://api.crossref.org/works?query=${encodeURIComponent(
-    query
-  )}&rows=10${filterParam}`;
+  const filterParam = yearFrom && yearFrom > 1900 ? `&filter=from-pub-date:${yearFrom}-01-01` : '';
+  const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=10${filterParam}`;
+  return parseCrossrefResults(await fetchJsonDirect(url, 'Crossref', { signal }));
+}
 
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Crossref HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const items = Array.isArray(data?.message?.items) ? data.message.items : [];
+// --- Europe PMC -------------------------------------------------------------
 
-  return items.map((item: Record<string, any>, idx: number): NormalizedPaper => {
-    const doi = cleanDoi(item.DOI);
-    const title = Array.isArray(item.title) && item.title[0] ? String(item.title[0]) : 'Sem título';
-    const authors = Array.isArray(item.author)
-      ? item.author
-          .slice(0, 5)
-          .map((a: Record<string, any>) =>
-            [a?.given, a?.family].filter(Boolean).join(' ')
-          )
-          .filter(Boolean)
-      : [];
-    const dateParts =
-      item?.published?.['date-parts']?.[0] ||
-      item?.issued?.['date-parts']?.[0] ||
-      [];
-    const year = typeof dateParts[0] === 'number' ? dateParts[0] : null;
-    const venue =
-      Array.isArray(item['container-title']) && item['container-title'][0]
-        ? String(item['container-title'][0])
-        : item.publisher || 'Crossref Registered Journal';
-
-    const pdfLinkObj = Array.isArray(item.link)
-      ? item.link.find(
-          (l: Record<string, any>) =>
-            l?.['content-type'] === 'application/pdf' ||
-            String(l?.URL || '').endsWith('.pdf')
-        )
-      : null;
-
-    const cleanAbstract =
-      typeof item.abstract === 'string'
-        ? item.abstract.replace(/<\/?[^>]+(>|$)/g, '').trim()
-        : null;
-
-    const updateList = Array.isArray(item['update-to']) ? item['update-to'] : [];
-    const retractionEntry = updateList.find(
-      (u: Record<string, unknown>) =>
-        String(u?.type || '').toLowerCase() === 'retraction' ||
-        String(u?.label || '').toLowerCase().includes('retract')
-    );
-
+export function parseEuropePmcResults(data: unknown): NormalizedPaper[] {
+  return asRecords(asRecord(asRecord(data).resultList).result).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(item.doi));
+    const pmcid = asString(item.pmcid);
+    const pmid = asString(item.pmid);
     return {
-      id: `crossref-${doi || idx}`,
-      title,
-      authors,
-      year,
-      venue,
+      id: `epmc-${asString(item.id) ?? idx}`,
+      title: asString(item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: (asString(item.authorString) ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 5),
+      year: asNumber(item.pubYear) ?? null,
+      venue:
+        firstString(item.journalTitle, asRecord(item.bookOrReportDetails).publisher) ?? 'PubMed / Europe PMC',
       doi,
-      url: item.URL || (doi ? `https://doi.org/${doi}` : 'https://search.crossref.org'),
-      pdfUrl: pdfLinkObj?.URL || null,
-      isOpenAccess: Boolean(pdfLinkObj?.URL),
-      citationCount:
-        typeof item['is-referenced-by-count'] === 'number'
-          ? item['is-referenced-by-count']
-          : 0,
-      abstractText: cleanAbstract,
-      source: 'crossref',
-      sourceLabel: 'Crossref DOI',
-      publicationType: item.type || undefined,
-      isRetracted: Boolean(retractionEntry),
-      retractionNoticeUrl: retractionEntry?.DOI
-        ? `https://doi.org/${cleanDoi(String(retractionEntry.DOI)) || retractionEntry.DOI}`
-        : null,
+      url: pmid
+        ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`
+        : doi
+        ? `https://doi.org/${doi}`
+        : 'https://europepmc.org',
+      pdfUrl: pmcid ? `https://europepmc.org/backend/ptpmcrender.fcgi?accid=${pmcid}&blobtype=pdf` : null,
+      isOpenAccess: item.isOpenAccess === 'Y' || Boolean(pmcid),
+      citationCount: nonNegativeCount(item.citedByCount),
+      abstractText: asString(item.abstractText) ?? null,
+      source: 'europepmc',
+      sourceLabel: 'PubMed / Europe PMC',
     };
   });
 }
@@ -235,48 +234,42 @@ export async function searchEuropePmc(
   const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(
     fullQuery
   )}&format=json&pageSize=10&resultType=core`;
+  return parseEuropePmcResults(await fetchJsonDirect(url, 'Europe PMC', { signal }));
+}
 
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Europe PMC HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const list = Array.isArray(data?.resultList?.result) ? data.resultList.result : [];
+// --- arXiv (Atom XML through the dedicated proxy) ---------------------------
 
-  return list.map((item: Record<string, any>, idx: number): NormalizedPaper => {
-    const doi = cleanDoi(item.doi);
-    const authors = String(item.authorString || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 5);
-    const year = item.pubYear ? Number(item.pubYear) : null;
-    const isOA = item.isOpenAccess === 'Y' || Boolean(item.pmcid);
-    const pdfUrl = item.pmcid
-      ? `https://europepmc.org/backend/ptpmcrender.fcgi?accid=${item.pmcid}&blobtype=pdf`
-      : null;
-    const landingUrl = item.pmid
-      ? `https://pubmed.ncbi.nlm.nih.gov/${item.pmid}/`
-      : doi
-      ? `https://doi.org/${doi}`
-      : 'https://europepmc.org';
+export function parseArxivAtom(xmlText: string, yearFrom?: number): NormalizedPaper[] {
+  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  const results: NormalizedPaper[] = [];
+  Array.from(doc.querySelectorAll('entry')).forEach((entry, idx) => {
+    const text = (selector: string) => (entry.querySelector(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const idUrl = text('id');
+    const published = text('published');
+    const year = published ? Number(published.slice(0, 4)) : null;
+    if (yearFrom && year && year < yearFrom) return;
 
-    return {
-      id: `epmc-${item.id || idx}`,
-      title: String(item.title || 'Sem título'),
-      authors,
-      year: Number.isNaN(year) ? null : year,
-      venue: String(item.journalTitle || item.bookOrReportDetails?.publisher || 'PubMed / Europe PMC'),
-      doi,
-      url: landingUrl,
-      pdfUrl,
-      isOpenAccess: isOA,
-      citationCount: typeof item.citedByCount === 'number' ? item.citedByCount : 0,
-      abstractText: typeof item.abstractText === 'string' ? item.abstractText : null,
-      source: 'europepmc',
-      sourceLabel: 'PubMed / Europe PMC',
-    };
+    results.push({
+      id: `arxiv-${idUrl || idx}`,
+      title: text('title') || UNTITLED_PAPER_TITLE,
+      authors: Array.from(entry.querySelectorAll('author > name'))
+        .map((n) => n.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .slice(0, 5),
+      year,
+      venue: 'arXiv Preprint Server (Cornell)',
+      doi: normalizeDoi(entry.getElementsByTagName('arxiv:doi')[0]?.textContent),
+      url: idUrl || 'https://arxiv.org',
+      pdfUrl: idUrl ? `${idUrl.replace('/abs/', '/pdf/')}.pdf` : null,
+      isOpenAccess: true,
+      citationCount: 0,
+      abstractText: text('summary') || null,
+      source: 'arxiv',
+      sourceLabel: 'arXiv.org',
+      publicationType: 'preprint',
+    });
   });
+  return results;
 }
 
 export async function searchArxiv(
@@ -285,117 +278,29 @@ export async function searchArxiv(
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
   const res = await fetchDedicatedSource('arxiv', query, 10, { signal });
-  if (!res.ok) {
-    throw new Error(`arXiv HTTP ${res.status}`);
-  }
-  const xmlText = await res.text();
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'text/xml');
-  const entries = Array.from(doc.querySelectorAll('entry'));
-
-  const results: NormalizedPaper[] = [];
-  entries.forEach((entry, idx) => {
-    const idUrl = entry.querySelector('id')?.textContent?.trim() || '';
-    const title = (entry.querySelector('title')?.textContent || 'Sem título')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const summary = (entry.querySelector('summary')?.textContent || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const published = entry.querySelector('published')?.textContent?.trim() || '';
-    const year = published ? Number(published.slice(0, 4)) : null;
-
-    if (yearFrom && year && year < yearFrom) {
-      return;
-    }
-
-    const authors = Array.from(entry.querySelectorAll('author > name'))
-      .map((n) => n.textContent?.trim() || '')
-      .filter(Boolean)
-      .slice(0, 5);
-
-    const doiNode = entry.getElementsByTagName('arxiv:doi')[0];
-    const doi = cleanDoi(doiNode?.textContent);
-    const pdfUrl = idUrl ? idUrl.replace('/abs/', '/pdf/') + '.pdf' : null;
-
-    results.push({
-      id: `arxiv-${idUrl || idx}`,
-      title,
-      authors,
-      year,
-      venue: 'arXiv Preprint Server (Cornell)',
-      doi,
-      url: idUrl || 'https://arxiv.org',
-      pdfUrl,
-      isOpenAccess: true,
-      citationCount: 0,
-      abstractText: summary || null,
-      source: 'arxiv',
-      sourceLabel: 'arXiv.org',
-      publicationType: 'preprint',
-    });
-  });
-
-  return results;
+  return parseArxivAtom(await res.text(), yearFrom);
 }
 
-export async function searchPubMedEntrez(
-  query: string,
-  yearFrom?: number,
-  signal?: AbortSignal
-): Promise<NormalizedPaper[]> {
-  const term =
-    yearFrom && yearFrom > 1900 ? `${query} AND ${yearFrom}:2030[dp]` : query;
-  const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(
-    term
-  )}&retmode=json&retmax=8&sort=relevance`;
+// --- PubMed (NCBI Entrez: esearch + esummary) -------------------------------
 
-  const searchRes = await fetch(searchUrl, { signal });
-  if (!searchRes.ok) {
-    throw new Error(`PubMed Entrez HTTP ${searchRes.status}`);
-  }
-  const searchData = await searchRes.json();
-  const idList: string[] = Array.isArray(searchData?.esearchresult?.idlist)
-    ? searchData.esearchresult.idlist
-    : [];
-  if (idList.length === 0) return [];
-
-  const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${idList.join(
-    ','
-  )}&retmode=json`;
-  const summaryRes = await fetch(summaryUrl, { signal });
-  if (!summaryRes.ok) {
-    throw new Error(`PubMed Summary HTTP ${summaryRes.status}`);
-  }
-  const summaryData = await summaryRes.json();
-  const resultObj = summaryData?.result || {};
-
-  return idList
-    .map((pmid): NormalizedPaper | null => {
-      const doc = resultObj[pmid];
-      if (!doc || typeof doc !== 'object') return null;
-
-      const articleIds = Array.isArray(doc.articleids) ? doc.articleids : [];
-      const doiEntry = articleIds.find((a: Record<string, any>) => a?.idtype === 'doi');
-      const pmcEntry = articleIds.find((a: Record<string, any>) => a?.idtype === 'pmc');
-      const doi = cleanDoi(doiEntry?.value);
-      const pmcid = pmcEntry?.value || null;
-      const yearMatch = String(doc.pubdate || '').match(/\b(19|20)\d{2}\b/);
-      const year = yearMatch ? Number(yearMatch[0]) : null;
-      const authors = Array.isArray(doc.authors)
-        ? doc.authors
-            .slice(0, 5)
-            .map((a: Record<string, any>) => a?.name)
-            .filter(Boolean)
-        : [];
-
-      return {
+export function parsePubMedSummary(idList: readonly string[], summaryData: unknown): NormalizedPaper[] {
+  const resultObj = asRecord(asRecord(summaryData).result);
+  return idList.flatMap((pmid): NormalizedPaper[] => {
+    const doc = resultObj[pmid];
+    if (!isRecord(doc)) return [];
+    const articleIds = asRecords(doc.articleids);
+    const doi = normalizeDoi(asString(articleIds.find((a) => a.idtype === 'doi')?.value));
+    const pmcid = asString(articleIds.find((a) => a.idtype === 'pmc')?.value);
+    return [
+      {
         id: `pubmed-${pmid}`,
-        title: String(doc.title || 'Sem título').replace(/\.$/, ''),
-        authors,
-        year,
-        venue: String(doc.fulljournalname || doc.source || 'PubMed / MEDLINE'),
+        title: (asString(doc.title) ?? UNTITLED_PAPER_TITLE).replace(/\.$/, ''),
+        authors: asRecords(doc.authors)
+          .slice(0, 5)
+          .map((a) => asString(a.name))
+          .filter((a): a is string => Boolean(a)),
+        year: extractYear(doc.pubdate),
+        venue: firstString(doc.fulljournalname, doc.source) ?? 'PubMed / MEDLINE',
         doi,
         url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
         pdfUrl: pmcid ? `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid}/pdf/` : null,
@@ -404,9 +309,57 @@ export async function searchPubMedEntrez(
         abstractText: null,
         source: 'pubmed',
         sourceLabel: 'PubMed (NIH)',
-      };
-    })
-    .filter((item): item is NormalizedPaper => item !== null);
+      },
+    ];
+  });
+}
+
+export async function searchPubMedEntrez(
+  query: string,
+  yearFrom?: number,
+  signal?: AbortSignal
+): Promise<NormalizedPaper[]> {
+  const term = yearFrom && yearFrom > 1900 ? `${query} AND ${yearFrom}:2030[dp]` : query;
+  const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(
+    term
+  )}&retmode=json&retmax=8&sort=relevance`;
+  const searchData = await fetchJsonDirect(searchUrl, 'PubMed Entrez', { signal });
+  const idList = asStringList(asRecord(asRecord(searchData).esearchresult).idlist);
+  if (idList.length === 0) return [];
+
+  const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${idList.join(
+    ','
+  )}&retmode=json`;
+  return parsePubMedSummary(idList, await fetchJsonDirect(summaryUrl, 'PubMed Summary', { signal }));
+}
+
+// --- DOAJ -------------------------------------------------------------------
+
+export function parseDoajResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(data).results).map((item, idx): NormalizedPaper => {
+    const bib = asRecord(item.bibjson);
+    const doi = normalizeDoi(asString(asRecords(bib.identifier).find((i) => i.type === 'doi')?.id));
+    const fulltextLink = asString(asRecords(bib.link).find((l) => l.type === 'fulltext')?.url) ?? null;
+    return {
+      id: `doaj-${asString(item.id) ?? idx}`,
+      title: asString(bib.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(bib.author)
+        .slice(0, 5)
+        .map((a) => asString(a.name))
+        .filter((a): a is string => Boolean(a)),
+      year: asNumber(bib.year) ?? null,
+      venue: asString(asRecord(bib.journal).title) ?? 'DOAJ Open Access Journal',
+      doi,
+      url: fulltextLink ?? (doi ? `https://doi.org/${doi}` : 'https://doaj.org'),
+      pdfUrl: fulltextLink,
+      isOpenAccess: true,
+      citationCount: 0,
+      abstractText: asString(bib.abstract) ?? null,
+      source: 'doaj',
+      sourceLabel: 'DOAJ (Open Access)',
+    };
+  });
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchDoaj(
@@ -414,57 +367,39 @@ export async function searchDoaj(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const url = `https://doaj.org/api/search/articles/${encodeURIComponent(
-    query
-  )}?pageSize=8`;
+  const url = `https://doaj.org/api/search/articles/${encodeURIComponent(query)}?pageSize=8`;
+  return parseDoajResults(await fetchJsonDirect(url, 'DOAJ', { signal }), yearFrom);
+}
 
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`DOAJ HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results : [];
+// --- Zenodo (dedicated proxy) -----------------------------------------------
 
-  const mapped: NormalizedPaper[] = [];
-  results.forEach((item: Record<string, any>, idx: number) => {
-    const bib = item?.bibjson || {};
-    const year = bib.year ? Number(bib.year) : null;
-    if (yearFrom && year && year < yearFrom) return;
-
-    const identifiers = Array.isArray(bib.identifier) ? bib.identifier : [];
-    const doiObj = identifiers.find((i: Record<string, any>) => i?.type === 'doi');
-    const doi = cleanDoi(doiObj?.id);
-    const links = Array.isArray(bib.link) ? bib.link : [];
-    const fulltextLink =
-      links.find((l: Record<string, any>) => l?.type === 'fulltext')?.url || null;
-    const authors = Array.isArray(bib.author)
-      ? bib.author
-          .slice(0, 5)
-          .map((a: Record<string, any>) => a?.name)
-          .filter(Boolean)
-      : [];
-
-    mapped.push({
-      id: `doaj-${item.id || idx}`,
-      title: String(bib.title || 'Sem título'),
-      authors,
-      year: Number.isNaN(year) ? null : year,
-      venue: String(bib?.journal?.title || 'DOAJ Open Access Journal'),
+export function parseZenodoResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(asRecord(data).hits).hits).map((hit, idx): NormalizedPaper => {
+    const meta = asRecord(hit.metadata);
+    const doi = normalizeDoi(firstString(hit.doi, meta.doi));
+    const pdfUrl = asString(asRecord(asRecord(asArray(hit.files)[0]).links).self) ?? null;
+    const description = asString(meta.description);
+    return {
+      id: `zenodo-${asString(hit.id) ?? idx}`,
+      title: asString(meta.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(meta.creators)
+        .slice(0, 5)
+        .map((c) => asString(c.name))
+        .filter((c): c is string => Boolean(c)),
+      year: extractYear(meta.publication_date),
+      venue: asString(asRecord(meta.journal).title) ?? 'Zenodo / CERN OpenAIRE',
       doi,
-      url: fulltextLink || (doi ? `https://doi.org/${doi}` : 'https://doaj.org'),
-      pdfUrl: fulltextLink,
-      isOpenAccess: true,
+      url: asString(asRecord(hit.links).self_html) ?? (doi ? `https://doi.org/${doi}` : 'https://zenodo.org'),
+      pdfUrl,
+      isOpenAccess: meta.access_right === 'open' || Boolean(pdfUrl),
       citationCount: 0,
-      abstractText: typeof bib.abstract === 'string' ? bib.abstract : null,
-      source: 'doaj',
-      sourceLabel: 'DOAJ (Open Access)',
-    });
+      abstractText: description ? stripTags(description) : null,
+      source: 'zenodo',
+      sourceLabel: 'Zenodo (CERN)',
+      publicationType: asString(asRecord(meta.resource_type).type),
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchZenodo(
@@ -472,57 +407,32 @@ export async function searchZenodo(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const res = await fetchDedicatedSource('zenodo', query, 8, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`Zenodo HTTP ${res.status}`);
-  }
-  const data = await res.json();
+  const res = await fetchDedicatedSource('zenodo', query, 8, { headers: { Accept: 'application/json' }, signal });
+  return parseZenodoResults(await res.json(), yearFrom);
+}
 
-  const hits = Array.isArray(data?.hits?.hits) ? data.hits.hits : [];
-  const mapped: NormalizedPaper[] = [];
+// --- HAL Open Science -------------------------------------------------------
 
-  hits.forEach((hit: Record<string, any>, idx: number) => {
-    const meta = hit?.metadata || {};
-    const pubDate = String(meta.publication_date || '');
-    const year = pubDate ? Number(pubDate.slice(0, 4)) : null;
-    if (yearFrom && year && year < yearFrom) return;
-
-    const doi = cleanDoi(hit.doi || meta.doi);
-    const authors = Array.isArray(meta.creators)
-      ? meta.creators
-          .slice(0, 5)
-          .map((c: Record<string, any>) => c?.name)
-          .filter(Boolean)
-      : [];
-    const firstFile = Array.isArray(hit.files) ? hit.files[0] : null;
-    const pdfUrl = firstFile?.links?.self || null;
-    const cleanDesc =
-      typeof meta.description === 'string'
-        ? meta.description.replace(/<\/?[^>]+(>|$)/g, '').trim()
-        : null;
-
-    mapped.push({
-      id: `zenodo-${hit.id || idx}`,
-      title: String(meta.title || 'Sem título'),
-      authors,
-      year: Number.isNaN(year) ? null : year,
-      venue: String(meta?.journal?.title || 'Zenodo / CERN OpenAIRE'),
+export function parseHalResults(data: unknown): NormalizedPaper[] {
+  return asRecords(asRecord(asRecord(data).response).docs).map((doc, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(doc.doiId_s));
+    const pdfUrl = asString(doc.fileMain_s) ?? null;
+    return {
+      id: `hal-${asString(doc.docid) ?? idx}`,
+      title: asString(asArray(doc.title_s)[0]) ?? UNTITLED_PAPER_TITLE,
+      authors: asStringList(doc.authFullName_s, 5),
+      year: asNumber(doc.producedDateY_i) ?? null,
+      venue: asString(doc.journalTitle_s) ?? 'HAL Open Science (CNRS)',
       doi,
-      url: hit?.links?.self_html || (doi ? `https://doi.org/${doi}` : 'https://zenodo.org'),
+      url: asString(doc.uri_s) ?? (doi ? `https://doi.org/${doi}` : 'https://hal.science'),
       pdfUrl,
-      isOpenAccess: meta.access_right === 'open' || Boolean(pdfUrl),
+      isOpenAccess: Boolean(doc.openAccess_bool || pdfUrl),
       citationCount: 0,
-      abstractText: cleanDesc,
-      source: 'zenodo',
-      sourceLabel: 'Zenodo (CERN)',
-      publicationType: meta?.resource_type?.type || undefined,
-    });
+      abstractText: asString(asArray(doc.abstract_s)[0]) ?? null,
+      source: 'hal',
+      sourceLabel: 'HAL Science (CNRS)',
+    };
   });
-
-  return mapped;
 }
 
 export async function searchHalOpenScience(
@@ -530,45 +440,39 @@ export async function searchHalOpenScience(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const fqParam =
-    yearFrom && yearFrom > 1900 ? `&fq=producedDateY_i:[${yearFrom}%20TO%202030]` : '';
+  const fqParam = yearFrom && yearFrom > 1900 ? `&fq=producedDateY_i:[${yearFrom}%20TO%202030]` : '';
   const url = `https://api.archives-ouvertes.fr/search/?q=${encodeURIComponent(
     query
   )}${fqParam}&wt=json&rows=8&fl=docid,title_s,authFullName_s,producedDateY_i,journalTitle_s,doiId_s,uri_s,fileMain_s,abstract_s,openAccess_bool`;
+  return parseHalResults(await fetchJsonDirect(url, 'HAL', { signal }));
+}
 
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`HAL HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const docs = Array.isArray(data?.response?.docs) ? data.response.docs : [];
+// --- DataCite ---------------------------------------------------------------
 
-  return docs.map((doc: Record<string, any>, idx: number): NormalizedPaper => {
-    const title = Array.isArray(doc.title_s) && doc.title_s[0] ? String(doc.title_s[0]) : 'Sem título';
-    const abstractText =
-      Array.isArray(doc.abstract_s) && doc.abstract_s[0] ? String(doc.abstract_s[0]) : null;
-    const authors = Array.isArray(doc.authFullName_s)
-      ? doc.authFullName_s.slice(0, 5).map(String)
-      : [];
-    const doi = cleanDoi(doc.doiId_s);
-    const pdfUrl = typeof doc.fileMain_s === 'string' ? doc.fileMain_s : null;
-
+export function parseDataCiteResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(data).data).map((item, idx): NormalizedPaper => {
+    const attr = asRecord(item.attributes);
+    const doi = normalizeDoi(asString(attr.doi));
     return {
-      id: `hal-${doc.docid || idx}`,
-      title,
-      authors,
-      year: typeof doc.producedDateY_i === 'number' ? doc.producedDateY_i : null,
-      venue: String(doc.journalTitle_s || 'HAL Open Science (CNRS)'),
+      id: `datacite-${doi ?? idx}`,
+      title: asString(asRecord(asArray(attr.titles)[0]).title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(attr.creators)
+        .slice(0, 5)
+        .map((c) => asString(c.name) ?? joinName(c.givenName, c.familyName))
+        .filter((c): c is string => Boolean(c)),
+      year: asNumber(attr.publicationYear) ?? null,
+      venue: asString(attr.publisher) ?? 'DataCite Commons Repository',
       doi,
-      url: doc.uri_s || (doi ? `https://doi.org/${doi}` : 'https://hal.science'),
-      pdfUrl,
-      isOpenAccess: Boolean(doc.openAccess_bool || pdfUrl),
-      citationCount: 0,
-      abstractText,
-      source: 'hal',
-      sourceLabel: 'HAL Science (CNRS)',
+      url: asString(attr.url) ?? (doi ? `https://doi.org/${doi}` : 'https://commons.datacite.org'),
+      pdfUrl: null,
+      isOpenAccess: true,
+      citationCount: nonNegativeCount(attr.citationCount),
+      abstractText: asString(asRecord(asArray(attr.descriptions)[0]).description) ?? null,
+      source: 'datacite',
+      sourceLabel: 'DataCite Commons',
     };
   });
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchDataCite(
@@ -576,60 +480,41 @@ export async function searchDataCite(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const url = `https://api.datacite.org/dois?query=${encodeURIComponent(
-    query
-  )}&page[size]=8`;
-
-  const res = await fetch(url, {
+  const url = `https://api.datacite.org/dois?query=${encodeURIComponent(query)}&page[size]=8`;
+  const data = await fetchJsonDirect(url, 'DataCite', {
     headers: { Accept: 'application/vnd.api+json' },
     signal,
   });
-  if (!res.ok) {
-    throw new Error(`DataCite HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const items = Array.isArray(data?.data) ? data.data : [];
+  return parseDataCiteResults(data, yearFrom);
+}
 
-  const mapped: NormalizedPaper[] = [];
-  items.forEach((item: Record<string, any>, idx: number) => {
-    const attr = item?.attributes || {};
-    const year = typeof attr.publicationYear === 'number' ? attr.publicationYear : null;
-    if (yearFrom && year && year < yearFrom) return;
+// --- INSPIRE-HEP ------------------------------------------------------------
 
-    const doi = cleanDoi(attr.doi);
-    const title =
-      Array.isArray(attr.titles) && attr.titles[0]?.title
-        ? String(attr.titles[0].title)
-        : 'Sem título';
-    const authors = Array.isArray(attr.creators)
-      ? attr.creators
-          .slice(0, 5)
-          .map((c: Record<string, any>) => c?.name || [c?.givenName, c?.familyName].filter(Boolean).join(' '))
-          .filter(Boolean)
-      : [];
-    const desc =
-      Array.isArray(attr.descriptions) && attr.descriptions[0]?.description
-        ? String(attr.descriptions[0].description)
-        : null;
-
-    mapped.push({
-      id: `datacite-${doi || idx}`,
-      title,
-      authors,
-      year,
-      venue: String(attr.publisher || 'DataCite Commons Repository'),
-      doi,
-      url: attr.url || (doi ? `https://doi.org/${doi}` : 'https://commons.datacite.org'),
-      pdfUrl: null,
+export function parseInspireResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(asRecord(data).hits).hits).map((hit, idx): NormalizedPaper => {
+    const meta = asRecord(hit.metadata);
+    const arxivId = asString(asRecord(asArray(meta.arxiv_eprints)[0]).value);
+    const controlNumber = firstString(hit.id, meta.control_number) ?? String(idx);
+    return {
+      id: `inspire-${controlNumber}`,
+      title: asString(asRecord(asArray(meta.titles)[0]).title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(meta.authors)
+        .slice(0, 5)
+        .map((a) => asString(a.full_name) ?? joinName(a.first_name, a.last_name))
+        .filter((a): a is string => Boolean(a)),
+      year: extractYear(meta.earliest_date),
+      venue: asString(asRecord(asArray(meta.publication_info)[0]).journal_title) ?? 'INSPIRE-HEP (CERN)',
+      doi: normalizeDoi(asString(asRecord(asArray(meta.dois)[0]).value)),
+      url: `https://inspirehep.net/literature/${controlNumber}`,
+      pdfUrl: arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : null,
       isOpenAccess: true,
-      citationCount: typeof attr.citationCount === 'number' ? attr.citationCount : 0,
-      abstractText: desc,
-      source: 'datacite',
-      sourceLabel: 'DataCite Commons',
-    });
+      citationCount: nonNegativeCount(meta.citation_count),
+      abstractText: asString(asRecord(asArray(meta.abstracts)[0]).value) ?? null,
+      source: 'inspire',
+      sourceLabel: 'INSPIRE-HEP (CERN)',
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchInspireHep(
@@ -637,70 +522,35 @@ export async function searchInspireHep(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const url = `https://inspirehep.net/api/literature?q=${encodeURIComponent(
-    query
-  )}&size=8&sort=mostrecent`;
+  const url = `https://inspirehep.net/api/literature?q=${encodeURIComponent(query)}&size=8&sort=mostrecent`;
+  return parseInspireResults(await fetchJsonDirect(url, 'INSPIRE-HEP', { signal }), yearFrom);
+}
 
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`INSPIRE-HEP HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const hits = Array.isArray(data?.hits?.hits) ? data.hits.hits : [];
+// --- Figshare ---------------------------------------------------------------
 
-  const mapped: NormalizedPaper[] = [];
-  hits.forEach((hit: Record<string, any>, idx: number) => {
-    const meta = hit?.metadata || {};
-    const dateStr = typeof meta.earliest_date === 'string' ? meta.earliest_date : '';
-    const yearMatch = dateStr.match(/\d{4}/);
-    const year = yearMatch ? Number(yearMatch[0]) : null;
-    if (yearFrom && year && year < yearFrom) return;
-
-    const title =
-      Array.isArray(meta.titles) && meta.titles[0]?.title
-        ? String(meta.titles[0].title)
-        : 'Sem título';
-    const authors = Array.isArray(meta.authors)
-      ? meta.authors
-          .slice(0, 5)
-          .map((a: Record<string, any>) => a?.full_name || [a?.first_name, a?.last_name].filter(Boolean).join(' '))
-          .filter(Boolean)
-      : [];
-    const doiRaw = Array.isArray(meta.dois) && meta.dois[0]?.value ? String(meta.dois[0].value) : null;
-    const doi = cleanDoi(doiRaw);
-    const abstractText =
-      Array.isArray(meta.abstracts) && meta.abstracts[0]?.value
-        ? String(meta.abstracts[0].value)
-        : null;
-    const arxivId =
-      Array.isArray(meta.arxiv_eprints) && meta.arxiv_eprints[0]?.value
-        ? String(meta.arxiv_eprints[0].value)
-        : null;
-    const controlNumber = hit?.id || meta.control_number || idx;
-
-    mapped.push({
-      id: `inspire-${controlNumber}`,
-      title,
-      authors,
-      year,
-      venue:
-        (Array.isArray(meta.publication_info) && meta.publication_info[0]?.journal_title) ||
-        'INSPIRE-HEP (CERN)',
+export function parseFigshareResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(data).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(item.doi));
+    const typeName = asString(item.defined_type_name);
+    const resourceTitle = asString(item.resource_title);
+    return {
+      id: `figshare-${asString(item.id) ?? idx}`,
+      title: stripTags(asString(item.title) ?? UNTITLED_PAPER_TITLE).replace(/\s+/g, ' '),
+      authors: [],
+      year: extractYear(item.published_date),
+      venue: typeName ? `Figshare (${typeName})` : 'Figshare Repository',
       doi,
-      url: `https://inspirehep.net/literature/${controlNumber}`,
-      pdfUrl: arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : null,
+      url: asString(item.url_public_html) ?? (doi ? `https://doi.org/${doi}` : 'https://figshare.com'),
+      pdfUrl: null,
       isOpenAccess: true,
-      citationCount: typeof meta.citation_count === 'number' ? meta.citation_count : 0,
-      abstractText,
-      source: 'inspire',
-      sourceLabel: 'INSPIRE-HEP (CERN)',
-    });
+      citationCount: 0,
+      abstractText: resourceTitle ? `Recurso associado: ${resourceTitle}` : null,
+      source: 'figshare',
+      sourceLabel: 'Figshare Data',
+      publicationType: typeName,
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchFigshare(
@@ -708,47 +558,45 @@ export async function searchFigshare(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const res = await fetch('https://api.figshare.com/v2/articles/search', {
+  const data = await fetchJsonDirect('https://api.figshare.com/v2/articles/search', 'Figshare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ search_for: query, page_size: 8 }),
     signal,
   });
-  if (!res.ok) {
-    throw new Error(`Figshare HTTP ${res.status}`);
-  }
-  const items = await res.json();
-  if (!Array.isArray(items)) return [];
+  return parseFigshareResults(data, yearFrom);
+}
 
-  const mapped: NormalizedPaper[] = [];
-  items.forEach((item: Record<string, any>, idx: number) => {
-    const pubDate = typeof item?.published_date === 'string' ? item.published_date : '';
-    const yearMatch = pubDate.match(/\d{4}/);
-    const year = yearMatch ? Number(yearMatch[0]) : null;
-    if (yearFrom && year && year < yearFrom) return;
+// --- GBIF literature --------------------------------------------------------
 
-    const doi = cleanDoi(item?.doi);
-    const rawTitle = String(item?.title || 'Sem título').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-
-    mapped.push({
-      id: `figshare-${item?.id || idx}`,
-      title: rawTitle,
-      authors: [],
-      year,
-      venue: item?.defined_type_name ? `Figshare (${String(item.defined_type_name)})` : 'Figshare Repository',
+export function parseGbifResults(data: unknown, query: string, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(data).results).map((item, idx): NormalizedPaper => {
+    const doi = normalizeDoi(asString(asRecord(item.identifiers).doi));
+    return {
+      id: `gbif-${asString(item.id) ?? doi ?? idx}`,
+      title: asString(item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asArray(item.authors)
+        .slice(0, 5)
+        .map((a) => asString(a) ?? joinName(asRecord(a).firstName, asRecord(a).lastName))
+        .filter((a): a is string => Boolean(a)),
+      year: asNumber(item.year) ?? null,
+      venue: firstString(item.source, item.publisher) ?? 'GBIF Literature',
       doi,
-      url: String(item?.url_public_html || (doi ? `https://doi.org/${doi}` : 'https://figshare.com')),
+      url:
+        asString(asArray(item.websites)[0]) ??
+        (doi
+          ? `https://doi.org/${doi}`
+          : `https://www.gbif.org/resource/search?contentType=literature&q=${encodeURIComponent(query)}`),
       pdfUrl: null,
-      isOpenAccess: true,
+      isOpenAccess: Boolean(item.openAccess),
       citationCount: 0,
-      abstractText: item?.resource_title ? `Recurso associado: ${String(item.resource_title)}` : null,
-      source: 'figshare',
-      sourceLabel: 'Figshare Data',
-      publicationType: item?.defined_type_name ? String(item.defined_type_name) : undefined,
-    });
+      abstractText: asString(item.abstract) ?? null,
+      source: 'gbif',
+      sourceLabel: 'GBIF Biodiversity',
+      publicationType: asString(item.literatureType),
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchGbifLiterature(
@@ -756,60 +604,34 @@ export async function searchGbifLiterature(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const url = `https://api.gbif.org/v1/literature/search?q=${encodeURIComponent(
-    query
-  )}&limit=8`;
+  const url = `https://api.gbif.org/v1/literature/search?q=${encodeURIComponent(query)}&limit=8`;
+  return parseGbifResults(await fetchJsonDirect(url, 'GBIF', { signal }), query, yearFrom);
+}
 
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`GBIF HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results : [];
+// --- OSTI.GOV (dedicated proxy) ---------------------------------------------
 
-  const mapped: NormalizedPaper[] = [];
-  results.forEach((item: Record<string, any>, idx: number) => {
-    const year = typeof item?.year === 'number' ? item.year : null;
-    if (yearFrom && year && year < yearFrom) return;
-
-    const doi = cleanDoi(item?.identifiers?.doi);
-    const authors = Array.isArray(item?.authors)
-      ? item.authors
-          .slice(0, 5)
-          .map((a: Record<string, any>) =>
-            typeof a === 'string'
-              ? a
-              : [a?.firstName, a?.lastName].filter(Boolean).join(' ')
-          )
-          .filter(Boolean)
-      : [];
-    const websites = Array.isArray(item?.websites) ? item.websites : [];
-    const primaryUrl =
-      (websites[0] && String(websites[0])) ||
-      (doi ? `https://doi.org/${doi}` : `https://www.gbif.org/resource/search?contentType=literature&q=${encodeURIComponent(query)}`);
-
-    mapped.push({
-      id: `gbif-${item?.id || doi || idx}`,
-      title: String(item?.title || 'Sem título'),
-      authors,
-      year,
-      venue: String(item?.source || item?.publisher || 'GBIF Literature'),
-      doi,
-      url: primaryUrl,
-      pdfUrl: null,
-      isOpenAccess: Boolean(item?.openAccess),
+export function parseOstiResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(data).map((item, idx): NormalizedPaper => {
+    const ostiId = asString(item.osti_id) ?? String(idx);
+    return {
+      id: `osti-${ostiId}`,
+      title: asString(item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asStringList(item.authors, 5),
+      year: extractYear(firstString(item.publication_date, item.entry_date)),
+      venue:
+        firstString(asArray(item.research_orgs)[0], asArray(item.sponsor_orgs)[0]) ?? 'OSTI.GOV (DOE)',
+      doi: normalizeDoi(asString(item.doi)),
+      url: `https://www.osti.gov/biblio/${ostiId}`,
+      pdfUrl: asString(asRecords(item.links).find((l) => l.rel === 'fulltext')?.href) ?? null,
+      isOpenAccess: true,
       citationCount: 0,
-      abstractText: item?.abstract ? String(item.abstract) : null,
-      source: 'gbif',
-      sourceLabel: 'GBIF Biodiversity',
-      publicationType: item?.literatureType ? String(item.literatureType) : undefined,
-    });
+      abstractText: asString(item.description) ?? null,
+      source: 'osti',
+      sourceLabel: 'OSTI.GOV (DOE)',
+      publicationType: asString(item.product_type),
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchOstiGov(
@@ -817,50 +639,40 @@ export async function searchOstiGov(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const res = await fetchDedicatedSource('osti', query, 8, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`OSTI.GOV HTTP ${res.status}`);
-  }
-  const items = await res.json();
-  if (!Array.isArray(items)) return [];
+  const res = await fetchDedicatedSource('osti', query, 8, { headers: { Accept: 'application/json' }, signal });
+  return parseOstiResults(await res.json(), yearFrom);
+}
 
-  const mapped: NormalizedPaper[] = [];
-  items.forEach((item: Record<string, any>, idx: number) => {
-    const dateStr = String(item?.publication_date || item?.entry_date || '');
-    const yearMatch = dateStr.match(/\d{4}/);
-    const year = yearMatch ? Number(yearMatch[0]) : null;
-    if (yearFrom && year && year < yearFrom) return;
+// --- NASA NTRS (dedicated proxy) --------------------------------------------
 
-    const doi = cleanDoi(item?.doi);
-    const authors = Array.isArray(item?.authors)
-      ? item.authors.slice(0, 5).map((a: unknown) => String(a)).filter(Boolean)
-      : [];
-    const ostiId = item?.osti_id || idx;
-    const links = Array.isArray(item?.links) ? item.links : [];
-    const fullTextLink = links.find((l: Record<string, any>) => l?.rel === 'fulltext')?.href || null;
-
-    mapped.push({
-      id: `osti-${ostiId}`,
-      title: String(item?.title || 'Sem título'),
-      authors,
-      year,
-      venue: String(item?.research_orgs?.[0] || item?.sponsor_orgs?.[0] || 'OSTI.GOV (DOE)'),
-      doi,
-      url: `https://www.osti.gov/biblio/${ostiId}`,
-      pdfUrl: fullTextLink,
+export function parseNtrsResults(data: unknown, yearFrom?: number): NormalizedPaper[] {
+  const mapped = asRecords(asRecord(data).results).map((item, idx): NormalizedPaper => {
+    const firstPublication = asRecord(asArray(item.publications)[0]);
+    const ntrsId = asString(item.id) ?? String(idx);
+    const pdfPath = asRecords(item.downloads)
+      .map((d) => asString(asRecord(d.links).pdf))
+      .find(Boolean);
+    return {
+      id: `ntrs-${ntrsId}`,
+      title: asString(item.title) ?? UNTITLED_PAPER_TITLE,
+      authors: asRecords(item.authorAffiliations)
+        .slice(0, 5)
+        .map((a) => asString(asRecord(asRecord(a.meta).author).name))
+        .filter((a): a is string => Boolean(a)),
+      year: extractYear(firstString(item.distributionDate, firstPublication.publicationDate)),
+      venue: asString(asRecord(item.center).name) ?? 'NASA Technical Reports Server',
+      doi: normalizeDoi(asString(firstPublication.doi)),
+      url: `https://ntrs.nasa.gov/citations/${ntrsId}`,
+      pdfUrl: pdfPath ? `https://ntrs.nasa.gov${pdfPath}` : null,
       isOpenAccess: true,
       citationCount: 0,
-      abstractText: item?.description ? String(item.description) : null,
-      source: 'osti',
-      sourceLabel: 'OSTI.GOV (DOE)',
-      publicationType: item?.product_type ? String(item.product_type) : undefined,
-    });
+      abstractText: asString(item.abstract) ?? null,
+      source: 'ntrs',
+      sourceLabel: 'NASA NTRS',
+      publicationType: asString(item.stiType),
+    };
   });
-
-  return mapped;
+  return filterByYear(mapped, yearFrom);
 }
 
 export async function searchNasaNtrs(
@@ -868,51 +680,6 @@ export async function searchNasaNtrs(
   yearFrom?: number,
   signal?: AbortSignal
 ): Promise<NormalizedPaper[]> {
-  const res = await fetchDedicatedSource('ntrs', query, 8, {
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(`NASA NTRS HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results : [];
-
-  const mapped: NormalizedPaper[] = [];
-  results.forEach((item: Record<string, any>, idx: number) => {
-    const pubDate = String(item?.distributionDate || item?.publications?.[0]?.publicationDate || '');
-    const yearMatch = pubDate.match(/\d{4}/);
-    const year = yearMatch ? Number(yearMatch[0]) : null;
-    if (yearFrom && year && year < yearFrom) return;
-
-    const authors = Array.isArray(item?.authorAffiliations)
-      ? item.authorAffiliations
-          .slice(0, 5)
-          .map((a: Record<string, any>) => a?.meta?.author?.name)
-          .filter(Boolean)
-      : [];
-    const ntrsId = item?.id || idx;
-    const downloads = Array.isArray(item?.downloads) ? item.downloads : [];
-    const pdfDownload = downloads.find((d: Record<string, any>) => d?.links?.pdf)?.links?.pdf || null;
-    const doi = cleanDoi(item?.publications?.[0]?.doi);
-
-    mapped.push({
-      id: `ntrs-${ntrsId}`,
-      title: String(item?.title || 'Sem título'),
-      authors,
-      year,
-      venue: String(item?.center?.name || 'NASA Technical Reports Server'),
-      doi,
-      url: `https://ntrs.nasa.gov/citations/${ntrsId}`,
-      pdfUrl: pdfDownload ? `https://ntrs.nasa.gov${pdfDownload}` : null,
-      isOpenAccess: true,
-      citationCount: 0,
-      abstractText: item?.abstract ? String(item.abstract) : null,
-      source: 'ntrs',
-      sourceLabel: 'NASA NTRS',
-      publicationType: item?.stiType ? String(item.stiType) : undefined,
-    });
-  });
-
-  return mapped;
+  const res = await fetchDedicatedSource('ntrs', query, 8, { headers: { Accept: 'application/json' }, signal });
+  return parseNtrsResults(await res.json(), yearFrom);
 }

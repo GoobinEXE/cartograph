@@ -14,6 +14,7 @@ import {
 import { computeOverallQuality } from './qualityChecklists';
 import { parseAbstractMetadata } from './abstractParser';
 import { sanitizeExternalUrl } from './urlSafety';
+import { normalizeDoi } from './deduplication';
 import type { WorkspaceStorageKey } from './storageEngine';
 
 export const CARTOGRAPH_BACKUP_SCHEMA = 'cartograph-backup-v1' as const;
@@ -227,7 +228,8 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
   if (typeof p.title !== 'string' || !p.title.trim()) return null;
 
   const doi = typeof p.doi === 'string' && p.doi.trim() ? p.doi.trim() : null;
-  const fallbackDoiUrl = doi ? `https://doi.org/${doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')}` : null;
+  const bareDoi = normalizeDoi(doi);
+  const fallbackDoiUrl = bareDoi ? `https://doi.org/${bareDoi}` : null;
   const safeUrl =
     sanitizeExternalUrl(typeof p.url === 'string' ? p.url : null) ||
     fallbackDoiUrl ||

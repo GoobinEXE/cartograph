@@ -1,7 +1,7 @@
 import { NormalizedPaper, UserAccessConfig } from '../types/academic';
 import { getActiveByokEntry } from '../utils/accessConfig';
 import { deduplicatePapersAdvanced } from '../utils/deduplication';
-import { cleanDoi } from './httpClient';
+import { normalizeDoi } from '../utils/deduplication';
 
 export type CitationChaseDirection = 'references' | 'citations' | 'both';
 
@@ -28,7 +28,7 @@ function reconstructAbstract(invertedIndex: Record<string, number[]> | null | un
 }
 
 export function normalizeOpenAlexWork(item: Record<string, any>, idx: number): NormalizedPaper {
-  const doi = cleanDoi(item?.doi);
+  const doi = normalizeDoi(item?.doi);
   const authors = Array.isArray(item?.authorships)
     ? item.authorships
         .slice(0, 5)
@@ -69,7 +69,7 @@ export function normalizeOpenAlexWork(item: Record<string, any>, idx: number): N
 function normalizeS2EdgePaper(raw: Record<string, any>, idx: number): NormalizedPaper | null {
   const p = raw?.citedPaper || raw?.citingPaper || raw;
   if (!p || !p.title) return null;
-  const doi = cleanDoi(p?.externalIds?.DOI);
+  const doi = normalizeDoi(p?.externalIds?.DOI);
   const pdfUrl = p?.openAccessPdf?.url || null;
   const authors = Array.isArray(p?.authors)
     ? p.authors
@@ -96,7 +96,7 @@ function normalizeS2EdgePaper(raw: Record<string, any>, idx: number): Normalized
 }
 
 async function resolveOpenAlexWorkSeed(paper: NormalizedPaper, signal?: AbortSignal): Promise<Record<string, any> | null> {
-  const doi = cleanDoi(paper.doi);
+  const doi = normalizeDoi(paper.doi);
   if (doi) {
     const res = await fetch(`https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`, {
       headers: { Accept: 'application/json' },
@@ -167,9 +167,9 @@ export async function chasePaperCitations(
     (references.length === 0 && (direction === 'references' || direction === 'both')) ||
     (citations.length === 0 && (direction === 'citations' || direction === 'both'));
 
-  if (shouldFallbackS2 && cleanDoi(paper.doi)) {
+  if (shouldFallbackS2 && normalizeDoi(paper.doi)) {
     try {
-      const s2PaperId = `DOI:${cleanDoi(paper.doi)}`;
+      const s2PaperId = `DOI:${normalizeDoi(paper.doi)}`;
       const fields = 'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,url';
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (s2Byok?.apiKey) {

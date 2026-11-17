@@ -14,6 +14,7 @@ import { API_SOURCE_REGISTRY, sourceMatchesScope } from '../data/apiSources';
 import { buildByokCacheSignature, getActiveByokEntry } from '../utils/accessConfig';
 import { crossPlatformFetch, isTauriRuntime } from './httpClient';
 import { SOURCE_RUNNERS } from './sourceRunners';
+import { UNTITLED_PAPER_TITLE } from './adapterUtils';
 
 export { crossPlatformFetch, isTauriRuntime };
 
@@ -394,7 +395,7 @@ export async function runFederatedSearch(
           if (res.length > 0) {
             const rankedRes = res.map((paper, rankIdx) => ({
               ...paper,
-              title: language === 'en' && paper.title === 'Sem título' ? 'Untitled' : paper.title,
+              title: language === 'en' && paper.title === UNTITLED_PAPER_TITLE ? 'Untitled' : paper.title,
               sourceRanks: {
                 ...(paper.sourceRanks ?? {}),
                 [src.id]: paper.sourceRanks?.[src.id] ?? rankIdx + 1,

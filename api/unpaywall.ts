@@ -8,8 +8,8 @@ import {
   setEdgeCacheHeaders,
 } from './_security.js';
 import { buildUnpaywallUpstreamUrl } from '../shared/upstreams.mjs';
+import { isBareDoi, normalizeDoi } from '../shared/identifiers.mjs';
 
-const DOI_FORMAT_RE = /^10\.\d{4,9}\/[^\s]+$/i;
 const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_POLITE_EMAIL = 'researcher@cartographsearch.com';
 
@@ -34,13 +34,9 @@ export default async function handler(
     return;
   }
 
-  const rawDoi = getQueryStringParam(req, 'doi')
-    .slice(0, 220)
-    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
-    .replace(/^doi:\s*/i, '')
-    .trim();
+  const rawDoi = normalizeDoi(getQueryStringParam(req, 'doi').slice(0, 220)) ?? '';
 
-  if (!DOI_FORMAT_RE.test(rawDoi)) {
+  if (!isBareDoi(rawDoi)) {
     res.status(400).json({ ok: false, error: 'Invalid DOI format' });
     return;
   }

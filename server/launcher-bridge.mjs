@@ -16,6 +16,7 @@ import {
   isFreeProxyProvider,
   normalizeYearFrom,
 } from '../shared/upstreams.mjs';
+import { isBareDoi, normalizeDoi } from '../shared/identifiers.mjs';
 
 const BRIDGE_PORT = Number(process.env.PORT || process.env.BRIDGE_PORT || 4789);
 const BRIDGE_HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -479,11 +480,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && reqUrl.pathname === '/api/unpaywall') {
-    const rawDoi = (reqUrl.searchParams.get('doi') || '')
-      .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
-      .replace(/^doi:\s*/i, '')
-      .trim();
-    if (!/^10\.\d{4,9}\/[^\s]+$/i.test(rawDoi)) {
+    const rawDoi = normalizeDoi((reqUrl.searchParams.get('doi') || '').slice(0, 220)) ?? '';
+    if (!isBareDoi(rawDoi)) {
       sendJson(res, 400, { ok: false, error: 'DOI inválido' }, req);
       return;
     }
