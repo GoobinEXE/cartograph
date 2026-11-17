@@ -26,13 +26,14 @@ Para inspecionar o grafo sem consumir contexto com leituras integrais de código
 ```
 
 ### 1.2 God Nodes do Repositório (Abstrações Centrais do Sistema)
-O grafo identifica os seguintes pontos de acoplamento crítico que exigem máxima atenção durante refatorações:
+O grafo identifica os seguintes pontos de acoplamento crítico que exigem máxima atenção durante refatorações (contagens de arestas do grafo de 15/11/2026; valores atuais em `graphify-out/GRAPH_REPORT.md`):
 1. `Cartograph Master App Icon (512x512 PNG)` (55 arestas) — Nó central de assets de empacotamento multi-target.
 2. `AcademicCommandCenter()` (36 arestas — `src/App.tsx:L141`) — Orquestrador visual de busca federada, injeção de estado, filtros e gavetas.
-3. `runFederatedSearch()` (32 arestas — `src/services/academicAggregator.ts`) — Coordenador assíncrono de consulta paralela às 15 APIs acadêmicas.
-4. `cleanDoi()` / `normalizeDoi()` (30 arestas — `src/utils/deduplication.ts`) — Sanitizador canônico de identificadores persistentes.
+3. `runFederatedSearch()` (32 arestas — `src/services/academicAggregator.ts`) — Coordenador assíncrono da busca federada; as fontes de cada busca saem de `planFederatedSources()`, que lê `API_SOURCE_REGISTRY`.
+4. `normalizeDoi()` (30 arestas — `shared/identifiers.mjs`, reexportado por `src/utils/deduplication.ts`) — Sanitizador canônico de DOI usado pelo cliente, pelas funções da Vercel, pelo bridge e pelos backups.
 5. `useI18n()` (21 arestas — `src/i18n/context.tsx`) — Hook de internacionalização reativa em 4 idiomas (PT, EN, ES, FR).
-6. `crossPlatformFetch()` (21 arestas — `src/services/httpClient.ts`) — Camada de abstração HTTP (Web Fetch vs Tauri HTTP nativo).
+6. `crossPlatformFetch()` (21 arestas — `src/services/httpClient.ts`) — Política de rede única: Tauri chama o upstream direto; na web, a resposta JSON/XML do proxy da mesma origem é final, e só uma resposta HTML ou falha de rede leva ao proxy em nuvem e depois à URL direta.
+10. `shared/upstreams.mjs` — Fonte única de toda URL de API externa, caminho de proxy e requisição BYOK, importada por `src/`, `api/` e `server/`.
 7. `sanitizeExternalUrl()` (21 arestas — `api/_security.ts` / `src/utils/urlSafety.ts`) — Barreira anti-SSRF e validação de URLs externas.
 8. `applyCorsHeaders()` (20 arestas — `api/_security.ts`) — Controle rigoroso de origens permitidas em funções de borda.
 9. `enforceRateLimit()` (18 arestas — `api/_security.ts`) — Mecanismo defensivo de limitação de requisições por IP em memória.
@@ -93,10 +94,10 @@ O Cartograph opera através de uma tríade de execução projetada para contorna
    - Utiliza as Serverless Functions (`api/`) para contornar restrições de CORS e proxies upstream.
 2. **Desktop Nativo Standalone (Tauri v2 + Rust):**
    - Binário ultra-leve (8–18 MB), baixo consumo de RAM (45–80 MB).
-   - Comunicação via IPC nativo com `@tauri-apps/plugin-opener` para abertura de links e `@tauri-apps/plugin-http` para bypass total de CORS sem necessidade de proxies intermediários.
+   - Comunicação via IPC nativo com `@tauri-apps/plugin-opener` para abertura de links e `@tauri-apps/plugin-http` (escopo `https://**`) para chamar os upstreams sem proxy, inclusive as fontes BYOK, cuja chave vai direto ao provedor.
 3. **Local Launcher Bridge (`server/launcher-bridge.mjs`):**
-   - Servidor HTTP leve em Node.js puro (`http` + `child_process`), rodando na porta local 3001.
-   - Quando executado no navegador comum, permite abrir múltiplas abas diretamente pelo sistema operacional (`cmd /c start`, `open`, `xdg-open`), contornando o bloqueio de pop-ups com cadência controlada (120ms de intervalo).
+   - Servidor HTTP leve em Node.js puro (`http` + `child_process`), na porta local 4789 (`BRIDGE_PORT`), que replica as rotas de `api/` usando os mesmos construtores de `shared/upstreams.mjs`.
+   - Quando executado no navegador comum, abre múltiplas abas pelo sistema operacional (`open`, `xdg-open` e, no Windows, `rundll32 url.dll,FileProtocolHandler`; o `cmd /c start` foi removido porque o `cmd.exe` cortava a URL no primeiro `&`), com cadência de 110 ms entre abas. A montagem do comando fica em `server/nativeOpen.mjs`, coberta por testes.
 
 ---
 
@@ -104,14 +105,18 @@ O Cartograph opera através de uma tríade de execução projetada para contorna
 
 O motor de pesquisa científica do Cartograph é **100% determinístico**, rejeitando qualquer dependência de LLM ou chamadas pagas de IA na agregação, deduplicação, ranqueamento e triagem sistemática. Isso assegura reprodutibilidade metodológica estrita e custo operacional fixo.
 
-### 4.1 Agregador Federado de 15 APIs Abertas (`src/services/academicAggregator.ts`)
-A busca executa chamadas paralelas assíncronas (`Promise.allSettled`) contra 15 bases globais e abertas:
+### 4.1 Agregador Federado Orientado por Registro (`src/services/academicAggregator.ts`)
+`API_SOURCE_REGISTRY` (`src/data/apiSources.ts`) é a fonte única das fontes federadas: rótulo, categorias temáticas, peso de autoridade, `transport` (`direct`, `proxy` ou `byok`) e vínculo com a credencial BYOK. `planFederatedSources()` deriva dele a lista de cada busca, `SOURCE_RUNNERS` (`src/services/sourceRunners.ts`) liga cada fonte ao seu adaptador e `API_SOURCE_DOCS` (`src/data/apiSourceDocs.ts`) alimenta a página Sobre › APIs. Os três são `Record<ApiSourceId, …>` totais, então uma fonte nova sem adaptador ou sem documentação não compila. Os totais exibidos (27 abertas e 7 BYOK em novembro de 2026) são derivados do registro em tempo de build. A busca executa chamadas paralelas (`Promise.allSettled`) com timeout de 12 s por fonte. As 15 fontes originais, em `src/services/coreSourceAdapters.ts`, são:
 - **Índices Universais:** OpenAlex (250M+ obras, conceitos, citações, PDF aberto), Semantic Scholar (grafo acadêmico, TL;DR, citações influentes), Crossref (registro de DOIs e metadados de periódicos).
 - **Ciências Biomédicas e da Vida:** PubMed NCBI Entrez (índice oficial MEDLINE, PMID, PMC full-text), Europe PMC (literatura biomédica e biociências com PDFs diretos).
 - **Preprints e Ciências Exatas:** arXiv API (computação, física, matemática, estatística), INSPIRE-HEP (física de altas energias e computação quântica).
 - **Acesso Aberto Auditado e Repositórios Nacionais:** DOAJ (revistas Open Access auditadas), HAL Open Science (CNRS França, 3.5M+ documentos acadêmicos).
 - **Conjuntos de Dados e Repositórios Multidisciplinares:** DataCite Commons (DOIs para datasets, relatórios técnicos, OSF), Zenodo / CERN OpenAIRE (datasets, software, artigos), Figshare (materiais suplementares e replicação), GBIF (dados de biodiversidade e ecologia).
 - **Agências Federais de Pesquisa e Tecnologia:** OSTI.gov (relatórios técnicos do Departamento de Energia dos EUA), NASA NTRS (pesquisas e relatórios aeroespaciais).
+- **Extensões abertas (`src/services/sourceAdapters.ts`, via `/api/academic-proxy`):** OpenAIRE Graph, OSF Preprints, SocArXiv, ERIC, PLOS, Oasisbr (IBICT), Harvard Dataverse, CORE, World Bank Documents & Reports, World Bank OKR, RCIpea e UN Digital Library.
+- **BYOK (chave do pesquisador, via `/api/byok-proxy` na web ou direto no Tauri):** Scopus, ScienceDirect, IEEE Xplore, Springer Nature, The Lens, Fed in Print e Congress.gov. Semantic Scholar e CORE aceitam chave opcional para cota maior.
+
+Cada adaptador separa um `parse*` puro (testado com fixtures) do `search*` que só faz a requisição. Os parsers leem o JSON de terceiros com os acessores de `src/utils/json.ts` (`asRecord`, `asRecords`, `asString`…), que nunca lançam exceção, e registros sem identificador recebem ID estável por hash (`stableHashId`), nunca aleatório.
 
 ### 4.2 Algoritmo Multicritério de Ranqueamento de Relevância (`src/utils/relevanceRanker.ts`)
 Cada artigo recuperado recebe uma pontuação $S_{\text{final}} \in [0, 1]$ através da equação:
@@ -122,7 +127,7 @@ $$S_{\text{final}} = 0.45 \cdot S_{\text{lexical}} + 0.25 \cdot S_{\text{consens
   - Incorpora bônus para correspondência exata de frase contígua e expansão semântica via glossário técnico bilíngue Português ↔ Inglês.
 - **Componente de Consenso e Autoridade ($S_{\text{consensus}}$ — Peso 0.25):**
   - Bonifica artigos descobertos simultaneamente por múltiplas fontes independentes através de Reciprocal Rank Fusion ($k = 60$).
-  - Pondera a autoridade de cada API conforme `API_SOURCE_AUTHORITY_WEIGHTS` (PubMed = 1.0, Crossref = 0.95, OpenAlex = 0.90, arXiv = 0.85, etc.).
+  - Pondera a autoridade de cada API conforme `authorityWeight` no registro, exposto como `API_SOURCE_AUTHORITY_WEIGHTS` (por exemplo PubMed 1.15, OpenAlex 1.12, Crossref 1.04, arXiv 1.0).
 - **Componente de Impacto e Recência ($S_{\text{impact\_recency}}$ — Peso 0.20):**
   - Mede a velocidade de citações por ano de publicação: $v_{\text{cite}} = \frac{C}{\max(1, Y_{\text{atual}} - Y_{\text{pub}})}$.
   - Aplica decaimento temporal exponencial com constante de tempo $\tau = 8$ anos: $D(t) = \exp\left(-\frac{Y_{\text{atual}} - Y_{\text{pub}}}{\tau}\right)$.
@@ -175,16 +180,20 @@ As funções Serverless em `api/` implementam camadas defensivas rigorosas para 
 - **Sanitização de URLs Upstream (`sanitizeExternalUrl`):** Bloqueio estrito de IPs privados (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), endereços de loopback (`127.0.0.1`, `localhost`), interfaces de metadados de nuvem (`169.254.169.254`) e protocolos não-HTTP/HTTPS.
 - **Rate Limiting em Memória (`enforceRateLimit`):** Algoritmo de token bucket / sliding window em memória para conter abusos por IP sem onerar latência com dependências de banco externas.
 - **Restrição de Origens e CORS (`applyCorsHeaders`):** Permissão restrita aos domínios autorizados de produção (`cartographsearch.com`), subdomínios Vercel Preview oficiais do projeto e ambiente de desenvolvimento local.
-- **Cabeçalhos de Isolamento:** Injeção sistemática de `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` e `User-Agent` canônico institucional para auditoria externa.
+- **Cabeçalhos de Isolamento:** Injeção sistemática de `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` e `User-Agent` canônico institucional (`CARTOGRAPH_USER_AGENT`, em `shared/upstreams.mjs`) para auditoria externa.
+- **Lista fechada de provedores:** `academic-proxy` e `byok-proxy` só aceitam provedores de `FREE_PROXY_PROVIDERS` e `BYOK_UPSTREAM_PROVIDERS` e montam a URL no servidor; o cliente nunca envia uma URL arbitrária. Respostas BYOK usam `Cache-Control: no-store, private`.
 
 ---
 
 ## 7. Internacionalização (i18n) e Arquitetura de Estado
 
 A aplicação oferece suporte multilíngue integral e sem recarga de página para quatro idiomas:
-- **Idiomas Suportados:** Português (`pt`), Inglês (`en`), Espanhol (`es`) e Francês (`fr`).
-- **Resolução de Idioma:** Auto-detecção a partir de `navigator.languages`, com persistência em `localStorage` e mecanismo hierárquico de fallback para inglês quando a chave não existir na tabela traduzida.
-- **Gestão de Sessão e Backups:** O módulo `src/utils/workspaceBackup.ts` permite salvar o estado completo da revisão sistemática (fichamentos, parâmetros booleanos, status PRISMA e histórico de deduplicação) em arquivo JSON verificado com checksum SHA-256 e recarregamento seguro.
+- **Idiomas Suportados:** Português (`pt`), Inglês (`en`), Espanhol (`es`) e Francês (`fr`), um arquivo por idioma em `src/i18n/locales/`, todos tipados pela interface `Translations` de `src/i18n/translations.ts`. O teste `tests/i18n.test.ts` exige o mesmo conjunto de chaves e os mesmos placeholders `{param}` em todos os locales.
+- **Resolução de Idioma:** Os idiomas oferecidos, o `<html lang>` e a detecção a partir de `navigator.languages` derivam do mapa `TRANSLATIONS`; registrar um locale basta para habilitá-lo. A escolha manual persiste em `localStorage`, e uma chave ausente cai para o inglês.
+- **Fora de componentes React:** `translate(language, key, params)` (puro, em `translations.ts`) localiza serviços, exportadores e a tela de erro sem depender do provider.
+- **Conteúdo longo:** páginas Sobre, textos legais, cabeçalhos de exportação, diagrama PRISMA, checklists e descrições do catálogo existem em PT e EN; `proseLanguage()` (`src/i18n/localized.ts`) entrega o inglês aos demais idiomas. Datas usam `intlLocale()`. Comparações binárias do tipo `language === 'en'` são proibidas, porque mandam ES/FR para o português.
+- **Gestão de Sessão e Backups:** `src/utils/workspaceBackup.ts` exporta e importa o estado da revisão em JSON (schema v2), sanitizando cada registro na leitura. O backup nunca inclui chaves BYOK, InstToken, template de proxy ou e-mail do Unpaywall. A tela de erro (`ErrorBoundary`) gera um backup de emergência no mesmo formato, reimportável pela Biblioteca, e guarda registros ilegíveis em `emergencyRecovery` em vez de descartá-los.
+- **Preferências visuais:** as chaves de gavetas e tema ficam em `LAYOUT_STORAGE_KEYS` (`src/utils/layoutPreferences.ts`); um teste impede declará-las em outro arquivo.
 
 ---
 
@@ -207,7 +216,7 @@ O Cartograph rejeita designs genéricos de inteligência artificial ou modelos p
 Novos recursos nunca devem ser implementados como remendos, elementos visuais flutuantes descontextualizados ou atalhos técnicos ("gambiarras"). Cada funcionalidade deve nascer organicamente integrada:
 - **Integração de Estado e Tipos:** Contratos de dados estritos em `src/types/academic.ts` sem recurso a `any` ou props anônimas.
 - **Suporte Bitemático Universal:** Compatibilidade perfeita com `[data-theme="light"]` e `[data-theme="dark"]` através das variáveis semânticas CSS (`--bg-canvas`, `--bg-secondary`, `--text-primary`, `--text-secondary`, `--divider`, `--link-academic`, `--meta-green`). Proibidas cores hexadecimais dispersas e hardcoded em tags.
-- **Internacionalização Completa (4 Idiomas):** Inclusão mandatória de todas as novas strings de interface no dicionário reativo `src/i18n/translations.ts` em Português (`pt`), Inglês (`en`), Espanhol (`es`) e Francês (`fr`).
+- **Internacionalização Completa (4 Idiomas):** Inclusão mandatória de todas as novas strings de interface na interface `Translations` e nos quatro arquivos de `src/i18n/locales/` (`pt`, `en`, `es`, `fr`).
 - **Harmonia com os Orquestradores Principais:** Encaixe coerente no fluxo de `AcademicCommandCenter()` em `src/App.tsx`, com suporte aos atalhos de teclado globais, transições elegantes e ausência de travamentos de layout no desktop Tauri v2 e na web.
 
 ---
@@ -226,3 +235,5 @@ Antes de considerar qualquer tarefa finalizada no repositório, o agente deve co
    /Users/marcelopessoa/.local/share/uv/tools/graphifyy/bin/graphify update .
    ```
 7. **Preservação de Integridade:** Não deletar comentários técnicos contextuais ou assinaturas de tipos existentes sem justificativa arquitetural documentada.
+8. **Testes:** `npm test` verde. Nova fonte federada exige entrada no registro, runner, documentação em `apiSourceDocs.ts`, construtor em `shared/upstreams.mjs` quando houver proxy e fixture de parser; o teste `tests/sourceRegistry.test.ts` falha se algum desses elos faltar ou se um total voltar a ser escrito à mão.
+9. **Cartão de compartilhamento:** após mudar o catálogo, rode `npm run build && npm run og:render` para regenerar `public/og-image.png`.
