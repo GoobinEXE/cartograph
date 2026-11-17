@@ -26,7 +26,9 @@ jobs:
         run: npm ci
 
       - name: Validate Local Launcher Bridge syntax
-        run: node --check server/launcher-bridge.mjs
+        run: |
+          node --check server/launcher-bridge.mjs
+          node --check server/nativeOpen.mjs
 
       - name: Run TypeScript strict typecheck
         run: npx tsc --noEmit

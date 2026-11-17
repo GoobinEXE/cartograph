@@ -86,6 +86,25 @@ export function detectBrowserLanguage(): SupportedLanguage {
   return detectSystemLanguage();
 }
 
+/**
+ * Resolves a dictionary key with `{param}` interpolation and English fallback. Exported for
+ * components that must render outside the provider tree or after it failed (ErrorBoundary).
+ */
+export function translate(
+  language: SupportedLanguage,
+  key: keyof Translations,
+  params?: Record<string, string | number>
+): string {
+  const dictionary = TRANSLATIONS[language] || TRANSLATIONS.en;
+  let str = dictionary[key] || TRANSLATIONS.en[key] || String(key);
+  if (params) {
+    Object.entries(params).forEach(([paramKey, paramValue]) => {
+      str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+    });
+  }
+  return str;
+}
+
 interface I18nContextType {
   language: SupportedLanguage;
   isAutoLanguage: boolean;
@@ -154,16 +173,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const translations = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   const t = useCallback(
-    (key: keyof Translations, params?: Record<string, string | number>): string => {
-      let str = translations[key] || TRANSLATIONS.en[key] || String(key);
-      if (params) {
-        Object.entries(params).forEach(([paramKey, paramValue]) => {
-          str = str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
-        });
-      }
-      return str;
-    },
-    [translations]
+    (key: keyof Translations, params?: Record<string, string | number>): string =>
+      translate(language, key, params),
+    [language]
   );
 
   return (

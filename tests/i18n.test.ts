@@ -109,3 +109,19 @@ test('English utility outputs for abstractParser, prismaFlow, and citationExport
   assert.match(csvEn, /"HIGH"/);
   assert.match(csvEn, /"Ungrouped \(General\)"/);
 });
+
+test('translate interpolates params and falls back to English for unknown languages', async () => {
+  const { translate } = await import('../src/i18n/context.tsx');
+  assert.equal(
+    translate('pt', 'errorBoundaryBackupSaved', { papers: 3, groups: 1 }).startsWith('Backup salvo (artigos: 3; grupos: 1)'),
+    true
+  );
+  assert.equal(
+    translate('en', 'errorBoundaryBackupRejected', { count: 2 }).includes('emergencyRecovery field: 2.'),
+    true
+  );
+  assert.equal(
+    translate('xx' as never, 'errorBoundaryReload'),
+    TRANSLATIONS.en.errorBoundaryReload
+  );
+});

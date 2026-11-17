@@ -63,6 +63,7 @@ import {
 import { CartographBackupPayload } from './utils/workspaceBackup';
 import { deduplicatePapersAdvanced, makePairKey, normalizeDoi } from './utils/deduplication';
 import { workspaceStorageEngine } from './utils/storageEngine';
+import { LAYOUT_STORAGE_KEYS } from './utils/layoutPreferences';
 import {
   ArrowUpRight,
   Check,
@@ -104,8 +105,8 @@ const STORAGE_KEY_SAVED = 'cartograph_saved_papers_v2';
 const STORAGE_KEY_GROUPS = 'cartograph_library_groups_v1';
 const STORAGE_KEY_ACTIVE_GROUP = 'cartograph_active_save_group_v1';
 const STORAGE_KEY_SELECTED_PLATFORMS = 'cartograph_selected_platforms_v2';
-const STORAGE_KEY_THEME = 'cartograph_theme_v1';
-const STORAGE_KEY_SIDEBAR_DRAWERS = 'cartograph_sidebar_drawers_v2';
+const STORAGE_KEY_THEME = LAYOUT_STORAGE_KEYS.theme;
+const STORAGE_KEY_SIDEBAR_DRAWERS = LAYOUT_STORAGE_KEYS.platformsSidebarDrawers;
 const STORAGE_KEY_SELECTED_AREA = 'cartograph_selected_area_v1';
 const STORAGE_KEY_DEDUP_ENABLED = 'cartograph_dedup_enabled_v1';
 const STORAGE_KEY_DEDUP_OVERRIDES = 'cartograph_dedup_overrides_v1';

@@ -20,6 +20,7 @@ import {
 } from '../utils/citationExporter';
 import { parseAbstractMetadata } from '../utils/abstractParser';
 import { partitionResultsAgainstLibrary } from '../utils/deduplication';
+import { LAYOUT_STORAGE_KEYS } from '../utils/layoutPreferences';
 import { buildDoiProxyUrl } from '../utils/institutionalProxy';
 import { rankPapersByRelevance } from '../utils/relevanceRanker';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
@@ -49,7 +50,7 @@ import {
 } from 'lucide-react';
 
 type FederatedSidebarSectionKey = 'areas' | 'slot' | 'sort' | 'access' | 'sources';
-const STORAGE_KEY_FEDERATED_DRAWERS = 'cartograph_federated_sidebar_drawers_v1';
+const STORAGE_KEY_FEDERATED_DRAWERS = LAYOUT_STORAGE_KEYS.federatedSidebarDrawers;
 
 interface FederatedResultsPanelProps {
   papers: NormalizedPaper[];

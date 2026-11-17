@@ -3,6 +3,7 @@ import { execFile, spawn } from 'node:child_process';
 import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildNativeOpenCommand } from './nativeOpen.mjs';
 
 const BRIDGE_PORT = Number(process.env.PORT || process.env.BRIDGE_PORT || 4789);
 const BRIDGE_HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -49,33 +50,18 @@ const MIME_TYPES = {
  */
 function openUrlNative(targetUrl) {
   return new Promise((resolve) => {
+    const command = buildNativeOpenCommand(targetUrl, process.platform);
+    if (!command.ok) {
+      resolve({ url: command.url, ok: false, error: command.error });
+      return;
+    }
     try {
-      const parsed = new URL(targetUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        resolve({ url: targetUrl, ok: false, error: 'Unsupported protocol' });
-        return;
-      }
-      const safeUrl = parsed.toString();
-      const platform = process.platform;
-
-      if (platform === 'win32') {
-        // Windows: use cmd.exe start with empty window title
-        execFile('cmd.exe', ['/c', 'start', '', safeUrl], { windowsHide: true }, (err) => {
-          resolve({ url: safeUrl, ok: !err, error: err ? err.message : undefined });
-        });
-      } else if (platform === 'darwin') {
-        // macOS: use native open command
-        execFile('open', [safeUrl], (err) => {
-          resolve({ url: safeUrl, ok: !err, error: err ? err.message : undefined });
-        });
-      } else {
-        // Linux / FreeBSD: use xdg-open
-        execFile('xdg-open', [safeUrl], (err) => {
-          resolve({ url: safeUrl, ok: !err, error: err ? err.message : undefined });
-        });
-      }
+      // execFile without a shell: the URL is passed as a literal argv entry on every OS.
+      execFile(command.file, command.args, { windowsHide: true }, (err) => {
+        resolve({ url: command.url, ok: !err, error: err ? err.message : undefined });
+      });
     } catch (e) {
-      resolve({ url: targetUrl, ok: false, error: e instanceof Error ? e.message : 'Invalid URL' });
+      resolve({ url: command.url, ok: false, error: e instanceof Error ? e.message : 'Launch failed' });
     }
   });
 }

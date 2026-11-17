@@ -14,6 +14,7 @@ import {
 import { computeOverallQuality } from './qualityChecklists';
 import { parseAbstractMetadata } from './abstractParser';
 import { sanitizeExternalUrl } from './urlSafety';
+import type { WorkspaceStorageKey } from './storageEngine';
 
 export const CARTOGRAPH_BACKUP_SCHEMA = 'cartograph-backup-v1' as const;
 export const CARTOGRAPH_BACKUP_SCHEMA_V2 = 'cartograph-backup-v2' as const;
@@ -36,7 +37,7 @@ export type BackupParseResult =
   | { ok: true; payload: CartographBackupPayload }
   | { ok: false; error: string };
 
-export function exportWorkspaceBackup(params: {
+export interface WorkspaceBackupParams {
   version?: string;
   savedPapers: SavedPaperItem[];
   groups: LibraryGroup[];
@@ -47,7 +48,13 @@ export function exportWorkspaceBackup(params: {
   dedupOverrides?: DedupOverrideRule;
   customColumns?: CustomExtractionColumn[];
   schemaVersion?: 1 | 2;
-}): string {
+}
+
+export function exportWorkspaceBackup(params: WorkspaceBackupParams): string {
+  return JSON.stringify(buildWorkspaceBackupPayload(params), null, 2);
+}
+
+export function buildWorkspaceBackupPayload(params: WorkspaceBackupParams): CartographBackupPayload {
   // Note: personal API keys (BYOK) and institutional proxy credentials are intentionally excluded
   // from workspace backups so researchers can safely share review files without leaking secrets.
   const useV2 =
@@ -70,7 +77,132 @@ export function exportWorkspaceBackup(params: {
     ...(params.customColumns?.length ? { customColumns: params.customColumns } : {}),
   };
 
-  return JSON.stringify(payload, null, 2);
+  return payload;
+}
+
+/** A raw workspace record that failed sanitization and was kept apart for manual recovery. */
+export interface EmergencyRejectedRecord {
+  key: WorkspaceStorageKey;
+  /** Position inside the stored array, or null when the whole value had an unexpected shape. */
+  index: number | null;
+  value: unknown;
+}
+
+/**
+ * Emergency backup written by the ErrorBoundary. It is a regular v2 backup, so the library
+ * importer restores it as-is; `emergencyRecovery` is ignored by `parseWorkspaceBackup`.
+ */
+export interface CartographEmergencyBackup extends CartographBackupPayload {
+  emergencyRecovery: {
+    capturedAt: string;
+    rejectedRecords: EmergencyRejectedRecord[];
+  };
+}
+
+export interface EmergencyBackupResult {
+  json: string;
+  savedPapers: number;
+  groups: number;
+  rejected: number;
+}
+
+function sanitizeRecordList<T>(
+  key: WorkspaceStorageKey,
+  raw: unknown,
+  sanitize: (entry: unknown) => T | null,
+  rejected: EmergencyRejectedRecord[]
+): T[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    rejected.push({ key, index: null, value: raw });
+    return [];
+  }
+  const out: T[] = [];
+  raw.forEach((entry, index) => {
+    const clean = sanitize(entry);
+    if (clean === null) {
+      rejected.push({ key, index, value: entry });
+    } else {
+      out.push(clean);
+    }
+  });
+  return out;
+}
+
+/**
+ * Builds a restorable backup from the raw workspace records (IndexedDB or legacy localStorage).
+ * It reads only the workspace keys, so the access configuration (BYOK keys, InstToken,
+ * institutional proxy) can never reach the file. Records that fail sanitization are kept
+ * under `emergencyRecovery.rejectedRecords` instead of being dropped, since the crash that
+ * triggered this export may come from exactly those records.
+ */
+export function buildEmergencyBackupFromRecords(
+  records: Partial<Record<WorkspaceStorageKey, unknown>>,
+  options?: { ownedPlatformIds?: string[]; version?: string }
+): EmergencyBackupResult {
+  const rejected: EmergencyRejectedRecord[] = [];
+
+  const savedPapers = sanitizeRecordList('savedPapers', records.savedPapers, sanitizeSavedPaper, rejected);
+  const groups = sanitizeRecordList('libraryGroups', records.libraryGroups, sanitizeGroup, rejected);
+  const searchLogs = sanitizeRecordList('searchLogs', records.searchLogs, sanitizeSearchLogEntry, rejected);
+  const customColumns = sanitizeRecordList(
+    'customColumns',
+    records.customColumns,
+    sanitizeCustomColumn,
+    rejected
+  );
+  const selectedPlatformIds = sanitizeRecordList(
+    'selectedPlatformIds',
+    records.selectedPlatformIds,
+    (id) => (typeof id === 'string' && id.trim() ? id.trim() : null),
+    rejected
+  );
+
+  const rawActiveGroup = records.activeSaveGroupId;
+  const activeSaveGroupId = typeof rawActiveGroup === 'string' && rawActiveGroup.trim() ? rawActiveGroup : null;
+  if (rawActiveGroup !== undefined && rawActiveGroup !== null && activeSaveGroupId === null) {
+    rejected.push({ key: 'activeSaveGroupId', index: null, value: rawActiveGroup });
+  }
+
+  let dedupOverrides: DedupOverrideRule | undefined;
+  const rawOverrides = records.dedupOverrides;
+  if (rawOverrides !== undefined && rawOverrides !== null) {
+    const rawSplit =
+      typeof rawOverrides === 'object' ? (rawOverrides as Record<string, unknown>).splitPairs : undefined;
+    if (Array.isArray(rawSplit)) {
+      dedupOverrides = {
+        splitPairs: rawSplit.filter((x): x is string => typeof x === 'string' && Boolean(x.trim())),
+      };
+    } else {
+      rejected.push({ key: 'dedupOverrides', index: null, value: rawOverrides });
+    }
+  }
+
+  const payload: CartographEmergencyBackup = {
+    ...buildWorkspaceBackupPayload({
+      version: options?.version,
+      savedPapers,
+      groups,
+      selectedPlatformIds,
+      activeSaveGroupId,
+      ownedPlatformIds: options?.ownedPlatformIds?.filter((id) => typeof id === 'string' && id.trim()),
+      searchLogs,
+      dedupOverrides,
+      customColumns,
+      schemaVersion: 2,
+    }),
+    emergencyRecovery: {
+      capturedAt: new Date().toISOString(),
+      rejectedRecords: rejected,
+    },
+  };
+
+  return {
+    json: JSON.stringify(payload, null, 2),
+    savedPapers: savedPapers.length,
+    groups: groups.length,
+    rejected: rejected.length,
+  };
 }
 
 export function sanitizeGroup(raw: unknown): LibraryGroup | null {

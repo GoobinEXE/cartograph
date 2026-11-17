@@ -269,6 +269,16 @@ export interface Translations {
   importInvalidFeedback: string;
   importSuccessFeedback: string;
   importReadErrorFeedback: string;
+  errorBoundaryEyebrow: string;
+  errorBoundaryTitle: string;
+  errorBoundaryBody: string;
+  errorBoundaryFallbackMessage: string;
+  errorBoundaryReload: string;
+  errorBoundaryDownloadBackup: string;
+  errorBoundaryResetLayout: string;
+  errorBoundaryBackupSaved: string;
+  errorBoundaryBackupRejected: string;
+  errorBoundaryBackupFailed: string;
   allLibraryPapersTitle: string;
   groupFallbackName: string;
   slotAllDesc: string;
@@ -906,6 +916,20 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     importSuccessFeedback:
       'Importação {format}: +{added} artigos adicionados ({skipped} duplicatas ignoradas).',
     importReadErrorFeedback: 'Não foi possível ler o arquivo selecionado.',
+    errorBoundaryEyebrow: 'Recuperação de Sessão · Cartograph',
+    errorBoundaryTitle: 'Ocorreu uma falha inesperada na interface',
+    errorBoundaryBody:
+      'Seus artigos salvos, grupos de revisão e notas continuam no navegador. Antes de recarregar, você pode baixar um backup JSON; ele não inclui chaves de API nem credenciais do proxy institucional.',
+    errorBoundaryFallbackMessage: 'Erro inesperado de renderização',
+    errorBoundaryReload: 'Recarregar página',
+    errorBoundaryDownloadBackup: 'Baixar backup (.json)',
+    errorBoundaryResetLayout: 'Redefinir layout e recarregar',
+    errorBoundaryBackupSaved:
+      'Backup salvo (artigos: {papers}; grupos: {groups}). Para restaurar, use Biblioteca › Backup & Importação Local › Importar.',
+    errorBoundaryBackupRejected:
+      'Registros ilegíveis guardados à parte no campo emergencyRecovery: {count}. Eles não são restaurados automaticamente.',
+    errorBoundaryBackupFailed:
+      'Não foi possível gerar o backup. Os dados continuam no navegador; recarregue a página e tente de novo pela Biblioteca.',
     allLibraryPapersTitle: 'Todos os Artigos da Biblioteca',
     groupFallbackName: 'Grupo',
     slotAllDesc: 'Exibindo todos os artigos salvos em todos os grupos e itens sem grupo.',
@@ -1550,6 +1574,20 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     importSuccessFeedback:
       '{format} import: +{added} papers added ({skipped} duplicates skipped).',
     importReadErrorFeedback: 'Could not read the selected file.',
+    errorBoundaryEyebrow: 'Session Recovery · Cartograph',
+    errorBoundaryTitle: 'An unexpected UI error occurred',
+    errorBoundaryBody:
+      'Your saved papers, review groups, and notes are still in this browser. Before reloading, you can download a JSON backup; it excludes API keys and institutional proxy credentials.',
+    errorBoundaryFallbackMessage: 'Unexpected rendering error',
+    errorBoundaryReload: 'Reload page',
+    errorBoundaryDownloadBackup: 'Download backup (.json)',
+    errorBoundaryResetLayout: 'Reset layout & reload',
+    errorBoundaryBackupSaved:
+      'Backup saved (papers: {papers}; groups: {groups}). To restore it, use Library › Local Backup & Import › Import.',
+    errorBoundaryBackupRejected:
+      'Unreadable records kept apart in the emergencyRecovery field: {count}. They are not restored automatically.',
+    errorBoundaryBackupFailed:
+      'The backup could not be generated. Your data is still in the browser; reload the page and try again from the Library.',
     allLibraryPapersTitle: 'All Library Papers',
     groupFallbackName: 'Group',
     slotAllDesc: 'Showing all saved papers across all groups and ungrouped items.',

@@ -26,7 +26,7 @@ export interface WorkspaceStorageEngine {
   getItem: <T>(key: WorkspaceStorageKey, fallback: T) => Promise<T>;
   setItem: <T>(key: WorkspaceStorageKey, value: T) => Promise<void>;
   getBackendType: () => Promise<'indexeddb' | 'localstorage'>;
-  exportAllRawRecords: () => Promise<Record<string, unknown>>;
+  exportAllRawRecords: () => Promise<Partial<Record<WorkspaceStorageKey, unknown>>>;
 }
 
 function readLegacyLocalValue(storage: Storage | null | undefined, legacyKey: string): { found: boolean; value: unknown } {
@@ -248,8 +248,8 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
     return db ? 'indexeddb' : 'localstorage';
   };
 
-  const exportAllRawRecords = async (): Promise<Record<string, unknown>> => {
-    const out: Record<string, unknown> = {};
+  const exportAllRawRecords = async (): Promise<Partial<Record<WorkspaceStorageKey, unknown>>> => {
+    const out: Partial<Record<WorkspaceStorageKey, unknown>> = {};
     const db = await openDb();
     const keys = Object.keys(WORKSPACE_STORAGE_KEYS) as WorkspaceStorageKey[];
     for (const k of keys) {

@@ -37,6 +37,7 @@ import {
   formatInTextCitation,
   triggerFileDownload,
 } from '../utils/citationExporter';
+import { LAYOUT_STORAGE_KEYS } from '../utils/layoutPreferences';
 import { calculatePrisma2020Counts, getScreeningReasonLabels } from '../utils/prismaFlow';
 import { PrismaFlowDiagram } from './PrismaFlowDiagram';
 import { parseAbstractMetadata } from '../utils/abstractParser';
@@ -169,7 +170,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
     Record<'sort' | 'slots' | 'defaultTarget' | 'newGroup' | 'backup', boolean>
   >(() => {
     try {
-      const saved = localStorage.getItem('cartograph_saved_sidebar_drawers_v1');
+      const saved = localStorage.getItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) {
@@ -200,7 +201,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
     setSidebarDrawers((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       try {
-        localStorage.setItem('cartograph_saved_sidebar_drawers_v1', JSON.stringify(next));
+        localStorage.setItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers, JSON.stringify(next));
       } catch {
         // ignore
       }
@@ -221,7 +222,7 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
     };
     setSidebarDrawers(next);
     try {
-      localStorage.setItem('cartograph_saved_sidebar_drawers_v1', JSON.stringify(next));
+      localStorage.setItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers, JSON.stringify(next));
     } catch {
       // ignore
     }
