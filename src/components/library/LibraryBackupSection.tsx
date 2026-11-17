@@ -62,7 +62,7 @@ export function LibraryBackupSection({
     if (!batchDoiText.trim() || isResolvingBatchDoi) return;
     setIsResolvingBatchDoi(true);
     try {
-      const { papers, unresolved } = await resolveIdentifierBatch(batchDoiText);
+      const { papers, unresolved } = await resolveIdentifierBatch(batchDoiText, undefined, language);
       const targetGroup = resolveImportTargetGroup(selectedSlotView, activeSaveGroupId);
       const toImport: SavedPaperItem[] = papers.map((p) => ({
         ...p,

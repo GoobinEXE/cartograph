@@ -1,12 +1,14 @@
+import type { LocalizedText } from '../../i18n/localized';
 import { UNGROUPED_SLOT } from '../../state/workspace';
 
-export const GROUP_COLORS = [
-  { hex: '#01ABE8', label: 'Ciano', labelEn: 'Cyan' },
-  { hex: '#AEB932', label: 'Oliva', labelEn: 'Olive' },
-  { hex: '#E97635', label: 'Âmbar', labelEn: 'Amber' },
-  { hex: '#DA0082', label: 'Magenta', labelEn: 'Magenta' },
-  { hex: '#6366F1', label: 'Índigo', labelEn: 'Indigo' },
-  { hex: '#10B981', label: 'Esmeralda', labelEn: 'Emerald' },
+/** Group swatches: the hex is stored on the group (data, not theme), the name is localized. */
+export const GROUP_COLORS: ReadonlyArray<{ hex: string; label: LocalizedText }> = [
+  { hex: '#01ABE8', label: { pt: 'Ciano', en: 'Cyan', es: 'Cian', fr: 'Cyan' } },
+  { hex: '#AEB932', label: { pt: 'Oliva', en: 'Olive', es: 'Oliva', fr: 'Olive' } },
+  { hex: '#E97635', label: { pt: 'Âmbar', en: 'Amber', es: 'Ámbar', fr: 'Ambre' } },
+  { hex: '#DA0082', label: { pt: 'Magenta', en: 'Magenta', es: 'Magenta', fr: 'Magenta' } },
+  { hex: '#6366F1', label: { pt: 'Índigo', en: 'Indigo', es: 'Índigo', fr: 'Indigo' } },
+  { hex: '#10B981', label: { pt: 'Esmeralda', en: 'Emerald', es: 'Esmeralda', fr: 'Émeraude' } },
 ];
 
 /** Library view selected in the sidebar: everything, papers without group, or one group ID. */

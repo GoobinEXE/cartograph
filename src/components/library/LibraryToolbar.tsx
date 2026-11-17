@@ -1,3 +1,4 @@
+import { proseLanguage } from '../../i18n/localized';
 import { useState } from 'react';
 import {
   BarChart3,
@@ -53,7 +54,8 @@ export function LibraryToolbar({
   onOpenBlindScreening,
 }: LibraryToolbarProps) {
   const { language, t } = useI18n();
-  const isEn = language === 'en';
+  // File-name slugs follow the prose language (pt or en), like the export contents.
+  const isEn = proseLanguage(language) === 'en';
   const actions = useWorkspaceActions();
   const [bulkCopied, setBulkCopied] = useState<string | null>(null);
   const [showCustomColsManager, setShowCustomColsManager] = useState(false);

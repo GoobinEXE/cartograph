@@ -1,3 +1,4 @@
+import { localize } from '../../i18n/localized';
 import { useState, type FormEvent } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { useI18n } from '../../i18n/context';
@@ -19,7 +20,6 @@ interface NewGroupSectionProps {
 /** Research-group creation form (name and colour). The new group also becomes the save target. */
 export function NewGroupSection({ isOpen, onToggle, onCreated }: NewGroupSectionProps) {
   const { language, t } = useI18n();
-  const isEn = language === 'en';
   const actions = useWorkspaceActions();
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupColor, setNewGroupColor] = useState(GROUP_COLORS[0].hex);
@@ -71,7 +71,7 @@ export function NewGroupSection({ isOpen, onToggle, onCreated }: NewGroupSection
                     : 'opacity-70 hover:opacity-100'
                 }`}
                 style={{ backgroundColor: c.hex }}
-                title={`${t('colorPrefix')} ${isEn ? c.labelEn : c.label}`}
+                title={`${t('colorPrefix')} ${localize(c.label, language)}`}
               />
             ))}
           </div>

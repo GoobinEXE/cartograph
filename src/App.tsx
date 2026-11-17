@@ -39,7 +39,7 @@ import { CollapsibleSection, SidebarDrawersHeader } from './components/ui/Collap
 import { usePersistedDrawers } from './components/ui/usePersistedDrawers';
 import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
-import { useI18n } from './i18n/context';
+import { isSupportedLanguage, useI18n } from './i18n/context';
 import {
   buildCanonicalPath,
   parsePathnameToRoute,
@@ -324,7 +324,7 @@ export default function AcademicCommandCenter() {
     try {
       const params = new URLSearchParams(window.location.search);
       const langParam = params.get('lang')?.toLowerCase();
-      if (langParam === 'pt' || langParam === 'en') {
+      if (isSupportedLanguage(langParam)) {
         setLanguage(langParam);
       }
     } catch {
@@ -772,7 +772,11 @@ export default function AcademicCommandCenter() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLanguage(language === 'pt' ? 'en' : 'pt')}
+                    onClick={() => {
+                      // Cycles through every registered UI language (pt → en → es → fr → pt).
+                      const codes = availableLanguages.map((opt) => opt.code);
+                      setLanguage(codes[(codes.indexOf(language) + 1) % codes.length]);
+                    }}
                     className="px-2.5 py-1.5 rounded-full text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] uppercase cursor-pointer"
                     aria-label={t('languageMenuLabel')}
                     title={t('languageMenuLabel')}
