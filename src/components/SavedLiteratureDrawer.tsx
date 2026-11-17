@@ -47,12 +47,13 @@ import {
 import { parseImportedReferences } from '../utils/bibImporter';
 import { useI18n } from '../i18n/context';
 import { useWorkspace, type BackupRestoreMode, type BackupRestoreResult } from '../state/workspace';
+import { CollapsibleSection, SidebarDrawersHeader } from './ui/CollapsibleSection';
+import { usePersistedDrawers } from './ui/usePersistedDrawers';
 import {
   AlertTriangle,
   BarChart3,
   Check,
   CheckCircle2,
-  ChevronDown,
   Copy,
   Download,
   Edit3,
@@ -93,6 +94,10 @@ const GROUP_COLORS = [
 ];
 
 export type LibrarySlotView = 'all' | 'ungrouped' | string;
+
+/** Header and title layout of the card-style drawers (default target, new group, backup). */
+const SAVED_CARD_DRAWER_HEADER_CLASS = 'w-full flex items-center justify-between gap-2 cursor-pointer select-none text-left';
+const SAVED_CARD_DRAWER_TITLE_CLASS = 'flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)] min-w-0';
 
 /** Library data and mutations come from the workspace store; App passes search-session context. */
 interface SavedLiteratureDrawerProps {
@@ -139,67 +144,19 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
   const isEn = language === 'en';
   const [selectedSlotView, setSelectedSlotView] = useState<LibrarySlotView>('all');
   const [savedSortBy, setSavedSortBy] = useState<'recent' | 'year' | 'citations' | 'title'>('recent');
-  const [sidebarDrawers, setSidebarDrawers] = useState<
-    Record<'sort' | 'slots' | 'defaultTarget' | 'newGroup' | 'backup', boolean>
-  >(() => {
-    try {
-      const saved = localStorage.getItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return {
-            sort: parsed.sort !== false,
-            slots: parsed.slots !== false,
-            defaultTarget: parsed.defaultTarget !== false,
-            newGroup: parsed.newGroup === true,
-            backup: parsed.backup === true,
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return {
-      sort: true,
-      slots: true,
-      defaultTarget: true,
-      newGroup: groups.length === 0,
-      backup: false,
-    };
+  const {
+    drawers: sidebarDrawers,
+    allDrawersOpen,
+    toggleDrawer: toggleSidebarDrawer,
+    toggleAllDrawers: toggleAllSidebarDrawers,
+  } = usePersistedDrawers(LAYOUT_STORAGE_KEYS.savedSidebarDrawers, {
+    sort: true,
+    slots: true,
+    defaultTarget: true,
+    // First run only: offer group creation to a library without groups.
+    newGroup: groups.length === 0,
+    backup: false,
   });
-
-  const toggleSidebarDrawer = (
-    key: 'sort' | 'slots' | 'defaultTarget' | 'newGroup' | 'backup'
-  ) => {
-    setSidebarDrawers((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
-  const allDrawersOpen = Object.values(sidebarDrawers).every(Boolean);
-
-  const toggleAllSidebarDrawers = () => {
-    const targetState = !allDrawersOpen;
-    const next = {
-      sort: targetState,
-      slots: targetState,
-      defaultTarget: targetState,
-      newGroup: targetState,
-      backup: targetState,
-    };
-    setSidebarDrawers(next);
-    try {
-      localStorage.setItem(LAYOUT_STORAGE_KEYS.savedSidebarDrawers, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  };
   const [subTab, setSubTab] = useState<'matrix' | 'prisma' | 'bibliometrics'>('matrix');
   const [filterScreening, setFilterScreening] = useState<'all' | ScreeningStatus>('all');
   const [bulkCopied, setBulkCopied] = useState<string | null>(null);
@@ -580,38 +537,17 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
         className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
         aria-label={t('savedSidebarAria')}
       >
-        {/* Header com Ação Rápida de Expandir / Recolher Todas */}
-        <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
-          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <span>{t('filtersNavTitle')}</span>
-          </div>
-          <button
-            type="button"
-            onClick={toggleAllSidebarDrawers}
-            className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] rounded"
-            title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
-          >
-            {allDrawersOpen ? t('collapseAll') : t('expandAll')}
-          </button>
-        </div>
+        <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
         {/* 1. Sort Controls (Primary ordering control — top priority) */}
-        <div className="border-b border-[var(--divider)] pb-3">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('sort')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('sort');
-              }
-            }}
-            aria-expanded={sidebarDrawers.sort}
-            className="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 truncate">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.sort}
+          onToggle={() => toggleSidebarDrawer('sort')}
+          className="border-b border-[var(--divider)] pb-3"
+          headerClassName="w-full flex items-center justify-between py-1.5 px-2 mb-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left"
+          contentClassName="space-y-0.5 text-[13.5px]"
+          title={
+            <>
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                 {t('sortByLabel')}
               </span>
@@ -624,483 +560,415 @@ export const SavedLiteratureDrawer: React.FC<SavedLiteratureDrawerProps> = ({
                     : t('savedSortShortTitle')}
                 </span>
               )}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {savedSortBy !== 'recent' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSavedSortBy('recent');
-                  }}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                >
-                  {t('clearFilter')}
-                </button>
-              )}
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                  sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </div>
-          </div>
-
-          {sidebarDrawers.sort && (
-            <div className="space-y-0.5 text-[13.5px]">
-              {(['recent', 'year', 'citations', 'title'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSavedSortBy(mode)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    savedSortBy === mode
-                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {mode === 'recent' && t('savedSortRecent')}
-                  {mode === 'year' && t('savedSortYear')}
-                  {mode === 'citations' && t('savedSortCitations')}
-                  {mode === 'title' && t('savedSortTitle')}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            </>
+          }
+          actions={
+            savedSortBy !== 'recent' && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSavedSortBy('recent');
+                }}
+                className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+              >
+                {t('clearFilter')}
+              </button>
+            )
+          }
+        >
+          {(['recent', 'year', 'citations', 'title'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSavedSortBy(mode)}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                savedSortBy === mode
+                  ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {mode === 'recent' && t('savedSortRecent')}
+              {mode === 'year' && t('savedSortYear')}
+              {mode === 'citations' && t('savedSortCitations')}
+              {mode === 'title' && t('savedSortTitle')}
+            </button>
+          ))}
+        </CollapsibleSection>
 
         {/* 2. Lista de Visões e Slots da Biblioteca (Primary navigation) */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-3 space-y-1">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('slots')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('slots');
-              }
-            }}
-            aria-expanded={sidebarDrawers.slots}
-            className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-subtle)] group select-none text-left"
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.slots}
+          onToggle={() => toggleSidebarDrawer('slots')}
+          className="bg-[var(--bg-secondary)] rounded-2xl p-3 space-y-1"
+          headerClassName="w-full flex items-center justify-between px-2.5 py-1 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-subtle)] select-none text-left"
+          titleClassName="flex items-center gap-1.5 min-w-0"
+          contentClassName="space-y-1 pt-1"
+          title={
+            <>
               <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
                 {t('librarySlotsTitle')}
               </span>
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0 tabular-nums">
                 {items.length}
               </span>
+            </>
+          }
+        >
+          {/* Visão 1: Todos os Artigos */}
+          <button
+            type="button"
+            onClick={() => setSelectedSlotView('all')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
+              selectedSlotView === 'all'
+                ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Layers className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t('allPapersSlot')}</span>
             </div>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                sidebarDrawers.slots ? 'rotate-0' : '-rotate-90'
-              }`}
-            />
-          </div>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0">
+              {items.length}
+            </span>
+          </button>
 
-          {sidebarDrawers.slots && (
-            <div className="space-y-1 pt-1">
-              {/* Visão 1: Todos os Artigos */}
-              <button
-                type="button"
-                onClick={() => setSelectedSlotView('all')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
-                  selectedSlotView === 'all'
-                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Layers className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{t('allPapersSlot')}</span>
-                </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0">
-                  {items.length}
+          {/* Visão 2: Sem Grupo (Geral) */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSlotView('ungrouped');
+              onSelectActiveSaveGroup(null);
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
+              selectedSlotView === 'ungrouped'
+                ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Inbox className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t('ungroupedOption')}</span>
+              {activeSaveGroupId === null && (
+                <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)]">
+                  {t('activeBadge')}
                 </span>
-              </button>
-
-              {/* Visão 2: Sem Grupo (Geral) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedSlotView('ungrouped');
-                  onSelectActiveSaveGroup(null);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
-                  selectedSlotView === 'ungrouped'
-                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Inbox className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{t('ungroupedOption')}</span>
-                  {activeSaveGroupId === null && (
-                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)]">
-                      {t('activeBadge')}
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0">
-                  {ungroupedCount}
-                </span>
-              </button>
-
-              {/* Divisória para Grupos Criados pelo Usuário */}
-              <div className="pt-2 pb-1 px-2.5 flex items-center justify-between text-[13px] font-semibold text-[var(--text-muted)] border-t border-[var(--divider)]">
-                <span>{t('researchGroupsCount', { count: groups.length })}</span>
-              </div>
-
-              {groups.length === 0 ? (
-                <div className="px-3 py-3 text-center text-[13px] text-[var(--text-muted)] leading-relaxed">
-                  {t('noGroupsHint')}
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {groups.map((group) => {
-                    const isSelected = selectedSlotView === group.id;
-                    const isTargetSlot = activeSaveGroupId === group.id;
-                    const count = countsByGroup[group.id] || 0;
-                    const isEditing = editingGroupId === group.id;
-
-                    return (
-                      <div
-                        key={group.id}
-                        className={`group rounded-xl transition-colors ${
-                          isSelected
-                            ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
-                            : 'hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        {isEditing ? (
-                          <div className="p-2 flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={editingGroupName}
-                              onChange={(e) => setEditingGroupName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleConfirmRename(group.id);
-                                if (e.key === 'Escape') setEditingGroupId(null);
-                              }}
-                              className="w-full px-2.5 py-1 rounded bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] focus:outline-none"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleConfirmRename(group.id)}
-                              className="p-1 text-[var(--meta-green)] hover:opacity-80 cursor-pointer"
-                              title={t('saveNameTitle')}
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingGroupId(null)}
-                              className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                              title={t('cancelBtn')}
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between px-3 py-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedSlotView(group.id);
-                                onSelectActiveSaveGroup(group.id);
-                              }}
-                              className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer"
-                            >
-                              <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: group.color }}
-                              />
-                              {isSelected ? (
-                                <FolderOpen className="w-4 h-4 shrink-0" />
-                              ) : (
-                                <Folder className="w-4 h-4 shrink-0 opacity-75" />
-                              )}
-                              <span className="text-[13px] font-medium truncate">{group.name}</span>
-                              {isTargetSlot && (
-                                <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)] shrink-0">
-                                  {t('activeBadge')}
-                                </span>
-                              )}
-                            </button>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleStartRename(group)}
-                                className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity cursor-pointer"
-                                title={t('renameGroupTitle')}
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (selectedSlotView === group.id) {
-                                    setSelectedSlotView('all');
-                                  }
-                                  onDeleteGroup(group.id);
-                                }}
-                                className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-rose-500 transition-opacity cursor-pointer"
-                                title={t('deleteGroupTitle')}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)]">
-                                {count}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </div>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)] shrink-0">
+              {ungroupedCount}
+            </span>
+          </button>
+
+          {/* Divisória para Grupos Criados pelo Usuário */}
+          <div className="pt-2 pb-1 px-2.5 flex items-center justify-between text-[13px] font-semibold text-[var(--text-muted)] border-t border-[var(--divider)]">
+            <span>{t('researchGroupsCount', { count: groups.length })}</span>
+          </div>
+
+          {groups.length === 0 ? (
+            <div className="px-3 py-3 text-center text-[13px] text-[var(--text-muted)] leading-relaxed">
+              {t('noGroupsHint')}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {groups.map((group) => {
+                const isSelected = selectedSlotView === group.id;
+                const isTargetSlot = activeSaveGroupId === group.id;
+                const count = countsByGroup[group.id] || 0;
+                const isEditing = editingGroupId === group.id;
+
+                return (
+                  <div
+                    key={group.id}
+                    className={`group rounded-xl transition-colors ${
+                      isSelected
+                        ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                        : 'hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    {isEditing ? (
+                      <div className="p-2 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={editingGroupName}
+                          onChange={(e) => setEditingGroupName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmRename(group.id);
+                            if (e.key === 'Escape') setEditingGroupId(null);
+                          }}
+                          className="w-full px-2.5 py-1 rounded bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmRename(group.id)}
+                          className="p-1 text-[var(--meta-green)] hover:opacity-80 cursor-pointer"
+                          title={t('saveNameTitle')}
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingGroupId(null)}
+                          className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                          title={t('cancelBtn')}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between px-3 py-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSlotView(group.id);
+                            onSelectActiveSaveGroup(group.id);
+                          }}
+                          className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: group.color }}
+                          />
+                          {isSelected ? (
+                            <FolderOpen className="w-4 h-4 shrink-0" />
+                          ) : (
+                            <Folder className="w-4 h-4 shrink-0 opacity-75" />
+                          )}
+                          <span className="text-[13px] font-medium truncate">{group.name}</span>
+                          {isTargetSlot && (
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--bg-canvas)] text-[var(--meta-green)] shrink-0">
+                              {t('activeBadge')}
+                            </span>
+                          )}
+                        </button>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleStartRename(group)}
+                            className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity cursor-pointer"
+                            title={t('renameGroupTitle')}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedSlotView === group.id) {
+                                setSelectedSlotView('all');
+                              }
+                              onDeleteGroup(group.id);
+                            }}
+                            className="p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-rose-500 transition-opacity cursor-pointer"
+                            title={t('deleteGroupTitle')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-canvas)] text-[var(--text-secondary)]">
+                            {count}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* 3. Seletor do Slot Ativo para Novos Salvamentos */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-2.5">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('defaultTarget')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('defaultTarget');
-              }
-            }}
-            aria-expanded={sidebarDrawers.defaultTarget}
-            className="w-full flex items-center justify-between gap-2 cursor-pointer group select-none text-left"
-          >
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)] min-w-0">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.defaultTarget}
+          onToggle={() => toggleSidebarDrawer('defaultTarget')}
+          className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-2.5"
+          headerClassName={SAVED_CARD_DRAWER_HEADER_CLASS}
+          titleClassName={SAVED_CARD_DRAWER_TITLE_CLASS}
+          contentClassName="space-y-2"
+          title={
+            <>
               <Pin className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <span className="truncate">{t('defaultSaveTargetTitle')}</span>
-            </div>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                sidebarDrawers.defaultTarget ? 'rotate-0' : '-rotate-90'
-              }`}
-            />
-          </div>
-
-          {sidebarDrawers.defaultTarget && (
-            <div className="space-y-2">
-              <select
-                value={activeSaveGroupId ?? ''}
-                onChange={(e) => onSelectActiveSaveGroup(e.target.value ? e.target.value : null)}
-                className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
-              >
-                <option value="">{t('ungroupedOption')}</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {t('slotPrefix')} {g.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-[var(--text-muted)] leading-snug">
-                {t('defaultSaveTargetDescPrefix')}{' '}
-                <em>{t('tabFederated', { count: 0 }).replace(/\s*\(\d+\)\s*$/, '')}</em>{' '}
-                {t('defaultSaveTargetDescSuffix')}
-              </p>
-            </div>
-          )}
-        </div>
+            </>
+          }
+        >
+          <select
+            value={activeSaveGroupId ?? ''}
+            onChange={(e) => onSelectActiveSaveGroup(e.target.value ? e.target.value : null)}
+            className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+          >
+            <option value="">{t('ungroupedOption')}</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {t('slotPrefix')} {g.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-[var(--text-muted)] leading-snug">
+            {t('defaultSaveTargetDescPrefix')}{' '}
+            <em>{t('tabFederated', { count: 0 }).replace(/\s*\(\d+\)\s*$/, '')}</em>{' '}
+            {t('defaultSaveTargetDescSuffix')}
+          </p>
+        </CollapsibleSection>
 
         {/* 4. Criar Novo Slot / Grupo de Pesquisa (Secondary creation action) */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('newGroup')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('newGroup');
-              }
-            }}
-            aria-expanded={sidebarDrawers.newGroup}
-            className="w-full flex items-center justify-between gap-2 cursor-pointer group select-none text-left"
-          >
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)] min-w-0">
+        <CollapsibleSection
+          isOpen={sidebarDrawers.newGroup}
+          onToggle={() => toggleSidebarDrawer('newGroup')}
+          className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3"
+          headerClassName={SAVED_CARD_DRAWER_HEADER_CLASS}
+          titleClassName={SAVED_CARD_DRAWER_TITLE_CLASS}
+          title={
+            <>
               <FolderPlus className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <span className="truncate">{t('newResearchGroupTitle')}</span>
-            </div>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                sidebarDrawers.newGroup ? 'rotate-0' : '-rotate-90'
-              }`}
+            </>
+          }
+        >
+          <form onSubmit={handleCreateNewGroup} className="space-y-2.5">
+            <input
+              type="text"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder={t('slotPlaceholder')}
+              className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
-          </div>
 
-          {sidebarDrawers.newGroup && (
-            <form onSubmit={handleCreateNewGroup} className="space-y-2.5">
-              <input
-                type="text"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                placeholder={t('slotPlaceholder')}
-                className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
-              />
-
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5" aria-label={t('groupColorAria')}>
-                  {GROUP_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setNewGroupColor(c.hex)}
-                      className={`w-4 h-4 rounded-full transition-transform cursor-pointer ${
-                        newGroupColor === c.hex
-                          ? 'scale-125 ring-2 ring-[var(--text-primary)] ring-offset-1 ring-offset-[var(--bg-secondary)]'
-                          : 'opacity-70 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={`${t('colorPrefix')} ${isEn ? c.labelEn : c.label}`}
-                    />
-                  ))}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!newGroupName.trim()}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[13px] font-semibold transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {t('createSlotPlusBtn')}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-
-        {/* 5. Backup & Importação (.bib / .ris / .json — Utility maintenance) */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggleSidebarDrawer('backup')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleSidebarDrawer('backup');
-              }
-            }}
-            aria-expanded={sidebarDrawers.backup}
-            className="w-full flex items-center justify-between gap-2 cursor-pointer group select-none text-left"
-          >
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)] min-w-0">
-              <HardDriveDownload className="w-4 h-4 text-[var(--meta-green)] shrink-0" />
-              <span className="truncate">{t('localBackupTitle')}</span>
-            </div>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                sidebarDrawers.backup ? 'rotate-0' : '-rotate-90'
-              }`}
-            />
-          </div>
-
-          {sidebarDrawers.backup && (
-            <div className="space-y-3">
-              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                {t('localBackupDesc')}
-              </p>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".bib,.ris,.json"
-                onChange={handleFileImport}
-                className="hidden"
-              />
-
-              <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                <label htmlFor="restore-mode-select" className="shrink-0">
-                  {t('restoreModeLabel')}
-                </label>
-                <select
-                  id="restore-mode-select"
-                  value={restoreMode}
-                  onChange={(e) => setRestoreMode(e.target.value as 'merge' | 'replace')}
-                  className="flex-1 px-2 py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] cursor-pointer"
-                >
-                  <option value="merge">{t('restoreModeMerge')}</option>
-                  <option value="replace">{t('restoreModeReplace')}</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
-                >
-                  <Upload className="w-3.5 h-3.5 text-[var(--link-academic)]" />
-                  <span>{t('importBtn')}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadBackupJson}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
-                  title={t('backupJsonTitle')}
-                >
-                  <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)]" />
-                  <span>{t('backupJsonBtn')}</span>
-                </button>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5" aria-label={t('groupColorAria')}>
+                {GROUP_COLORS.map((c) => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    onClick={() => setNewGroupColor(c.hex)}
+                    className={`w-4 h-4 rounded-full transition-transform cursor-pointer ${
+                      newGroupColor === c.hex
+                        ? 'scale-125 ring-2 ring-[var(--text-primary)] ring-offset-1 ring-offset-[var(--bg-secondary)]'
+                        : 'opacity-70 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={`${t('colorPrefix')} ${isEn ? c.labelEn : c.label}`}
+                  />
+                ))}
               </div>
 
               <button
-                type="button"
-                onClick={() => setShowBatchDoiPanel((prev) => !prev)}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--link-academic)] transition-colors cursor-pointer"
+                type="submit"
+                disabled={!newGroupName.trim()}
+                className="px-3 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[13px] font-semibold transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <FileSearch className="w-3.5 h-3.5" />
-                <span>{t('batchDoiBtn')}</span>
+                {t('createSlotPlusBtn')}
               </button>
+            </div>
+          </form>
+        </CollapsibleSection>
 
-              {showBatchDoiPanel && (
-                <div className="space-y-2 p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)]">
-                  <div className="text-xs font-semibold text-[var(--text-primary)]">
-                    {t('batchDoiTitle')}
-                  </div>
-                  <textarea
-                    rows={3}
-                    value={batchDoiText}
-                    onChange={(e) => setBatchDoiText(e.target.value)}
-                    placeholder={t('batchDoiPlaceholder')}
-                    className="w-full px-2.5 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
-                  />
-                  <button
-                    type="button"
-                    disabled={!batchDoiText.trim() || isResolvingBatchDoi}
-                    onClick={handleResolveBatchDoi}
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] cursor-pointer disabled:opacity-45"
-                  >
-                    {isResolvingBatchDoi && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>
-                      {isResolvingBatchDoi ? t('batchDoiResolving') : t('batchDoiResolveAction')}
-                    </span>
-                  </button>
-                </div>
-              )}
+        {/* 5. Backup & Importação (.bib / .ris / .json — Utility maintenance) */}
+        <CollapsibleSection
+          isOpen={sidebarDrawers.backup}
+          onToggle={() => toggleSidebarDrawer('backup')}
+          className="bg-[var(--bg-secondary)] rounded-2xl p-4 space-y-3"
+          headerClassName={SAVED_CARD_DRAWER_HEADER_CLASS}
+          titleClassName={SAVED_CARD_DRAWER_TITLE_CLASS}
+          contentClassName="space-y-3"
+          title={
+            <>
+              <HardDriveDownload className="w-4 h-4 text-[var(--meta-green)] shrink-0" />
+              <span className="truncate">{t('localBackupTitle')}</span>
+            </>
+          }
+        >
+          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+            {t('localBackupDesc')}
+          </p>
 
-              {importFeedback && (
-                <div className="text-xs px-2.5 py-2 rounded-lg bg-[var(--accent-blue-tint)] text-[var(--link-academic)] leading-snug">
-                  {importFeedback}
-                </div>
-              )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".bib,.ris,.json"
+            onChange={handleFileImport}
+            className="hidden"
+          />
+
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <label htmlFor="restore-mode-select" className="shrink-0">
+              {t('restoreModeLabel')}
+            </label>
+            <select
+              id="restore-mode-select"
+              value={restoreMode}
+              onChange={(e) => setRestoreMode(e.target.value as 'merge' | 'replace')}
+              className="flex-1 px-2 py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] cursor-pointer"
+            >
+              <option value="merge">{t('restoreModeMerge')}</option>
+              <option value="replace">{t('restoreModeReplace')}</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-[var(--link-academic)]" />
+              <span>{t('importBtn')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadBackupJson}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+              title={t('backupJsonTitle')}
+            >
+              <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)]" />
+              <span>{t('backupJsonBtn')}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowBatchDoiPanel((prev) => !prev)}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--link-academic)] transition-colors cursor-pointer"
+          >
+            <FileSearch className="w-3.5 h-3.5" />
+            <span>{t('batchDoiBtn')}</span>
+          </button>
+
+          {showBatchDoiPanel && (
+            <div className="space-y-2 p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)]">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">
+                {t('batchDoiTitle')}
+              </div>
+              <textarea
+                rows={3}
+                value={batchDoiText}
+                onChange={(e) => setBatchDoiText(e.target.value)}
+                placeholder={t('batchDoiPlaceholder')}
+                className="w-full px-2.5 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
+              />
+              <button
+                type="button"
+                disabled={!batchDoiText.trim() || isResolvingBatchDoi}
+                onClick={handleResolveBatchDoi}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] cursor-pointer disabled:opacity-45"
+              >
+                {isResolvingBatchDoi && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {isResolvingBatchDoi ? t('batchDoiResolving') : t('batchDoiResolveAction')}
+                </span>
+              </button>
             </div>
           )}
-        </div>
+
+          {importFeedback && (
+            <div className="text-xs px-2.5 py-2 rounded-lg bg-[var(--accent-blue-tint)] text-[var(--link-academic)] leading-snug">
+              {importFeedback}
+            </div>
+          )}
+        </CollapsibleSection>
       </aside>
 
       {/* COLUNA DIREITA: MATRIZ DE FICHAMENTO & FLUXO PRISMA DO SLOT SELECIONADO */}

@@ -35,6 +35,8 @@ import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
 import { UnifiedAreaFilterDrawer } from './components/UnifiedAreaFilterDrawer';
 import { UserWorkspaceSection } from './components/UserWorkspaceSection';
+import { CollapsibleSection, SidebarDrawersHeader } from './components/ui/CollapsibleSection';
+import { usePersistedDrawers } from './components/ui/usePersistedDrawers';
 import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
 import { useI18n } from './i18n/context';
@@ -99,6 +101,17 @@ const STORAGE_KEY_SELECTED_AREA = 'cartograph_selected_area_v1';
 const STORAGE_KEY_DEDUP_ENABLED = 'cartograph_dedup_enabled_v1';
 
 type SidebarSectionKey = 'sort' | 'presets' | 'categories' | 'access' | 'areas';
+
+const PLATFORM_SIDEBAR_DRAWER_DEFAULTS: Record<SidebarSectionKey, boolean> = {
+  sort: true,
+  presets: true,
+  categories: true,
+  access: true,
+  areas: true,
+};
+
+const PLATFORM_DRAWER_HEADER_CLASS =
+  'w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left';
 type PlatformSortMode = 'curated' | 'trust' | 'name' | 'access';
 
 export default function AcademicCommandCenter() {
@@ -207,63 +220,12 @@ export default function AcademicCommandCenter() {
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const [platformSortBy, setPlatformSortBy] = useState<PlatformSortMode>('curated');
-  const [sidebarDrawers, setSidebarDrawers] = useState<Record<SidebarSectionKey, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_DRAWERS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return {
-            sort: parsed.sort !== false,
-            presets: parsed.presets !== false,
-            categories: parsed.categories !== false,
-            access: parsed.access !== false,
-            areas: parsed.areas !== false,
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return {
-      sort: true,
-      presets: true,
-      categories: true,
-      access: true,
-      areas: true,
-    };
-  });
-
-  const toggleSidebarDrawer = (key: SidebarSectionKey) => {
-    setSidebarDrawers((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem(STORAGE_KEY_SIDEBAR_DRAWERS, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
-  const allDrawersOpen = Object.values(sidebarDrawers).every(Boolean);
-
-  const toggleAllSidebarDrawers = () => {
-    const targetState = !allDrawersOpen;
-    const next = {
-      sort: targetState,
-      presets: targetState,
-      categories: targetState,
-      access: targetState,
-      areas: targetState,
-    };
-    setSidebarDrawers(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_SIDEBAR_DRAWERS, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  };
+  const {
+    drawers: sidebarDrawers,
+    allDrawersOpen,
+    toggleDrawer: toggleSidebarDrawer,
+    toggleAllDrawers: toggleAllSidebarDrawers,
+  } = usePersistedDrawers(STORAGE_KEY_SIDEBAR_DRAWERS, PLATFORM_SIDEBAR_DRAWER_DEFAULTS);
 
   const localizedPresets = useMemo(() => getLocalizedLaunchPresets(t), [t]);
   const localizedCategoryMeta = useMemo(() => getLocalizedCategoryMeta(t), [t]);
@@ -1118,38 +1080,17 @@ export default function AcademicCommandCenter() {
               className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
               aria-label={t('sidebarAriaLabel')}
             >
-              {/* Header com Ação Rápida de Expandir / Recolher Todas */}
-              <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
-                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                  <span>{t('filtersNavTitle')}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleAllSidebarDrawers}
-                  className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium"
-                  title={allDrawersOpen ? t('collapseAllTitle') : t('expandAllTitle')}
-                >
-                  {allDrawersOpen ? t('collapseAll') : t('expandAll')}
-                </button>
-              </div>
+              <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
               {/* Gaveta 1: Sort Controls (Primary ordering control — top priority) */}
-              <div className="border-b border-[var(--divider)] pb-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('sort')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('sort');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.sort}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
+              <CollapsibleSection
+                isOpen={sidebarDrawers.sort}
+                onToggle={() => toggleSidebarDrawer('sort')}
+                className="border-b border-[var(--divider)] pb-3"
+                headerClassName={PLATFORM_DRAWER_HEADER_CLASS}
+                contentClassName="space-y-0.5 text-[13.5px] pt-1.5"
+                title={
+                  <>
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       {t('sortByLabel')}
                     </span>
@@ -1162,67 +1103,52 @@ export default function AcademicCommandCenter() {
                           : t('platformSortShortAccess')}
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {platformSortBy !== 'curated' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPlatformSortBy('curated');
-                        }}
-                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                      >
-                        {t('clearFilter')}
-                      </button>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                        sidebarDrawers.sort ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {sidebarDrawers.sort && (
-                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
-                    {(['curated', 'trust', 'name', 'access'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setPlatformSortBy(mode)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                          platformSortBy === mode
-                            ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                        }`}
-                      >
-                        {mode === 'curated' && t('platformSortCurated')}
-                        {mode === 'trust' && t('platformSortTrust')}
-                        {mode === 'name' && t('platformSortName')}
-                        {mode === 'access' && t('platformSortAccess')}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  </>
+                }
+                actions={
+                  platformSortBy !== 'curated' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPlatformSortBy('curated');
+                      }}
+                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                    >
+                      {t('clearFilter')}
+                    </button>
+                  )
+                }
+              >
+                {(['curated', 'trust', 'name', 'access'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPlatformSortBy(mode)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      platformSortBy === mode
+                        ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {mode === 'curated' && t('platformSortCurated')}
+                    {mode === 'trust' && t('platformSortTrust')}
+                    {mode === 'name' && t('platformSortName')}
+                    {mode === 'access' && t('platformSortAccess')}
+                  </button>
+                ))}
+              </CollapsibleSection>
 
               {/* Gaveta 2: Cumulative Presets List (Highest-frequency batch selection) */}
-              <div className="border-b border-[var(--divider)] pb-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('presets')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('presets');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.presets}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
+              <CollapsibleSection
+                isOpen={sidebarDrawers.presets}
+                onToggle={() => toggleSidebarDrawer('presets')}
+                className="border-b border-[var(--divider)] pb-3"
+                headerClassName={PLATFORM_DRAWER_HEADER_CLASS}
+                titleClassName="flex items-center gap-2 min-w-0"
+                contentClassName="space-y-1 text-[13.5px] pt-1.5"
+                title={
+                  <>
                     <span className="text-[13px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
                       {t('quickSelectionTitle')}
                     </span>
@@ -1236,98 +1162,82 @@ export default function AcademicCommandCenter() {
                     >
                       {selectedPlatformIds.length}
                     </span>
+                  </>
+                }
+              >
+                {/* Sub-barra de Ações da Gaveta */}
+                <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
+                  <span className="text-xs text-[var(--text-muted)] font-medium">
+                    {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => workspaceActions.setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
+                      className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
+                    >
+                      {t('quickSelectionAllBtn')}
+                    </button>
+                    <span className="text-[var(--divider)] text-xs">·</span>
+                    <button
+                      type="button"
+                      onClick={() => workspaceActions.setSelectedPlatformIds([])}
+                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                    >
+                      {t('clearFilter')}
+                    </button>
                   </div>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 shrink-0 ${
-                      sidebarDrawers.presets ? 'rotate-0' : '-rotate-90'
-                    }`}
-                  />
                 </div>
+                {localizedPresets.map((preset) => {
+                  const matchedCount = preset.platformIds.filter((id) =>
+                    selectedPlatformIds.includes(id)
+                  ).length;
+                  const isFullyActive =
+                    matchedCount === preset.platformIds.length &&
+                    preset.platformIds.length > 0;
+                  const isPartiallyActive = matchedCount > 0 && !isFullyActive;
 
-                {sidebarDrawers.presets && (
-                  <div className="space-y-1 text-[13.5px] pt-1.5">
-                    {/* Sub-barra de Ações da Gaveta */}
-                    <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
-                      <span className="text-xs text-[var(--text-muted)] font-medium">
-                        {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => workspaceActions.setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
-                          className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
-                        >
-                          {t('quickSelectionAllBtn')}
-                        </button>
-                        <span className="text-[var(--divider)] text-xs">·</span>
-                        <button
-                          type="button"
-                          onClick={() => workspaceActions.setSelectedPlatformIds([])}
-                          className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-                        >
-                          {t('clearFilter')}
-                        </button>
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => workspaceActions.togglePreset(preset, localizedPresets)}
+                      title={preset.description}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                        isFullyActive
+                          ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isFullyActive}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isPartiallyActive;
+                          }}
+                          readOnly
+                          className="w-3.5 h-3.5 rounded accent-[var(--link-academic)] pointer-events-none"
+                        />
+                        <span className="truncate">{preset.name}</span>
                       </div>
-                    </div>
-                    {localizedPresets.map((preset) => {
-                      const matchedCount = preset.platformIds.filter((id) =>
-                        selectedPlatformIds.includes(id)
-                      ).length;
-                      const isFullyActive =
-                        matchedCount === preset.platformIds.length &&
-                        preset.platformIds.length > 0;
-                      const isPartiallyActive = matchedCount > 0 && !isFullyActive;
-
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => workspaceActions.togglePreset(preset, localizedPresets)}
-                          title={preset.description}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                            isFullyActive
-                              ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
-                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <input
-                              type="checkbox"
-                              checked={isFullyActive}
-                              ref={(el) => {
-                                if (el) el.indeterminate = isPartiallyActive;
-                              }}
-                              readOnly
-                              className="w-3.5 h-3.5 rounded accent-[var(--link-academic)] pointer-events-none"
-                            />
-                            <span className="truncate">{preset.name}</span>
-                          </div>
-                          <span className="text-xs text-[var(--text-muted)] shrink-0">
-                            {matchedCount}/{preset.platformIds.length}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      <span className="text-xs text-[var(--text-muted)] shrink-0">
+                        {matchedCount}/{preset.platformIds.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </CollapsibleSection>
 
               {/* Gaveta 3: Functional Categories (Primary structural filter) */}
-              <div className="border-b border-[var(--divider)] pb-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('categories')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('categories');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.categories}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
+              <CollapsibleSection
+                isOpen={sidebarDrawers.categories}
+                onToggle={() => toggleSidebarDrawer('categories')}
+                className="border-b border-[var(--divider)] pb-3"
+                headerClassName={PLATFORM_DRAWER_HEADER_CLASS}
+                contentClassName="space-y-0.5 text-[13.5px] pt-1.5"
+                title={
+                  <>
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       {t('platformTypeTitle')}
                     </span>
@@ -1336,82 +1246,66 @@ export default function AcademicCommandCenter() {
                         {localizedCategoryMeta[activeCategory]?.label.split('&')[0].trim() || activeCategory}
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {activeCategory !== 'all' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveCategory('all');
-                        }}
-                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                      >
-                        {t('clearFilter')}
-                      </button>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                        sidebarDrawers.categories ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {sidebarDrawers.categories && (
-                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
+                  </>
+                }
+                actions={
+                  activeCategory !== 'all' && (
                     <button
                       type="button"
-                      onClick={() => setActiveCategory('all')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveCategory('all');
+                      }}
+                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                    >
+                      {t('clearFilter')}
+                    </button>
+                  )
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveCategory('all')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    activeCategory === 'all'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('platformTypeAll')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                </button>
+
+                {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
+                  const meta = localizedCategoryMeta[catKey];
+                  const count = PLATFORMS.filter((p) => p.category === catKey).length;
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => setActiveCategory(catKey)}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        activeCategory === 'all'
+                        activeCategory === catKey
                           ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <span>{t('platformTypeAll')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                      <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
+                      <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
                     </button>
-
-                    {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
-                      const meta = localizedCategoryMeta[catKey];
-                      const count = PLATFORMS.filter((p) => p.category === catKey).length;
-                      return (
-                        <button
-                          key={catKey}
-                          type="button"
-                          onClick={() => setActiveCategory(catKey)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                            activeCategory === catKey
-                              ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
-                          <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                  );
+                })}
+              </CollapsibleSection>
 
               {/* Gaveta 4: Access Model Filter */}
-              <div className="border-b border-[var(--divider)] pb-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSidebarDrawer('access')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSidebarDrawer('access');
-                    }
-                  }}
-                  aria-expanded={sidebarDrawers.access}
-                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] group select-none text-left"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
+              <CollapsibleSection
+                isOpen={sidebarDrawers.access}
+                onToggle={() => toggleSidebarDrawer('access')}
+                className="border-b border-[var(--divider)] pb-3"
+                headerClassName={PLATFORM_DRAWER_HEADER_CLASS}
+                contentClassName="space-y-0.5 text-[13.5px] pt-1.5"
+                title={
+                  <>
                     <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                       {t('accessModelTitle')}
                     </span>
@@ -1426,121 +1320,112 @@ export default function AcademicCommandCenter() {
                           : t('accessShortFreemium')}
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {(accessFilter !== 'all' || ownedOnlyFilter) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAccessFilter('all');
-                          setOwnedOnlyFilter(false);
-                        }}
-                        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
-                      >
-                        {t('clearFilter')}
-                      </button>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 ${
-                        sidebarDrawers.access ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {sidebarDrawers.access && (
-                  <div className="space-y-0.5 text-[13.5px] pt-1.5">
+                  </>
+                }
+                actions={
+                  (accessFilter !== 'all' || ownedOnlyFilter) && (
                     <button
                       type="button"
-                      onClick={() => setAccessFilter('all')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        accessFilter === 'all'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAccessFilter('all');
+                        setOwnedOnlyFilter(false);
+                      }}
+                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                     >
-                      <span>{t('accessModelAll')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                      {t('clearFilter')}
                     </button>
+                  )
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => setAccessFilter('all')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    accessFilter === 'all'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('accessModelAll')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAccessFilter('gratuito')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        accessFilter === 'gratuito'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span>{t('accessModelFree')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {PLATFORMS.filter((p) => p.accessModel === 'gratuito').length}
-                      </span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setAccessFilter('gratuito')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    accessFilter === 'gratuito'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('accessModelFree')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {PLATFORMS.filter((p) => p.accessModel === 'gratuito').length}
+                  </span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAccessFilter('pago')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        accessFilter === 'pago'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span>{t('accessModelPaid')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {PLATFORMS.filter((p) => p.accessModel === 'pago').length}
-                      </span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setAccessFilter('pago')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    accessFilter === 'pago'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('accessModelPaid')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {PLATFORMS.filter((p) => p.accessModel === 'pago').length}
+                  </span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAccessFilter('aberto-institucional')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        accessFilter === 'aberto-institucional'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span>{t('accessModelInstitutional')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {PLATFORMS.filter((p) => p.accessModel === 'aberto-institucional').length}
-                      </span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setAccessFilter('aberto-institucional')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    accessFilter === 'aberto-institucional'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('accessModelInstitutional')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {PLATFORMS.filter((p) => p.accessModel === 'aberto-institucional').length}
+                  </span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAccessFilter('freemium')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        accessFilter === 'freemium'
-                          ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span>{t('accessModelFreemium')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {PLATFORMS.filter((p) => p.accessModel === 'freemium').length}
-                      </span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setAccessFilter('freemium')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    accessFilter === 'freemium'
+                      ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t('accessModelFreemium')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {PLATFORMS.filter((p) => p.accessModel === 'freemium').length}
+                  </span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setOwnedOnlyFilter((prev) => !prev)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
-                        ownedOnlyFilter
-                          ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-medium'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <span className="truncate">{t('filterOwnedOnly')}</span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {userAccessConfig.ownedPlatformIds.length}
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                <button
+                  type="button"
+                  onClick={() => setOwnedOnlyFilter((prev) => !prev)}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    ownedOnlyFilter
+                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span className="truncate">{t('filterOwnedOnly')}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {userAccessConfig.ownedPlatformIds.length}
+                  </span>
+                </button>
+              </CollapsibleSection>
 
               {/* Gaveta 5: Unified Thematic Field & Metasearch Scope (14-item disciplinary filter) */}
               <UnifiedAreaFilterDrawer
