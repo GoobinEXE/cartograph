@@ -10,11 +10,11 @@ import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { SupportedLanguage, Translations, translate } from '../i18n/translations';
 import { API_SOURCE_REGISTRY, sourceMatchesScope } from '../data/apiSources';
 import { buildByokCacheSignature, getActiveByokEntry } from '../utils/accessConfig';
-import { crossPlatformFetch, isTauriRuntime } from './httpClient';
+import { crossPlatformFetch, isLocalBridgeOrigin, isTauriRuntime } from './httpClient';
 import { SOURCE_RUNNERS } from './sourceRunners';
 import { localizeUntitledPapers } from './adapterUtils';
 
-export { crossPlatformFetch, isTauriRuntime };
+export { crossPlatformFetch, isLocalBridgeOrigin, isTauriRuntime };
 
 /**
  * Raw records in arrival order plus per-source statuses. Deduplication is left to the caller,
@@ -377,11 +377,8 @@ export async function launchUrlsCrossPlatform(
     }
   }
 
-  // 2. Node.js Local Bridge (/api/launch-urls) — only attempt when running on localhost
-  const isLocalHost =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  if (isLocalHost) {
+  // 2. Node.js Local Bridge (/api/launch-urls) — only reachable on a loopback origin
+  if (isLocalBridgeOrigin()) {
     try {
       const res = await fetch('/api/launch-urls', {
         method: 'POST',

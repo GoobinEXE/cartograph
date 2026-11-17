@@ -5,6 +5,7 @@ import {
   HttpStatusError,
   crossPlatformFetch,
   fetchJsonDirect,
+  isLocalBridgeOrigin,
 } from '../src/services/httpClient.ts';
 
 // Node has no `window`: isTauriRuntime() is false and the current origin is null, so the
@@ -164,4 +165,30 @@ test('fetchJsonDirect reports non-OK responses as "<label> HTTP <status>"', asyn
     assert.equal(err.message, 'OpenAlex HTTP 404');
     return true;
   });
+});
+
+function withWindow<T>(fakeWindow: Record<string, unknown> | undefined, run: () => T): T {
+  const scope = globalThis as unknown as { window?: unknown };
+  const previous = scope.window;
+  if (fakeWindow === undefined) delete scope.window;
+  else scope.window = fakeWindow;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) delete scope.window;
+    else scope.window = previous;
+  }
+}
+
+test('isLocalBridgeOrigin is true only on loopback hosts outside Tauri', () => {
+  const at = (hostname: string, extra: Record<string, unknown> = {}) =>
+    withWindow({ location: { hostname }, ...extra }, isLocalBridgeOrigin);
+
+  assert.equal(at('localhost'), true);
+  assert.equal(at('127.0.0.1'), true);
+  assert.equal(at('[::1]'), true);
+  assert.equal(at('cartographsearch.com'), false);
+  assert.equal(at('cartograph-git-main-prismsoftwares.vercel.app'), false);
+  assert.equal(at('localhost', { __TAURI_INTERNALS__: {} }), false, 'Tauri dev also serves localhost');
+  assert.equal(withWindow(undefined, isLocalBridgeOrigin), false);
 });
