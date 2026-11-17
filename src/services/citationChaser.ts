@@ -1,7 +1,9 @@
 import { NormalizedPaper, UserAccessConfig } from '../types/academic';
 import { getActiveByokEntry } from '../utils/accessConfig';
-import { deduplicatePapersAdvanced } from '../utils/deduplication';
-import { cleanDoi } from './httpClient';
+import { deduplicatePapersAdvanced, normalizeDoi } from '../utils/deduplication';
+import { asArray, asRecord, asRecords, asString, asStringList, firstString, isRecord, type JsonRecord } from '../utils/json';
+import { UNTITLED_PAPER_TITLE, localizeUntitledPapers, nonNegativeCount } from './adapterUtils';
+import { HttpStatusError, fetchJsonDirect } from './httpClient';
 
 export type CitationChaseDirection = 'references' | 'citations' | 'both';
 
@@ -13,13 +15,29 @@ export interface CitationChaseResult {
   warnings: string[];
 }
 
-function reconstructAbstract(invertedIndex: Record<string, number[]> | null | undefined): string | null {
-  if (!invertedIndex || typeof invertedIndex !== 'object') return null;
+function isAbortError(err: unknown): boolean {
+  return (err as { name?: unknown } | null)?.name === 'AbortError';
+}
+
+/**
+ * JSON body of a CORS-enabled API, or null on a non-OK status. A missing graph edge is not
+ * an error for citation chasing; network and abort errors still propagate to the caller.
+ */
+async function fetchJsonOrNull(url: string, label: string, init?: RequestInit): Promise<unknown> {
+  try {
+    return await fetchJsonDirect(url, label, init);
+  } catch (err) {
+    if (err instanceof HttpStatusError) return null;
+    throw err;
+  }
+}
+
+function reconstructAbstract(invertedIndex: unknown): string | null {
+  if (!isRecord(invertedIndex)) return null;
   const tokens: Array<{ pos: number; word: string }> = [];
   for (const [word, positions] of Object.entries(invertedIndex)) {
-    if (!Array.isArray(positions)) continue;
-    for (const pos of positions) {
-      tokens.push({ pos, word });
+    for (const pos of asArray(positions)) {
+      if (typeof pos === 'number') tokens.push({ pos, word });
     }
   }
   if (tokens.length === 0) return null;
@@ -27,99 +45,103 @@ function reconstructAbstract(invertedIndex: Record<string, number[]> | null | un
   return tokens.map((t) => t.word).join(' ').slice(0, 1400);
 }
 
-export function normalizeOpenAlexWork(item: Record<string, any>, idx: number): NormalizedPaper {
-  const doi = cleanDoi(item?.doi);
-  const authors = Array.isArray(item?.authorships)
-    ? item.authorships
-        .slice(0, 5)
-        .map((a: Record<string, any>) => a?.author?.display_name)
-        .filter((n: unknown): n is string => typeof n === 'string' && Boolean(n.trim()))
-    : [];
+export function normalizeOpenAlexWork(raw: unknown, idx: number): NormalizedPaper {
+  const item = asRecord(raw);
+  const doi = normalizeDoi(asString(item.doi));
+  const openAccess = asRecord(item.open_access);
+  const primaryLocation = asRecord(item.primary_location);
   const pdfUrl =
-    item?.open_access?.oa_url ||
-    item?.best_oa_location?.pdf_url ||
-    item?.primary_location?.pdf_url ||
-    null;
+    firstString(openAccess.oa_url, asRecord(item.best_oa_location).pdf_url, primaryLocation.pdf_url) ?? null;
   const landingUrl =
-    item?.primary_location?.landing_page_url ||
-    (doi ? `https://doi.org/${doi}` : item?.id || 'https://openalex.org');
+    asString(primaryLocation.landing_page_url) ??
+    (doi ? `https://doi.org/${doi}` : asString(item.id) ?? 'https://openalex.org');
 
   return {
-    id: `openalex-chase-${String(item?.id || idx).replace(/[^a-zA-Z0-9_-]/g, '')}`,
-    title: String(item?.display_name || item?.title || 'Untitled'),
-    authors,
-    year: typeof item?.publication_year === 'number' ? item.publication_year : null,
+    id: `openalex-chase-${(asString(item.id) ?? String(idx)).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    title: firstString(item.display_name, item.title) ?? UNTITLED_PAPER_TITLE,
+    authors: asRecords(item.authorships)
+      .slice(0, 5)
+      .map((a) => asString(asRecord(a.author).display_name))
+      .filter((n): n is string => Boolean(n)),
+    year: typeof item.publication_year === 'number' ? item.publication_year : null,
     venue:
-      item?.primary_location?.source?.display_name ||
-      item?.host_venue?.display_name ||
+      firstString(asRecord(primaryLocation.source).display_name, asRecord(item.host_venue).display_name) ??
       'OpenAlex Indexed Venue',
     doi,
-    url: String(landingUrl),
-    pdfUrl: typeof pdfUrl === 'string' ? pdfUrl : null,
-    isOpenAccess: Boolean(item?.open_access?.is_oa || pdfUrl),
-    citationCount: typeof item?.cited_by_count === 'number' ? item.cited_by_count : 0,
-    abstractText: reconstructAbstract(item?.abstract_inverted_index),
+    url: landingUrl,
+    pdfUrl,
+    isOpenAccess: Boolean(openAccess.is_oa || pdfUrl),
+    citationCount: nonNegativeCount(item.cited_by_count),
+    abstractText: reconstructAbstract(item.abstract_inverted_index),
     source: 'openalex',
     sourceLabel: 'OpenAlex (Citation Graph)',
-    publicationType: typeof item?.type === 'string' ? item.type : undefined,
-    isRetracted: Boolean(item?.is_retracted),
+    publicationType: asString(item.type),
+    isRetracted: Boolean(item.is_retracted),
   };
 }
 
-function normalizeS2EdgePaper(raw: Record<string, any>, idx: number): NormalizedPaper | null {
-  const p = raw?.citedPaper || raw?.citingPaper || raw;
-  if (!p || !p.title) return null;
-  const doi = cleanDoi(p?.externalIds?.DOI);
-  const pdfUrl = p?.openAccessPdf?.url || null;
-  const authors = Array.isArray(p?.authors)
-    ? p.authors
-        .slice(0, 5)
-        .map((a: Record<string, any>) => a?.name)
-        .filter((n: unknown): n is string => typeof n === 'string' && Boolean(n.trim()))
-    : [];
+/** Semantic Scholar edge: `{ citedPaper }` (references), `{ citingPaper }` (citations) or a bare paper. */
+function normalizeS2EdgePaper(raw: unknown, idx: number): NormalizedPaper | null {
+  const edge = asRecord(raw);
+  const p = isRecord(edge.citedPaper) ? edge.citedPaper : isRecord(edge.citingPaper) ? edge.citingPaper : edge;
+  const title = asString(p.title);
+  if (!title) return null;
+  const doi = normalizeDoi(asString(asRecord(p.externalIds).DOI));
+  const pdfUrl = asString(asRecord(p.openAccessPdf).url) ?? null;
 
   return {
-    id: `s2-chase-${p.paperId || idx}`,
-    title: String(p.title),
-    authors,
+    id: `s2-chase-${asString(p.paperId) ?? idx}`,
+    title,
+    authors: asRecords(p.authors)
+      .slice(0, 5)
+      .map((a) => asString(a.name))
+      .filter((n): n is string => Boolean(n)),
     year: typeof p.year === 'number' ? p.year : null,
-    venue: String(p.venue || 'Semantic Scholar'),
+    venue: asString(p.venue) ?? 'Semantic Scholar',
     doi,
-    url: p.url || (doi ? `https://doi.org/${doi}` : 'https://www.semanticscholar.org'),
+    url: asString(p.url) ?? (doi ? `https://doi.org/${doi}` : 'https://www.semanticscholar.org'),
     pdfUrl,
     isOpenAccess: Boolean(p.isOpenAccess || pdfUrl),
-    citationCount: typeof p.citationCount === 'number' ? p.citationCount : 0,
-    abstractText: typeof p.abstract === 'string' ? p.abstract : null,
+    citationCount: nonNegativeCount(p.citationCount),
+    abstractText: asString(p.abstract) ?? null,
     source: 'semanticscholar',
     sourceLabel: 'Semantic Scholar (Graph)',
   };
 }
 
-async function resolveOpenAlexWorkSeed(paper: NormalizedPaper, signal?: AbortSignal): Promise<Record<string, any> | null> {
-  const doi = cleanDoi(paper.doi);
+function parseS2Edges(data: unknown): NormalizedPaper[] {
+  return asArray(asRecord(data).data)
+    .map(normalizeS2EdgePaper)
+    .filter((x): x is NormalizedPaper => x !== null);
+}
+
+async function resolveOpenAlexWorkSeed(paper: NormalizedPaper, signal?: AbortSignal): Promise<JsonRecord | null> {
+  const doi = normalizeDoi(paper.doi);
   if (doi) {
-    const res = await fetch(`https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`, {
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-    if (res.ok) return (await res.json()) as Record<string, any>;
+    const work = await fetchJsonOrNull(
+      `https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`,
+      'OpenAlex',
+      { signal }
+    );
+    if (isRecord(work)) return work;
   }
 
-  const res = await fetch(
+  const data = await fetchJsonOrNull(
     `https://api.openalex.org/works?search=${encodeURIComponent(paper.title)}&per-page=1`,
-    { headers: { Accept: 'application/json' }, signal }
+    'OpenAlex',
+    { signal }
   );
-  if (!res.ok) return null;
-  const data = (await res.json()) as Record<string, any>;
-  return Array.isArray(data?.results) && data.results.length > 0 ? data.results[0] : null;
+  const first = asArray(asRecord(data).results)[0];
+  return isRecord(first) ? first : null;
 }
 
 export async function chasePaperCitations(
   paper: NormalizedPaper,
   direction: CitationChaseDirection = 'both',
-  options?: { accessConfig?: UserAccessConfig; signal?: AbortSignal; limit?: number }
+  options?: { accessConfig?: UserAccessConfig; signal?: AbortSignal; limit?: number; language?: string }
 ): Promise<CitationChaseResult> {
   const limit = Math.min(Math.max(options?.limit ?? 20, 5), 40);
+  const signal = options?.signal;
   const warnings: string[] = [];
   let references: NormalizedPaper[] = [];
   let citations: NormalizedPaper[] = [];
@@ -127,38 +149,30 @@ export async function chasePaperCitations(
   let usedS2 = false;
 
   try {
-    const seedWork = await resolveOpenAlexWorkSeed(paper, options?.signal);
+    const seedWork = await resolveOpenAlexWorkSeed(paper, signal);
     if (seedWork) {
       usedOpenAlex = true;
 
-      if ((direction === 'references' || direction === 'both') && Array.isArray(seedWork.referenced_works)) {
-        const refIds = (seedWork.referenced_works as string[])
-          .slice(0, limit)
+      if (direction === 'references' || direction === 'both') {
+        const refIds = asStringList(seedWork.referenced_works, limit)
           .map((u) => u.replace('https://openalex.org/', ''))
           .filter(Boolean);
         if (refIds.length > 0) {
           const refUrl = `https://api.openalex.org/works?filter=openalex_id:${refIds.join('|')}&per-page=${refIds.length}`;
-          const refRes = await fetch(refUrl, { headers: { Accept: 'application/json' }, signal: options?.signal });
-          if (refRes.ok) {
-            const refData = (await refRes.json()) as Record<string, any>;
-            const list = Array.isArray(refData?.results) ? refData.results : [];
-            references = list.map(normalizeOpenAlexWork);
-          }
+          const refData = await fetchJsonOrNull(refUrl, 'OpenAlex', { signal });
+          references = asRecords(asRecord(refData).results).map(normalizeOpenAlexWork);
         }
       }
 
-      if ((direction === 'citations' || direction === 'both') && typeof seedWork.cited_by_api_url === 'string') {
-        const citedUrl = `${seedWork.cited_by_api_url}&per-page=${limit}&sort=cited_by_count:desc`;
-        const citedRes = await fetch(citedUrl, { headers: { Accept: 'application/json' }, signal: options?.signal });
-        if (citedRes.ok) {
-          const citedData = (await citedRes.json()) as Record<string, any>;
-          const list = Array.isArray(citedData?.results) ? citedData.results : [];
-          citations = list.map(normalizeOpenAlexWork);
-        }
+      const citedByApiUrl = asString(seedWork.cited_by_api_url);
+      if ((direction === 'citations' || direction === 'both') && citedByApiUrl) {
+        const citedUrl = `${citedByApiUrl}&per-page=${limit}&sort=cited_by_count:desc`;
+        const citedData = await fetchJsonOrNull(citedUrl, 'OpenAlex', { signal });
+        citations = asRecords(asRecord(citedData).results).map(normalizeOpenAlexWork);
       }
     }
   } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
+    if (isAbortError(err)) throw err;
     warnings.push(err instanceof Error ? err.message : 'OpenAlex graph query failed');
   }
 
@@ -167,9 +181,10 @@ export async function chasePaperCitations(
     (references.length === 0 && (direction === 'references' || direction === 'both')) ||
     (citations.length === 0 && (direction === 'citations' || direction === 'both'));
 
-  if (shouldFallbackS2 && cleanDoi(paper.doi)) {
+  const seedDoi = normalizeDoi(paper.doi);
+  if (shouldFallbackS2 && seedDoi) {
     try {
-      const s2PaperId = `DOI:${cleanDoi(paper.doi)}`;
+      const s2PaperId = encodeURIComponent(`DOI:${seedDoi}`);
       const fields = 'title,authors,year,venue,citationCount,isOpenAccess,openAccessPdf,externalIds,url';
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (s2Byok?.apiKey) {
@@ -177,48 +192,42 @@ export async function chasePaperCitations(
       }
 
       if (references.length === 0 && (direction === 'references' || direction === 'both')) {
-        const r = await fetch(
-          `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(s2PaperId)}/references?fields=${fields}&limit=${limit}`,
-          { headers, signal: options?.signal }
+        const parsed = parseS2Edges(
+          await fetchJsonOrNull(
+            `https://api.semanticscholar.org/graph/v1/paper/${s2PaperId}/references?fields=${fields}&limit=${limit}`,
+            'Semantic Scholar',
+            { headers, signal }
+          )
         );
-        if (r.ok) {
-          const d = (await r.json()) as Record<string, any>;
-          const parsed = (Array.isArray(d?.data) ? d.data : [])
-            .map(normalizeS2EdgePaper)
-            .filter((x: NormalizedPaper | null): x is NormalizedPaper => x !== null);
-          if (parsed.length > 0) {
-            references = parsed;
-            usedS2 = true;
-          }
+        if (parsed.length > 0) {
+          references = parsed;
+          usedS2 = true;
         }
       }
 
       if (citations.length === 0 && (direction === 'citations' || direction === 'both')) {
-        const r = await fetch(
-          `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(s2PaperId)}/citations?fields=${fields}&limit=${limit}`,
-          { headers, signal: options?.signal }
+        const parsed = parseS2Edges(
+          await fetchJsonOrNull(
+            `https://api.semanticscholar.org/graph/v1/paper/${s2PaperId}/citations?fields=${fields}&limit=${limit}`,
+            'Semantic Scholar',
+            { headers, signal }
+          )
         );
-        if (r.ok) {
-          const d = (await r.json()) as Record<string, any>;
-          const parsed = (Array.isArray(d?.data) ? d.data : [])
-            .map(normalizeS2EdgePaper)
-            .filter((x: NormalizedPaper | null): x is NormalizedPaper => x !== null);
-          if (parsed.length > 0) {
-            citations = parsed;
-            usedS2 = true;
-          }
+        if (parsed.length > 0) {
+          citations = parsed;
+          usedS2 = true;
         }
       }
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') throw err;
+      if (isAbortError(err)) throw err;
       warnings.push(err instanceof Error ? err.message : 'Semantic Scholar graph fallback failed');
     }
   }
 
   return {
     seedTitle: paper.title,
-    references: deduplicatePapersAdvanced(references).papers,
-    citations: deduplicatePapersAdvanced(citations).papers,
+    references: localizeUntitledPapers(deduplicatePapersAdvanced(references).papers, options?.language),
+    citations: localizeUntitledPapers(deduplicatePapersAdvanced(citations).papers, options?.language),
     sourceUsed: usedOpenAlex && usedS2 ? 'both' : usedS2 ? 'semanticscholar' : 'openalex',
     warnings,
   };

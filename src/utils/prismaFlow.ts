@@ -1,31 +1,28 @@
-import { SupportedLanguage } from '../i18n/translations';
+import { SupportedLanguage, TRANSLATIONS, Translations, translate } from '../i18n/translations';
+import { proseLanguage } from '../i18n/localized';
 import { Prisma2020Counts, SavedPaperItem, ScreeningExclusionReason } from '../types/academic';
 
-export const SCREENING_REASON_LABELS: Record<ScreeningExclusionReason, string> = {
-  populacao_inadequada: 'População/Amostra fora do escopo',
-  desenho_incompativel: 'Delineamento de estudo não compatível',
-  desfecho_irrelevante: 'Desfecho de interesse não avaliado',
-  texto_completo_inacessivel: 'Texto completo não recuperado/indisponível',
-  duplicata_residual: 'Duplicata residual de outra base',
-  retracao_identificada: 'Artigo retratado pelo periódico/editora',
-  outro: 'Outro critério metodológico específico',
+const SCREENING_REASON_KEYS: Record<ScreeningExclusionReason, keyof Translations> = {
+  populacao_inadequada: 'screeningReasonPopulation',
+  desenho_incompativel: 'screeningReasonDesign',
+  desfecho_irrelevante: 'screeningReasonOutcome',
+  texto_completo_inacessivel: 'screeningReasonFullText',
+  duplicata_residual: 'screeningReasonDuplicate',
+  retracao_identificada: 'screeningReasonRetracted',
+  outro: 'screeningReasonOther',
 };
 
-export const SCREENING_REASON_LABELS_EN: Record<ScreeningExclusionReason, string> = {
-  populacao_inadequada: 'Population/sample out of scope',
-  desenho_incompativel: 'Incompatible study design',
-  desfecho_irrelevante: 'Outcome of interest not assessed',
-  texto_completo_inacessivel: 'Full text unavailable/unretrieved',
-  duplicata_residual: 'Residual duplicate from another database',
-  retracao_identificada: 'Retracted publication / erratum notice',
-  outro: 'Other specific methodological criterion',
-};
-
+/** Exclusion-reason labels in the given UI language (dictionary keys screeningReason*). */
 export function getScreeningReasonLabels(
-  language: SupportedLanguage = 'pt'
+  language: SupportedLanguage | string = 'pt'
 ): Record<ScreeningExclusionReason, string> {
-  return language === 'en' ? SCREENING_REASON_LABELS_EN : SCREENING_REASON_LABELS;
+  return Object.fromEntries(
+    Object.entries(SCREENING_REASON_KEYS).map(([reason, key]) => [reason, translate(language, key)])
+  ) as Record<ScreeningExclusionReason, string>;
 }
+
+export const SCREENING_REASON_LABELS = getScreeningReasonLabels('pt');
+export const SCREENING_REASON_LABELS_EN = getScreeningReasonLabels('en');
 
 /**
  * Computes official PRISMA 2020 counts from saved items and search stats.
@@ -44,8 +41,7 @@ export function calculatePrisma2020Counts(
   // If before-dedup stats are empty, reconstruct from items
   if (identifiedTotal === 0 && items.length > 0) {
     items.forEach((item) => {
-      const src =
-        item.sourceLabel || (language === 'en' ? 'Academic Databases' : 'Bases Acadêmicas');
+      const src = item.sourceLabel || translate(language, 'prismaFallbackSourceLabel');
       bySource[src] = (bySource[src] || 0) + 1;
     });
     identifiedTotal = items.length + duplicatesCount;
@@ -91,16 +87,36 @@ export function generatePrismaMethodologyText(
   counts: Prisma2020Counts,
   language: SupportedLanguage = 'pt'
 ): string {
+  // The paragraph is PT or EN prose, while counts carry labels in the UI language (es/fr
+  // included): re-label reasons and the generic source so one sentence stays one language.
+  const prose = proseLanguage(language);
+  const proseReasonLabels = getScreeningReasonLabels(prose);
+  const reasonCodeByLabel = new Map<string, ScreeningExclusionReason>();
+  for (const code of Object.keys(SCREENING_REASON_KEYS) as ScreeningExclusionReason[]) {
+    for (const lang of Object.keys(TRANSLATIONS)) {
+      reasonCodeByLabel.set(getScreeningReasonLabels(lang)[code], code);
+    }
+  }
+  const fallbackSourceLabels = new Set(
+    Object.keys(TRANSLATIONS).map((lang) => translate(lang, 'prismaFallbackSourceLabel'))
+  );
+
   const sourceList = Object.entries(counts.bySource)
     .filter(([_, count]) => count > 0)
-    .map(([name, count]) => `${name} (n = ${count})`)
+    .map(([name, count]) => {
+      const label = fallbackSourceLabels.has(name) ? translate(prose, 'prismaFallbackSourceLabel') : name;
+      return `${label} (n = ${count})`;
+    })
     .join(', ');
 
   const reasonList = Object.entries(counts.excludedReasons)
-    .map(([reason, count]) => `${reason} (n = ${count})`)
+    .map(([reason, count]) => {
+      const code = reasonCodeByLabel.get(reason);
+      return `${code ? proseReasonLabels[code] : reason} (n = ${count})`;
+    })
     .join('; ');
 
-  if (language === 'en') {
+  if (prose === 'en') {
     return `The search and selection process followed the PRISMA 2020 guidelines (Preferred Reporting Items for Systematic Reviews and Meta-Analyses). A total of ${counts.identifiedTotal} records were initially identified through federated search across the following databases: ${sourceList || 'open scientific databases'}. Prior to screening, ${counts.duplicatesRemoved} duplicate records were identified and removed using a deterministic multi-criteria deduplication algorithm (canonical DOI and Jaro-Winkler textual similarity). This left ${counts.screenedTotal} records for title and abstract screening. Of these, ${counts.excludedScreening} studies were excluded for the following reasons: ${reasonList || 'predefined eligibility criteria'}. Ultimately, ${counts.includedStudies} studies met all inclusion criteria and were incorporated into the qualitative and quantitative synthesis of the review.`;
   }
 

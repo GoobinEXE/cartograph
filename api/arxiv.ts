@@ -7,6 +7,7 @@ import {
   setEdgeCacheHeaders,
   validateSearchParams,
 } from './_security.js';
+import { DEDICATED_PROXY_ROUTES, buildDedicatedUpstreamUrl } from '../shared/upstreams.mjs';
 
 export default async function handler(req: MinimalRequest, res: MinimalResponse) {
   if (applyCorsHeaders(req, res, 'GET, OPTIONS')) return;
@@ -23,17 +24,15 @@ export default async function handler(req: MinimalRequest, res: MinimalResponse)
   if (!allowed) return;
 
   const params = validateSearchParams(req, res, {
-    limitKey: 'max_results',
-    defaultLimit: 12,
-    maxLimit: 25,
+    limitKey: DEDICATED_PROXY_ROUTES.arxiv.limitParam,
+    defaultLimit: DEDICATED_PROXY_ROUTES.arxiv.defaultLimit,
+    maxLimit: DEDICATED_PROXY_ROUTES.arxiv.maxLimit,
     maxQueryLength: 300,
   });
   if (!params) return;
 
   try {
-    const arxivUrl = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(
-      params.query
-    )}&start=0&max_results=${params.limit}&sortBy=relevance&sortOrder=descending`;
+    const arxivUrl = buildDedicatedUpstreamUrl('arxiv', params.query, params.limit);
 
     const response = await fetch(arxivUrl, {
       headers: {

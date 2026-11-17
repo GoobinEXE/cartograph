@@ -1,3 +1,4 @@
+import { proseLanguage } from '../i18n/localized';
 import { SupportedLanguage } from '../i18n/translations';
 import { PlatformConfig } from '../types/academic';
 
@@ -652,9 +653,10 @@ export const PLATFORM_TRANSLATIONS_EN: Record<string, PlatformEnTranslation> = {
 
 export function getLocalizedPlatformInfo(
   platform: PlatformConfig,
-  language: SupportedLanguage
+  language: SupportedLanguage | string
 ): { shortTag: string; description: string; coverageNote: string } {
-  if (language === 'en') {
+  // Catalog prose exists in Portuguese and English; other UI languages read English.
+  if (proseLanguage(language) === 'en') {
     const translated = PLATFORM_TRANSLATIONS_EN[platform.id];
     if (translated) return translated;
   }

@@ -22,7 +22,20 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
   const handleExportSvg = () => {
     if (!svgExportRef.current) return;
     const serializer = new XMLSerializer();
-    const rawSvg = serializer.serializeToString(svgExportRef.current);
+    // Theme tokens (var(--chart-1), currentColor) do not resolve in a standalone file, and
+    // exported charts land on white pages (theses, papers): always bake the light-theme
+    // values, read from the tokens through a probe element scoped to data-theme="light".
+    const probe = document.createElement('div');
+    probe.setAttribute('data-theme', 'light');
+    probe.style.display = 'none';
+    document.body.appendChild(probe);
+    const lightTokens = getComputedStyle(probe);
+    const textColor = lightTokens.getPropertyValue('--text-primary').trim() || 'black';
+    const rawSvg = serializer
+      .serializeToString(svgExportRef.current)
+      .replace(/var\((--[a-z0-9-]+)\)/gi, (match, name: string) => lightTokens.getPropertyValue(name).trim() || match)
+      .replace(/currentColor/g, textColor);
+    probe.remove();
     const stamp = new Date().toISOString().slice(0, 10);
     triggerFileDownload(
       `cartograph-bibliometrics-${stamp}.svg`,
@@ -138,7 +151,7 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
                       width={barWidth}
                       height={barHeight}
                       rx="4"
-                      fill="#01ABE8"
+                      fill="var(--chart-1)"
                       fillOpacity="0.88"
                     />
                     <text
@@ -190,7 +203,7 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
                     width={Math.max(8, (src.count / maxSourceCount) * 200)}
                     height="8"
                     rx="4"
-                    fill="#01ABE8"
+                    fill="var(--chart-1)"
                   />
                 </svg>
               </div>
@@ -218,7 +231,7 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
                     width={Math.max(8, (venue.count / maxVenueCount) * 200)}
                     height="8"
                     rx="4"
-                    fill="#10B981"
+                    fill="var(--chart-2)"
                   />
                 </svg>
               </div>
@@ -246,7 +259,7 @@ export const BibliometricsPanel: React.FC<BibliometricsPanelProps> = ({ items })
                     width={Math.max(8, (author.count / maxAuthorCount) * 200)}
                     height="8"
                     rx="4"
-                    fill="#6366F1"
+                    fill="var(--chart-3)"
                   />
                 </svg>
               </div>

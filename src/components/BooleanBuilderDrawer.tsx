@@ -197,7 +197,7 @@ export const BooleanBuilderDrawer: React.FC<BooleanBuilderDrawerProps> = ({
                 onChange={(e) =>
                   setPicoFields({ ...picoFields, population: e.target.value })
                 }
-                placeholder="ex.: older adults, adolescents"
+                placeholder={t('picoPopulationPh')}
                 className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--link-academic)]/20"
               />
             </div>
@@ -219,7 +219,7 @@ export const BooleanBuilderDrawer: React.FC<BooleanBuilderDrawerProps> = ({
                     interventionOrExposure: e.target.value,
                   })
                 }
-                placeholder="ex.: telehealth, mindfulness"
+                placeholder={t('picoInterventionPh')}
                 className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--link-academic)]/20"
               />
             </div>
@@ -235,7 +235,7 @@ export const BooleanBuilderDrawer: React.FC<BooleanBuilderDrawerProps> = ({
                   onChange={(e) =>
                     setPicoFields({ ...picoFields, comparison: e.target.value })
                   }
-                  placeholder="ex.: placebo, usual care"
+                  placeholder={t('picoComparisonPh')}
                   className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--link-academic)]/20"
                 />
               </div>

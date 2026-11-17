@@ -8,18 +8,9 @@ import {
   SavedPaperItem,
 } from '../types/academic';
 
-/**
- * Normalizes a DOI string to a standard lowercase prefix-free representation.
- */
-export function normalizeDoi(doi: string | null | undefined): string | null {
-  if (!doi) return null;
-  const cleaned = doi
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
-    .replace(/^doi:\s*/i, '');
-  return cleaned || null;
-}
+import { normalizeDoi } from '../../shared/identifiers.mjs';
+
+export { normalizeDoi };
 
 /**
  * Extracts a normalized arXiv identifier if present in ID or URL.
@@ -123,6 +114,56 @@ export function jaroWinklerSimilarity(s1: string, s2: string): number {
   }
 
   return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+/** Minimum Jaro-Winkler similarity between normalized titles for the fuzzy identity level. */
+const FUZZY_TITLE_THRESHOLD = 0.9;
+/** Titles whose normalized lengths differ by more than this fraction are never compared. */
+const FUZZY_MAX_LENGTH_DIFF_RATIO = 0.35;
+
+/** Level 2 identifiers (arXiv ID without version suffix, numeric PMID) read from URL or record ID. */
+function extractPersistentIds(paper: Pick<NormalizedPaper, 'id' | 'url'>): {
+  arxivId: string | null;
+  pmid: string | null;
+} {
+  return {
+    arxivId: extractArxivId(paper.url) || extractArxivId(paper.id),
+    pmid: extractPmid(paper.url) || extractPmid(paper.id),
+  };
+}
+
+/** Comparison key of the level 3 identity check, computed once per record. */
+interface FuzzyIdentityKey {
+  normTitle: string;
+  authorSurname: string;
+  year: number | null;
+}
+
+function buildFuzzyIdentityKey(paper: Pick<NormalizedPaper, 'title' | 'authors' | 'year'>): FuzzyIdentityKey {
+  return {
+    normTitle: normalizeTitleForComparison(paper.title),
+    authorSurname: getFirstAuthorSurname(paper.authors),
+    year: paper.year,
+  };
+}
+
+/**
+ * Level 3 of the identity rule: the Jaro-Winkler similarity of the normalized titles when it
+ * reaches FUZZY_TITLE_THRESHOLD, the publication years differ by at most one (a missing year
+ * never disqualifies) and the first-author surnames agree (a missing surname never
+ * disqualifies). Returns null when the two records are not the same work.
+ */
+function matchFuzzyIdentity(a: FuzzyIdentityKey, b: FuzzyIdentityKey): number | null {
+  const lenDiff = Math.abs(a.normTitle.length - b.normTitle.length);
+  const maxLen = Math.max(a.normTitle.length, b.normTitle.length);
+  if (maxLen > 0 && lenDiff / maxLen > FUZZY_MAX_LENGTH_DIFF_RATIO) return null;
+
+  const similarity = jaroWinklerSimilarity(a.normTitle, b.normTitle);
+  if (similarity < FUZZY_TITLE_THRESHOLD) return null;
+
+  const yearDiff = a.year && b.year ? Math.abs(a.year - b.year) : 0;
+  const authorMatches = !a.authorSurname || !b.authorSurname || a.authorSurname === b.authorSurname;
+  return yearDiff <= 1 && authorMatches ? similarity : null;
 }
 
 function mergeSourceIds(primary: NormalizedPaper, secondary: NormalizedPaper): ApiSourceId[] {
@@ -306,8 +347,7 @@ export function deduplicatePapersAdvanced(
   const remainingPapers: IndexedRecord[] = [];
 
   for (const item of phase1List) {
-    const arxivId = extractArxivId(item.paper.url) || extractArxivId(item.paper.id);
-    const pmid = extractPmid(item.paper.url) || extractPmid(item.paper.id);
+    const { arxivId, pmid } = extractPersistentIds(item.paper);
     const persistentKey = arxivId ? `arxiv:${arxivId}` : pmid ? `pmid:${pmid}` : null;
 
     if (persistentKey) {
@@ -339,8 +379,9 @@ export function deduplicatePapersAdvanced(
     if (processedIndices.has(i)) continue;
 
     let current = candidates[i];
-    const currentNormTitle = normalizeTitleForComparison(current.paper.title);
-    const currentAuthor = getFirstAuthorSurname(current.paper.authors);
+    // Title and surname stay those of the first-seen record; the year is re-read after each
+    // merge because mergePaperRecords may fill a missing year from the absorbed record.
+    const currentKey = buildFuzzyIdentityKey(current.paper);
 
     for (let j = i + 1; j < candidates.length; j++) {
       if (processedIndices.has(j)) continue;
@@ -348,31 +389,14 @@ export function deduplicatePapersAdvanced(
       const compare = candidates[j];
       if (hasSplitConflict(current, compare, splitSet)) continue;
 
-      const compareNormTitle = normalizeTitleForComparison(compare.paper.title);
-
-      // Fast preliminary length check: if length difference > 35%, skip
-      const lenDiff = Math.abs(currentNormTitle.length - compareNormTitle.length);
-      const maxLen = Math.max(currentNormTitle.length, compareNormTitle.length);
-      if (maxLen > 0 && lenDiff / maxLen > 0.35) continue;
-
-      // Jaro-Winkler similarity calculation
-      const similarity = jaroWinklerSimilarity(currentNormTitle, compareNormTitle);
-
-      if (similarity >= 0.90) {
-        // Confirm with Year tolerance (+/- 1 year) or Author match
-        const yearDiff =
-          current.paper.year && compare.paper.year
-            ? Math.abs(current.paper.year - compare.paper.year)
-            : 0;
-        const compareAuthor = getFirstAuthorSurname(compare.paper.authors);
-        const authorMatches =
-          !currentAuthor || !compareAuthor || currentAuthor === compareAuthor;
-
-        if (yearDiff <= 1 && authorMatches) {
-          current = combineIndexedRecords(current, compare, 'fuzzy-title', similarity);
-          processedIndices.add(j);
-          mergedByFuzzyTitle++;
-        }
+      const similarity = matchFuzzyIdentity(
+        { ...currentKey, year: current.paper.year },
+        buildFuzzyIdentityKey(compare.paper)
+      );
+      if (similarity !== null) {
+        current = combineIndexedRecords(current, compare, 'fuzzy-title', similarity);
+        processedIndices.add(j);
+        mergedByFuzzyTitle++;
       }
     }
 
@@ -408,6 +432,119 @@ export function deduplicatePapersAdvanced(
   };
 }
 
+
+interface FuzzyLibraryEntry<T> {
+  key: FuzzyIdentityKey;
+  item: T;
+  order: number;
+}
+
+/**
+ * Incremental index over a library that answers "is this candidate already in it?" with the
+ * same three levels as deduplicatePapersAdvanced: record ID or canonical DOI, then arXiv ID or
+ * PMID, then fuzzy title + first-author surname + year. Exact levels win over the fuzzy one;
+ * inside the fuzzy level the earliest registered record wins. `add` registers a record so
+ * later lookups of the same batch see it.
+ */
+export interface LibraryMatcher<T extends NormalizedPaper> {
+  find: (candidate: NormalizedPaper) => T | null;
+  add: (item: T) => void;
+}
+
+export function createLibraryMatcher<T extends NormalizedPaper>(library: readonly T[]): LibraryMatcher<T> {
+  const byId = new Map<string, T>();
+  const byDoi = new Map<string, T>();
+  const byPersistentId = new Map<string, T>();
+  // The fuzzy level accepts years at most one apart, so entries are bucketed by floor(year);
+  // entries without a year stay compatible with every candidate.
+  const fuzzyAll: Array<FuzzyLibraryEntry<T>> = [];
+  const fuzzyByYear = new Map<number, Array<FuzzyLibraryEntry<T>>>();
+  const fuzzyWithoutYear: Array<FuzzyLibraryEntry<T>> = [];
+
+  const add = (item: T): void => {
+    byId.set(item.id, item);
+    const cleanDoi = normalizeDoi(item.doi);
+    if (cleanDoi && !byDoi.has(cleanDoi)) byDoi.set(cleanDoi, item);
+    const { arxivId, pmid } = extractPersistentIds(item);
+    if (arxivId && !byPersistentId.has(`arxiv:${arxivId}`)) byPersistentId.set(`arxiv:${arxivId}`, item);
+    if (pmid && !byPersistentId.has(`pmid:${pmid}`)) byPersistentId.set(`pmid:${pmid}`, item);
+
+    const key = buildFuzzyIdentityKey(item);
+    if (!key.normTitle) return;
+    const entry: FuzzyLibraryEntry<T> = { key, item, order: fuzzyAll.length };
+    fuzzyAll.push(entry);
+    if (key.year) {
+      const bucketKey = Math.floor(key.year);
+      const bucket = fuzzyByYear.get(bucketKey);
+      if (bucket) bucket.push(entry);
+      else fuzzyByYear.set(bucketKey, [entry]);
+    } else {
+      fuzzyWithoutYear.push(entry);
+    }
+  };
+
+  library.forEach(add);
+
+  const findFuzzy = (candidate: NormalizedPaper): T | null => {
+    const key = buildFuzzyIdentityKey(candidate);
+    const pools: Array<Array<FuzzyLibraryEntry<T>>> = [];
+    if (key.year) {
+      const bucketKey = Math.floor(key.year);
+      for (const yearKey of [bucketKey - 1, bucketKey, bucketKey + 1]) {
+        const bucket = fuzzyByYear.get(yearKey);
+        if (bucket) pools.push(bucket);
+      }
+      pools.push(fuzzyWithoutYear);
+    } else {
+      pools.push(fuzzyAll);
+    }
+
+    // Each pool is in insertion order, so its first hit is its earliest; the overall winner
+    // is the earliest of those first hits.
+    let best: FuzzyLibraryEntry<T> | null = null;
+    for (const pool of pools) {
+      for (const entry of pool) {
+        if (best && entry.order > best.order) break;
+        if (matchFuzzyIdentity(key, entry.key) !== null) {
+          best = entry;
+          break;
+        }
+      }
+    }
+    return best ? best.item : null;
+  };
+
+  const find = (candidate: NormalizedPaper): T | null => {
+    const idHit = byId.get(candidate.id);
+    if (idHit) return idHit;
+
+    const cleanDoi = normalizeDoi(candidate.doi);
+    const doiHit = cleanDoi ? byDoi.get(cleanDoi) : undefined;
+    if (doiHit) return doiHit;
+
+    const { arxivId, pmid } = extractPersistentIds(candidate);
+    const arxivHit = arxivId ? byPersistentId.get(`arxiv:${arxivId}`) : undefined;
+    if (arxivHit) return arxivHit;
+    const pmidHit = pmid ? byPersistentId.get(`pmid:${pmid}`) : undefined;
+    if (pmidHit) return pmidHit;
+
+    return findFuzzy(candidate);
+  };
+
+  return { find, add };
+}
+
+/**
+ * The single "same paper" rule for library operations (import, backup merge, living-review
+ * diff). It builds a fresh index on every call; batch callers keep a LibraryMatcher instead.
+ */
+export function findLibraryMatch<T extends NormalizedPaper>(
+  candidate: NormalizedPaper,
+  library: readonly T[]
+): T | null {
+  return createLibraryMatcher(library).find(candidate);
+}
+
 export interface LibraryDiffResult {
   unseen: NormalizedPaper[];
   matched: Array<{ paper: NormalizedPaper; existingItem: SavedPaperItem }>;
@@ -425,77 +562,14 @@ export function partitionResultsAgainstLibrary(
     return { unseen: [...results], matched: [] };
   }
 
-  const savedById = new Map<string, SavedPaperItem>();
-  const savedByDoi = new Map<string, SavedPaperItem>();
-  const savedByPersistentId = new Map<string, SavedPaperItem>();
-  const savedFuzzyEntries: Array<{
-    normTitle: string;
-    authorSurname: string;
-    year: number | null;
-    item: SavedPaperItem;
-  }> = [];
-
-  for (const item of savedItems) {
-    savedById.set(item.id, item);
-    const cleanDoi = normalizeDoi(item.doi);
-    if (cleanDoi && !savedByDoi.has(cleanDoi)) {
-      savedByDoi.set(cleanDoi, item);
-    }
-    const arxivId = extractArxivId(item.url) || extractArxivId(item.id);
-    const pmid = extractPmid(item.url) || extractPmid(item.id);
-    if (arxivId && !savedByPersistentId.has(`arxiv:${arxivId}`)) {
-      savedByPersistentId.set(`arxiv:${arxivId}`, item);
-    }
-    if (pmid && !savedByPersistentId.has(`pmid:${pmid}`)) {
-      savedByPersistentId.set(`pmid:${pmid}`, item);
-    }
-    const normTitle = normalizeTitleForComparison(item.title);
-    if (normTitle) {
-      savedFuzzyEntries.push({
-        normTitle,
-        authorSurname: getFirstAuthorSurname(item.authors),
-        year: item.year,
-        item,
-      });
-    }
-  }
-
+  const matcher = createLibraryMatcher(savedItems);
   const unseen: NormalizedPaper[] = [];
   const matched: Array<{ paper: NormalizedPaper; existingItem: SavedPaperItem }> = [];
 
   for (const paper of results) {
-    let existing = savedById.get(paper.id);
-    if (!existing) {
-      const cleanDoi = normalizeDoi(paper.doi);
-      if (cleanDoi) existing = savedByDoi.get(cleanDoi);
-    }
-    if (!existing) {
-      const arxivId = extractArxivId(paper.url) || extractArxivId(paper.id);
-      const pmid = extractPmid(paper.url) || extractPmid(paper.id);
-      if (arxivId) existing = savedByPersistentId.get(`arxiv:${arxivId}`);
-      if (!existing && pmid) existing = savedByPersistentId.get(`pmid:${pmid}`);
-    }
-    if (!existing) {
-      const paperNormTitle = normalizeTitleForComparison(paper.title);
-      const paperAuthor = getFirstAuthorSurname(paper.authors);
-      for (const entry of savedFuzzyEntries) {
-        const lenDiff = Math.abs(paperNormTitle.length - entry.normTitle.length);
-        const maxLen = Math.max(paperNormTitle.length, entry.normTitle.length);
-        if (maxLen > 0 && lenDiff / maxLen > 0.35) continue;
-        if (jaroWinklerSimilarity(paperNormTitle, entry.normTitle) >= 0.90) {
-          const yearDiff = paper.year && entry.year ? Math.abs(paper.year - entry.year) : 0;
-          const authorMatches =
-            !paperAuthor || !entry.authorSurname || paperAuthor === entry.authorSurname;
-          if (yearDiff <= 1 && authorMatches) {
-            existing = entry.item;
-            break;
-          }
-        }
-      }
-    }
-
-    if (existing) {
-      matched.push({ paper, existingItem: existing });
+    const existingItem = matcher.find(paper);
+    if (existingItem) {
+      matched.push({ paper, existingItem });
     } else {
       unseen.push(paper);
     }
@@ -503,4 +577,3 @@ export function partitionResultsAgainstLibrary(
 
   return { unseen, matched };
 }
-

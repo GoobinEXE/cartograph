@@ -14,6 +14,16 @@ export const WORKSPACE_STORAGE_KEYS = {
 
 export type WorkspaceStorageKey = keyof typeof WORKSPACE_STORAGE_KEYS;
 
+/**
+ * localStorage keys written by the app before the Cartograph rename ("Nexus Acadêmico").
+ * They are read only when the current key is absent, during migration and in the
+ * localStorage fallback path, and removed once the value lives in IndexedDB.
+ */
+export const LEGACY_LOCAL_STORAGE_ALIASES: Partial<Record<WorkspaceStorageKey, readonly string[]>> = {
+  savedPapers: ['nexus_academico_saved_papers_v2'],
+  selectedPlatformIds: ['nexus_academico_selected_platforms_v2'],
+};
+
 const IDB_MIGRATION_SENTINEL_KEY = '__idb_migrated_v1';
 
 export interface StorageEngineDeps {
@@ -21,12 +31,20 @@ export interface StorageEngineDeps {
   localStorage?: Storage | null;
 }
 
+export type WorkspaceStorageEntry = [WorkspaceStorageKey, unknown];
+
 export interface WorkspaceStorageEngine {
   initAndMigrate: () => Promise<{ backend: 'indexeddb' | 'localstorage'; migratedKeys: number }>;
   getItem: <T>(key: WorkspaceStorageKey, fallback: T) => Promise<T>;
   setItem: <T>(key: WorkspaceStorageKey, value: T) => Promise<void>;
+  /**
+   * Writes several keys in one IndexedDB transaction. Once initAndMigrate has settled, the
+   * transaction is opened synchronously inside this call, so a `pagehide` handler can still
+   * hand the data to the browser before the page is frozen.
+   */
+  setItems: (entries: readonly WorkspaceStorageEntry[]) => Promise<void>;
   getBackendType: () => Promise<'indexeddb' | 'localstorage'>;
-  exportAllRawRecords: () => Promise<Record<string, unknown>>;
+  exportAllRawRecords: () => Promise<Partial<Record<WorkspaceStorageKey, unknown>>>;
 }
 
 function readLegacyLocalValue(storage: Storage | null | undefined, legacyKey: string): { found: boolean; value: unknown } {
@@ -46,6 +64,35 @@ function readLegacyLocalValue(storage: Storage | null | undefined, legacyKey: st
   } catch {
     return { found: false, value: null };
   }
+}
+
+/** Current localStorage key first, then the pre-rename aliases. */
+function localKeysFor(key: WorkspaceStorageKey): string[] {
+  return [WORKSPACE_STORAGE_KEYS[key], ...(LEGACY_LOCAL_STORAGE_ALIASES[key] ?? [])];
+}
+
+function readLocalWorkspaceValue(
+  storage: Storage | null | undefined,
+  key: WorkspaceStorageKey
+): { found: boolean; value: unknown } {
+  for (const localKey of localKeysFor(key)) {
+    const result = readLegacyLocalValue(storage, localKey);
+    if (result.found) return result;
+  }
+  return { found: false, value: null };
+}
+
+function writeLocalWorkspaceValue(storage: Storage, key: WorkspaceStorageKey, value: unknown): void {
+  const localKey = WORKSPACE_STORAGE_KEYS[key];
+  if (localKey === WORKSPACE_STORAGE_KEYS.activeSaveGroupId) {
+    if (value === null || value === undefined) {
+      storage.removeItem(localKey);
+    } else {
+      storage.setItem(localKey, String(value));
+    }
+    return;
+  }
+  storage.setItem(localKey, JSON.stringify(value));
 }
 
 export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): WorkspaceStorageEngine {
@@ -69,6 +116,9 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
 
   let dbPromise: Promise<IDBDatabase | null> | null = null;
   let migrationPromise: Promise<{ backend: 'indexeddb' | 'localstorage'; migratedKeys: number }> | null = null;
+  // Set once initAndMigrate has resolved: the database handle (or null when IndexedDB is
+  // unavailable), so writes after that point need no await before opening a transaction.
+  let settledDb: { db: IDBDatabase | null } | null = null;
 
   const openDb = (): Promise<IDBDatabase | null> => {
     if (dbPromise) return dbPromise;
@@ -117,7 +167,8 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
     });
   };
 
-  const idbWriteBatch = async (db: IDBDatabase, entries: Array<[string, unknown]>): Promise<boolean> => {
+  // The Promise executor runs synchronously, so the transaction exists when this returns.
+  const idbWriteBatch = (db: IDBDatabase, entries: ReadonlyArray<readonly [string, unknown]>): Promise<boolean> => {
     return new Promise((resolve) => {
       try {
         const tx = db.transaction(WORKSPACE_STORE_NAME, 'readwrite');
@@ -142,37 +193,40 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
 
     migrationPromise = (async () => {
       const db = await openDb();
-      if (!db) {
-        return { backend: 'localstorage', migratedKeys: 0 };
-      }
-
-      const sentinel = await idbReadRaw(db, IDB_MIGRATION_SENTINEL_KEY);
-      if (sentinel.found && sentinel.value === true) {
-        return { backend: 'indexeddb', migratedKeys: 0 };
-      }
-
-      const ls = getLs();
-      const batch: Array<[string, unknown]> = [];
-      const keys = Object.keys(WORKSPACE_STORAGE_KEYS) as WorkspaceStorageKey[];
-
-      for (const logicalKey of keys) {
-        const legacyKey = WORKSPACE_STORAGE_KEYS[logicalKey];
-        const existingInIdb = await idbReadRaw(db, logicalKey);
-        if (existingInIdb.found) continue;
-
-        const legacy = readLegacyLocalValue(ls, legacyKey);
-        if (legacy.found) {
-          batch.push([logicalKey, legacy.value]);
+      try {
+        if (!db) {
+          return { backend: 'localstorage' as const, migratedKeys: 0 };
         }
-      }
 
-      const migratedCount = batch.length;
-      batch.push([IDB_MIGRATION_SENTINEL_KEY, true]);
-      const ok = await idbWriteBatch(db, batch);
-      return {
-        backend: ok ? 'indexeddb' : 'localstorage',
-        migratedKeys: ok ? migratedCount : 0,
-      };
+        const sentinel = await idbReadRaw(db, IDB_MIGRATION_SENTINEL_KEY);
+        if (sentinel.found && sentinel.value === true) {
+          return { backend: 'indexeddb' as const, migratedKeys: 0 };
+        }
+
+        const ls = getLs();
+        const batch: Array<[string, unknown]> = [];
+        const keys = Object.keys(WORKSPACE_STORAGE_KEYS) as WorkspaceStorageKey[];
+
+        for (const logicalKey of keys) {
+          const existingInIdb = await idbReadRaw(db, logicalKey);
+          if (existingInIdb.found) continue;
+
+          const legacy = readLocalWorkspaceValue(ls, logicalKey);
+          if (legacy.found) {
+            batch.push([logicalKey, legacy.value]);
+          }
+        }
+
+        const migratedCount = batch.length;
+        batch.push([IDB_MIGRATION_SENTINEL_KEY, true]);
+        const ok = await idbWriteBatch(db, batch);
+        return {
+          backend: ok ? ('indexeddb' as const) : ('localstorage' as const),
+          migratedKeys: ok ? migratedCount : 0,
+        };
+      } finally {
+        settledDb = { db };
+      }
     })();
 
     return migrationPromise;
@@ -189,67 +243,69 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
     }
 
     const ls = getLs();
-    const legacy = readLegacyLocalValue(ls, WORKSPACE_STORAGE_KEYS[key]);
+    const legacy = readLocalWorkspaceValue(ls, key);
     if (legacy.found) {
       return legacy.value as T;
     }
     return fallback;
   };
 
-  const setItem = async <T>(key: WorkspaceStorageKey, value: T): Promise<void> => {
-    await initAndMigrate();
-    const db = await openDb();
-    if (db) {
-      const ok = await idbWriteBatch(db, [[key, value]]);
-      if (ok) {
-        // Keep localStorage mirror best-effort for backwards recovery on small keys; ignore quota error
-        const ls = getLs();
-        if (ls) {
-          try {
-            const legacyKey = WORKSPACE_STORAGE_KEYS[key];
-            if (legacyKey === WORKSPACE_STORAGE_KEYS.activeSaveGroupId) {
-              if (value === null || value === undefined) {
-                ls.removeItem(legacyKey);
-              } else {
-                ls.setItem(legacyKey, String(value));
-              }
-            } else {
-              ls.setItem(legacyKey, JSON.stringify(value));
-            }
-          } catch {
-            // QuotaExceededError expected for huge libraries (>5MB) when IndexedDB holds full store
-          }
-        }
-        return;
-      }
-    }
-
+  /** localStorage holds a workspace value only while IndexedDB cannot. */
+  const removeLocalCopies = (entries: readonly WorkspaceStorageEntry[]): void => {
     const ls = getLs();
-    if (ls) {
-      try {
-        const legacyKey = WORKSPACE_STORAGE_KEYS[key];
-        if (legacyKey === WORKSPACE_STORAGE_KEYS.activeSaveGroupId) {
-          if (value === null || value === undefined) {
-            ls.removeItem(legacyKey);
-          } else {
-            ls.setItem(legacyKey, String(value));
-          }
-        } else {
-          ls.setItem(legacyKey, JSON.stringify(value));
+    if (!ls) return;
+    for (const [key] of entries) {
+      for (const localKey of localKeysFor(key)) {
+        try {
+          ls.removeItem(localKey);
+        } catch {
+          // storage blocked: the stale copy is only read when IndexedDB lacks the key
         }
-      } catch {
-        // ignore quota error
       }
     }
   };
+
+  const writeLocalFallback = (entries: readonly WorkspaceStorageEntry[]): void => {
+    const ls = getLs();
+    if (!ls) return;
+    for (const [key, value] of entries) {
+      try {
+        writeLocalWorkspaceValue(ls, key, value);
+      } catch {
+        // QuotaExceededError: nothing else can hold the value in this browser
+      }
+    }
+  };
+
+  const writeEntries = async (
+    db: IDBDatabase | null,
+    entries: readonly WorkspaceStorageEntry[]
+  ): Promise<void> => {
+    if (db) {
+      const ok = await idbWriteBatch(db, entries);
+      if (ok) {
+        removeLocalCopies(entries);
+        return;
+      }
+    }
+    writeLocalFallback(entries);
+  };
+
+  const setItems = (entries: readonly WorkspaceStorageEntry[]): Promise<void> => {
+    if (entries.length === 0) return Promise.resolve();
+    if (settledDb) return writeEntries(settledDb.db, entries);
+    return initAndMigrate().then(() => writeEntries(settledDb ? settledDb.db : null, entries));
+  };
+
+  const setItem = <T>(key: WorkspaceStorageKey, value: T): Promise<void> => setItems([[key, value]]);
 
   const getBackendType = async (): Promise<'indexeddb' | 'localstorage'> => {
     const db = await openDb();
     return db ? 'indexeddb' : 'localstorage';
   };
 
-  const exportAllRawRecords = async (): Promise<Record<string, unknown>> => {
-    const out: Record<string, unknown> = {};
+  const exportAllRawRecords = async (): Promise<Partial<Record<WorkspaceStorageKey, unknown>>> => {
+    const out: Partial<Record<WorkspaceStorageKey, unknown>> = {};
     const db = await openDb();
     const keys = Object.keys(WORKSPACE_STORAGE_KEYS) as WorkspaceStorageKey[];
     for (const k of keys) {
@@ -261,7 +317,7 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
         }
       }
       const ls = getLs();
-      const legacy = readLegacyLocalValue(ls, WORKSPACE_STORAGE_KEYS[k]);
+      const legacy = readLocalWorkspaceValue(ls, k);
       if (legacy.found) {
         out[k] = legacy.value;
       }
@@ -273,6 +329,7 @@ export function createWorkspaceStorageEngine(deps?: StorageEngineDeps): Workspac
     initAndMigrate,
     getItem,
     setItem,
+    setItems,
     getBackendType,
     exportAllRawRecords,
   };

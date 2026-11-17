@@ -1,7 +1,13 @@
 import { NormalizedPaper } from '../types/academic';
-import { extractArxivId, extractPmid } from '../utils/deduplication';
-import { cleanDoi } from './httpClient';
+import { extractArxivId, extractPmid, normalizeDoi } from '../utils/deduplication';
+import { asArray, asRecord, asRecords, asString, firstString, isRecord } from '../utils/json';
+import { extractYear, nonNegativeCount, localizeUntitledPapers } from './adapterUtils';
 import { normalizeOpenAlexWork } from './citationChaser';
+import { fetchJsonDirect } from './httpClient';
+
+function isAbortError(err: unknown): boolean {
+  return (err as { name?: unknown } | null)?.name === 'AbortError';
+}
 
 export interface ParsedIdentifierToken {
   kind: 'doi' | 'arxiv' | 'pmid';
@@ -26,7 +32,7 @@ export function parseIdentifierBatch(rawText: string): ParsedIdentifierToken[] {
 
   for (const raw of chunks) {
     const cleanToken = raw.replace(/[).,;]+$/g, '');
-    const normalizedDoi = cleanDoi(cleanToken);
+    const normalizedDoi = normalizeDoi(cleanToken);
     if (normalizedDoi && /^10\.\d{4,9}\/[^\s]+$/i.test(normalizedDoi)) {
       const key = `doi:${normalizedDoi}`;
       if (!seen.has(key)) {
@@ -59,146 +65,141 @@ export function parseIdentifierBatch(rawText: string): ParsedIdentifierToken[] {
   return tokens.slice(0, 50);
 }
 
+/** Crossref `/works/{doi}` payload mapped to a paper; null when `message` is missing. */
+function parseCrossrefWork(data: unknown, doi: string): NormalizedPaper | null {
+  const item = asRecord(data).message;
+  if (!isRecord(item)) return null;
+
+  const dateParts = asArray(
+    asArray(asRecord(item.published)['date-parts'])[0] ?? asArray(asRecord(item.issued)['date-parts'])[0]
+  );
+  const retractionEntry = asRecords(item['update-to']).find(
+    (u) =>
+      asString(u.type)?.toLowerCase() === 'retraction' ||
+      (asString(u.label)?.toLowerCase() ?? '').includes('retract')
+  );
+  const retractionDoi = asString(retractionEntry?.DOI);
+  const abstract = asString(item.abstract);
+  const firstDatePart = dateParts[0];
+
+  return {
+    id: `batch-doi-${doi}`,
+    title: asString(asArray(item.title)[0]) ?? doi,
+    authors: asRecords(item.author)
+      .slice(0, 5)
+      .map((a) => [asString(a.given), asString(a.family)].filter(Boolean).join(' '))
+      .filter(Boolean),
+    year: typeof firstDatePart === 'number' ? firstDatePart : null,
+    venue: firstString(asArray(item['container-title'])[0], item.publisher) ?? 'Crossref DOI',
+    doi,
+    url: asString(item.URL) ?? `https://doi.org/${doi}`,
+    pdfUrl: null,
+    isOpenAccess: false,
+    citationCount: nonNegativeCount(item['is-referenced-by-count']),
+    abstractText: abstract ? abstract.replace(/<\/?[^>]+(>|$)/g, '').trim() : null,
+    source: 'crossref',
+    sourceLabel: 'Crossref DOI',
+    isRetracted: Boolean(retractionEntry),
+    retractionNoticeUrl: retractionDoi ? `https://doi.org/${normalizeDoi(retractionDoi) ?? retractionDoi}` : null,
+  };
+}
+
+/** NCBI esummary (`retmode=json`) entry for one PMID; null when absent or flagged with `error`. */
+function parsePubMedEsummary(data: unknown, pmid: string): NormalizedPaper | null {
+  const doc = asRecord(asRecord(data).result)[pmid];
+  if (!isRecord(doc) || doc.error) return null;
+
+  const doiEntry = asRecords(doc.articleids).find((a) => a.idtype === 'doi');
+  return {
+    id: `batch-pmid-${pmid}`,
+    title: (asString(doc.title) ?? `PMID ${pmid}`).replace(/\.$/, ''),
+    authors: asRecords(doc.authors)
+      .slice(0, 5)
+      .map((a) => asString(a.name))
+      .filter((n): n is string => Boolean(n)),
+    year: extractYear(doc.pubdate),
+    venue: firstString(doc.fulljournalname, doc.source) ?? 'PubMed',
+    doi: normalizeDoi(asString(doiEntry?.value)),
+    url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+    pdfUrl: null,
+    isOpenAccess: false,
+    citationCount: 0,
+    abstractText: null,
+    source: 'pubmed',
+    sourceLabel: 'PubMed',
+  };
+}
+
 async function resolveSingleDoi(doi: string, signal?: AbortSignal): Promise<NormalizedPaper | null> {
-  // Prefer Crossref primary + OpenAlex retraction/OA enrichment
+  // OpenAlex first (retraction flag and OA location), Crossref as fallback.
   try {
-    const oaRes = await fetch(
+    const work = await fetchJsonDirect(
       `https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`,
-      { headers: { Accept: 'application/json' }, signal }
+      'OpenAlex',
+      { signal }
     );
-    if (oaRes.ok) {
-      const oaData = (await oaRes.json()) as Record<string, any>;
+    if (isRecord(work)) {
       return {
-        ...normalizeOpenAlexWork(oaData, 0),
+        ...normalizeOpenAlexWork(work, 0),
         id: `batch-doi-${doi}`,
       };
     }
   } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
+    if (isAbortError(err)) throw err;
   }
 
   try {
-    const crRes = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, {
-      headers: { Accept: 'application/json' },
+    const data = await fetchJsonDirect(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, 'Crossref', {
       signal,
     });
-    if (!crRes.ok) return null;
-    const data = (await crRes.json()) as Record<string, any>;
-    const item = data?.message;
-    if (!item) return null;
-
-    const title = Array.isArray(item.title) && item.title[0] ? String(item.title[0]) : doi;
-    const authors = Array.isArray(item.author)
-      ? item.author
-          .slice(0, 5)
-          .map((a: Record<string, any>) => [a?.given, a?.family].filter(Boolean).join(' '))
-          .filter(Boolean)
-      : [];
-    const dateParts = item?.published?.['date-parts']?.[0] || item?.issued?.['date-parts']?.[0] || [];
-    const updateList = Array.isArray(item['update-to']) ? item['update-to'] : [];
-    const retractionEntry = updateList.find(
-      (u: Record<string, unknown>) =>
-        String(u?.type || '').toLowerCase() === 'retraction' ||
-        String(u?.label || '').toLowerCase().includes('retract')
-    );
-
-    return {
-      id: `batch-doi-${doi}`,
-      title,
-      authors,
-      year: typeof dateParts[0] === 'number' ? dateParts[0] : null,
-      venue:
-        Array.isArray(item['container-title']) && item['container-title'][0]
-          ? String(item['container-title'][0])
-          : item.publisher || 'Crossref DOI',
-      doi,
-      url: item.URL || `https://doi.org/${doi}`,
-      pdfUrl: null,
-      isOpenAccess: false,
-      citationCount: typeof item['is-referenced-by-count'] === 'number' ? item['is-referenced-by-count'] : 0,
-      abstractText:
-        typeof item.abstract === 'string'
-          ? item.abstract.replace(/<\/?[^>]+(>|$)/g, '').trim()
-          : null,
-      source: 'crossref',
-      sourceLabel: 'Crossref DOI',
-      isRetracted: Boolean(retractionEntry),
-      retractionNoticeUrl: retractionEntry?.DOI
-        ? `https://doi.org/${cleanDoi(String(retractionEntry.DOI)) || retractionEntry.DOI}`
-        : null,
-    };
+    return parseCrossrefWork(data, doi);
   } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
+    if (isAbortError(err)) throw err;
     return null;
   }
 }
 
 async function resolveSinglePmid(pmid: string, signal?: AbortSignal): Promise<NormalizedPaper | null> {
   try {
-    const res = await fetch(
+    const data = await fetchJsonDirect(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${encodeURIComponent(
         pmid
       )}&retmode=json`,
+      'PubMed Summary',
       { signal }
     );
-    if (!res.ok) return null;
-    const data = (await res.json()) as Record<string, any>;
-    const doc = data?.result?.[pmid];
-    if (!doc || doc.error) return null;
-
-    const articleIds = Array.isArray(doc.articleids) ? doc.articleids : [];
-    const doiObj = articleIds.find((a: Record<string, any>) => a?.idtype === 'doi');
-    const doi = cleanDoi(doiObj?.value);
-    const authors = Array.isArray(doc.authors)
-      ? doc.authors.slice(0, 5).map((a: Record<string, any>) => a?.name).filter(Boolean)
-      : [];
-    const yearMatch = String(doc.pubdate || '').match(/\b(19|20)\d{2}\b/);
-
-    return {
-      id: `batch-pmid-${pmid}`,
-      title: String(doc.title || `PMID ${pmid}`).replace(/\.$/, ''),
-      authors,
-      year: yearMatch ? Number(yearMatch[0]) : null,
-      venue: String(doc.fulljournalname || doc.source || 'PubMed'),
-      doi,
-      url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-      pdfUrl: null,
-      isOpenAccess: false,
-      citationCount: 0,
-      abstractText: null,
-      source: 'pubmed',
-      sourceLabel: 'PubMed',
-    };
+    return parsePubMedEsummary(data, pmid);
   } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
+    if (isAbortError(err)) throw err;
     return null;
   }
 }
 
 async function resolveSingleArxiv(arxivId: string, signal?: AbortSignal): Promise<NormalizedPaper | null> {
   try {
-    const oaRes = await fetch(
+    const work = await fetchJsonDirect(
       `https://api.openalex.org/works/https://doi.org/10.48550/arXiv.${encodeURIComponent(arxivId)}`,
-      { headers: { Accept: 'application/json' }, signal }
+      'OpenAlex',
+      { signal }
     );
-    if (oaRes.ok) {
-      const oaData = (await oaRes.json()) as Record<string, any>;
+    if (isRecord(work)) {
       return {
-        ...normalizeOpenAlexWork(oaData, 0),
+        ...normalizeOpenAlexWork(work, 0),
         id: `batch-arxiv-${arxivId}`,
         pdfUrl: `https://arxiv.org/pdf/${arxivId}.pdf`,
         isOpenAccess: true,
       };
     }
   } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
+    if (isAbortError(err)) throw err;
   }
   return null;
 }
 
 export async function resolveIdentifierBatch(
   rawText: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  language?: string
 ): Promise<BatchResolveResult> {
   const tokens = parseIdentifierBatch(rawText);
   const papers: NormalizedPaper[] = [];
@@ -225,7 +226,7 @@ export async function resolveIdentifierBatch(
   }
 
   return {
-    papers,
+    papers: localizeUntitledPapers(papers, language),
     unresolved,
     totalTokens: tokens.length,
   };

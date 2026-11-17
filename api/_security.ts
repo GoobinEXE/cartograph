@@ -7,8 +7,7 @@ const ALLOWED_EXACT_ORIGINS = new Set([
 const VERCEL_PREVIEW_ORIGIN_RE = /^https:\/\/cartographsearch-[a-z0-9-]+\.vercel\.app$/i;
 const LOCAL_DEV_ORIGIN_RE = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/i;
 
-export const CARTOGRAPH_USER_AGENT =
-  'Cartograph/2.4 (Academic Metasearch Hub; https://cartographsearch.com)';
+export { CARTOGRAPH_USER_AGENT } from '../shared/upstreams.mjs';
 
 interface RateLimitBucket {
   count: number;

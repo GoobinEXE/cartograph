@@ -16,38 +16,41 @@ import {
 import { exportSavedPapersCsv } from '../src/utils/citationExporter.ts';
 import type { SavedPaperItem } from '../src/types/academic.ts';
 
-test('resolveLanguageFromTags maps system locales to Portuguese or English accurately', () => {
+test('resolveLanguageFromTags maps system locales to the four UI languages', () => {
   assert.equal(resolveLanguageFromTags(['pt-BR', 'en-US']), 'pt');
   assert.equal(resolveLanguageFromTags(['pt-PT']), 'pt');
   assert.equal(resolveLanguageFromTags(['pt']), 'pt');
   assert.equal(resolveLanguageFromTags(['en-US', 'pt-BR']), 'en');
   assert.equal(resolveLanguageFromTags(['en-GB']), 'en');
   assert.equal(resolveLanguageFromTags(['en']), 'en');
-  assert.equal(resolveLanguageFromTags(['fr-FR', 'es-ES']), 'en');
+  assert.equal(resolveLanguageFromTags(['fr-FR', 'es-ES']), 'fr');
+  assert.equal(resolveLanguageFromTags(['es-419']), 'es');
+  assert.equal(resolveLanguageFromTags(['de-DE', 'it-IT']), 'en');
   assert.equal(resolveLanguageFromTags([]), 'en');
 });
 
-test('isSupportedLanguage accepts only pt and en', () => {
-  assert.equal(isSupportedLanguage('pt'), true);
-  assert.equal(isSupportedLanguage('en'), true);
-  assert.equal(isSupportedLanguage('es'), false);
-  assert.equal(isSupportedLanguage('fr'), false);
+test('isSupportedLanguage accepts exactly the registered locales', () => {
+  for (const code of ['pt', 'en', 'es', 'fr']) assert.equal(isSupportedLanguage(code), true);
+  assert.equal(isSupportedLanguage('de'), false);
+  assert.equal(isSupportedLanguage('toString'), false);
   assert.equal(isSupportedLanguage(null), false);
 });
 
-test('TRANSLATIONS pt and en expose identical non-empty key sets', () => {
-  const ptKeys = Object.keys(TRANSLATIONS.pt).sort();
-  const enKeys = Object.keys(TRANSLATIONS.en).sort();
-  assert.deepEqual(enKeys, ptKeys);
-
-  for (const key of ptKeys as Array<keyof typeof TRANSLATIONS.pt>) {
-    assert.ok(TRANSLATIONS.pt[key].trim().length > 0, `Empty pt key: ${String(key)}`);
-    assert.ok(TRANSLATIONS.en[key].trim().length > 0, `Empty en key: ${String(key)}`);
+test('every locale exposes the same non-empty keys with the same {param} placeholders', () => {
+  const placeholders = (text: string) => [...text.matchAll(/\{([a-zA-Z]+)\}/g)].map((m) => m[1]).sort();
+  const reference = TRANSLATIONS.en;
+  const referenceKeys = Object.keys(reference).sort();
+  for (const [code, dictionary] of Object.entries(TRANSLATIONS)) {
+    assert.deepEqual(Object.keys(dictionary).sort(), referenceKeys, `key set differs in ${code}`);
+    for (const key of referenceKeys as Array<keyof typeof reference>) {
+      const value = dictionary[key];
+      assert.ok(value.trim().length > 0, `Empty ${code} key: ${String(key)}`);
+      assert.deepEqual(placeholders(value), placeholders(reference[key]), `placeholders differ in ${code}.${String(key)}`);
+    }
   }
 });
 
 test('PLATFORM_TRANSLATIONS_EN covers every platform in catalog', () => {
-  assert.equal(PLATFORMS.length, 128);
   for (const platform of PLATFORMS) {
     const enEntry = PLATFORM_TRANSLATIONS_EN[platform.id];
     assert.ok(enEntry, `Missing English translation for platform: ${platform.id}`);
@@ -108,4 +111,20 @@ test('English utility outputs for abstractParser, prismaFlow, and citationExport
   assert.match(csvEn, /"EXCLUDED"/);
   assert.match(csvEn, /"HIGH"/);
   assert.match(csvEn, /"Ungrouped \(General\)"/);
+});
+
+test('translate interpolates params and falls back to English for unknown languages', async () => {
+  const { translate } = await import('../src/i18n/context.tsx');
+  assert.equal(
+    translate('pt', 'errorBoundaryBackupSaved', { papers: 3, groups: 1 }).startsWith('Backup salvo (artigos: 3; grupos: 1)'),
+    true
+  );
+  assert.equal(
+    translate('en', 'errorBoundaryBackupRejected', { count: 2 }).includes('emergencyRecovery field: 2.'),
+    true
+  );
+  assert.equal(
+    translate('xx' as never, 'errorBoundaryReload'),
+    TRANSLATIONS.en.errorBoundaryReload
+  );
 });

@@ -1,5 +1,6 @@
-import { SupportedLanguage } from '../i18n/translations';
+import { SupportedLanguage, translate } from '../i18n/translations';
 import {
+  ApiSourceId,
   CustomExtractionColumn,
   DedupOverrideRule,
   LibraryGroup,
@@ -14,6 +15,8 @@ import {
 import { computeOverallQuality } from './qualityChecklists';
 import { parseAbstractMetadata } from './abstractParser';
 import { sanitizeExternalUrl } from './urlSafety';
+import { normalizeDoi } from './deduplication';
+import type { WorkspaceStorageKey } from './storageEngine';
 
 export const CARTOGRAPH_BACKUP_SCHEMA = 'cartograph-backup-v1' as const;
 export const CARTOGRAPH_BACKUP_SCHEMA_V2 = 'cartograph-backup-v2' as const;
@@ -36,7 +39,7 @@ export type BackupParseResult =
   | { ok: true; payload: CartographBackupPayload }
   | { ok: false; error: string };
 
-export function exportWorkspaceBackup(params: {
+export interface WorkspaceBackupParams {
   version?: string;
   savedPapers: SavedPaperItem[];
   groups: LibraryGroup[];
@@ -47,7 +50,13 @@ export function exportWorkspaceBackup(params: {
   dedupOverrides?: DedupOverrideRule;
   customColumns?: CustomExtractionColumn[];
   schemaVersion?: 1 | 2;
-}): string {
+}
+
+export function exportWorkspaceBackup(params: WorkspaceBackupParams): string {
+  return JSON.stringify(buildWorkspaceBackupPayload(params), null, 2);
+}
+
+export function buildWorkspaceBackupPayload(params: WorkspaceBackupParams): CartographBackupPayload {
   // Note: personal API keys (BYOK) and institutional proxy credentials are intentionally excluded
   // from workspace backups so researchers can safely share review files without leaking secrets.
   const useV2 =
@@ -70,7 +79,175 @@ export function exportWorkspaceBackup(params: {
     ...(params.customColumns?.length ? { customColumns: params.customColumns } : {}),
   };
 
-  return JSON.stringify(payload, null, 2);
+  return payload;
+}
+
+/** A raw workspace record that failed sanitization and was kept apart for manual recovery. */
+export interface EmergencyRejectedRecord {
+  key: WorkspaceStorageKey;
+  /** Position inside the stored array, or null when the whole value had an unexpected shape. */
+  index: number | null;
+  value: unknown;
+}
+
+/**
+ * Emergency backup written by the ErrorBoundary. It is a regular v2 backup, so the library
+ * importer restores it as-is; `emergencyRecovery` is ignored by `parseWorkspaceBackup`.
+ */
+export interface CartographEmergencyBackup extends CartographBackupPayload {
+  emergencyRecovery: {
+    capturedAt: string;
+    rejectedRecords: EmergencyRejectedRecord[];
+  };
+}
+
+export interface EmergencyBackupResult {
+  json: string;
+  savedPapers: number;
+  groups: number;
+  rejected: number;
+}
+
+function sanitizeRecordList<T>(
+  key: WorkspaceStorageKey,
+  raw: unknown,
+  sanitize: (entry: unknown) => T | null,
+  rejected: EmergencyRejectedRecord[]
+): T[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    rejected.push({ key, index: null, value: raw });
+    return [];
+  }
+  const out: T[] = [];
+  raw.forEach((entry, index) => {
+    const clean = sanitize(entry);
+    if (clean === null) {
+      rejected.push({ key, index, value: entry });
+    } else {
+      out.push(clean);
+    }
+  });
+  return out;
+}
+
+/** Raw workspace records after sanitization, plus what failed it. Missing keys yield empty values. */
+export interface SanitizedWorkspaceRecords {
+  savedPapers: SavedPaperItem[];
+  groups: LibraryGroup[];
+  searchLogs: SearchLogEntry[];
+  customColumns: CustomExtractionColumn[];
+  selectedPlatformIds: string[];
+  activeSaveGroupId: string | null;
+  dedupOverrides: DedupOverrideRule | undefined;
+  rejected: EmergencyRejectedRecord[];
+}
+
+/**
+ * Single sanitization path for records read back from IndexedDB or legacy localStorage:
+ * used by workspace hydration and by the emergency backup, so both agree on which stored
+ * records are usable.
+ */
+export function sanitizeStoredWorkspaceRecords(
+  records: Partial<Record<WorkspaceStorageKey, unknown>>
+): SanitizedWorkspaceRecords {
+  const rejected: EmergencyRejectedRecord[] = [];
+
+  const savedPapers = sanitizeRecordList('savedPapers', records.savedPapers, sanitizeSavedPaper, rejected);
+  const groups = sanitizeRecordList('libraryGroups', records.libraryGroups, sanitizeGroup, rejected);
+  const searchLogs = sanitizeRecordList('searchLogs', records.searchLogs, sanitizeSearchLogEntry, rejected);
+  const customColumns = sanitizeRecordList(
+    'customColumns',
+    records.customColumns,
+    sanitizeCustomColumn,
+    rejected
+  );
+  const selectedPlatformIds = sanitizeRecordList(
+    'selectedPlatformIds',
+    records.selectedPlatformIds,
+    (id) => (typeof id === 'string' && id.trim() ? id.trim() : null),
+    rejected
+  );
+
+  const rawActiveGroup = records.activeSaveGroupId;
+  const activeSaveGroupId = typeof rawActiveGroup === 'string' && rawActiveGroup.trim() ? rawActiveGroup : null;
+  if (rawActiveGroup !== undefined && rawActiveGroup !== null && activeSaveGroupId === null) {
+    rejected.push({ key: 'activeSaveGroupId', index: null, value: rawActiveGroup });
+  }
+
+  let dedupOverrides: DedupOverrideRule | undefined;
+  const rawOverrides = records.dedupOverrides;
+  if (rawOverrides !== undefined && rawOverrides !== null) {
+    const rawSplit =
+      typeof rawOverrides === 'object' ? (rawOverrides as Record<string, unknown>).splitPairs : undefined;
+    if (Array.isArray(rawSplit)) {
+      dedupOverrides = {
+        splitPairs: rawSplit.filter((x): x is string => typeof x === 'string' && Boolean(x.trim())),
+      };
+    } else {
+      rejected.push({ key: 'dedupOverrides', index: null, value: rawOverrides });
+    }
+  }
+
+  return {
+    savedPapers,
+    groups,
+    searchLogs,
+    customColumns,
+    selectedPlatformIds,
+    activeSaveGroupId,
+    dedupOverrides,
+    rejected,
+  };
+}
+
+/**
+ * Builds a restorable backup from the raw workspace records (IndexedDB or legacy localStorage).
+ * It reads only the workspace keys, so the access configuration (BYOK keys, InstToken,
+ * institutional proxy) can never reach the file. Records that fail sanitization are kept
+ * under `emergencyRecovery.rejectedRecords` instead of being dropped, since the crash that
+ * triggered this export may come from exactly those records.
+ */
+export function buildEmergencyBackupFromRecords(
+  records: Partial<Record<WorkspaceStorageKey, unknown>>,
+  options?: { ownedPlatformIds?: string[]; version?: string }
+): EmergencyBackupResult {
+  const {
+    savedPapers,
+    groups,
+    searchLogs,
+    customColumns,
+    selectedPlatformIds,
+    activeSaveGroupId,
+    dedupOverrides,
+    rejected,
+  } = sanitizeStoredWorkspaceRecords(records);
+
+  const payload: CartographEmergencyBackup = {
+    ...buildWorkspaceBackupPayload({
+      version: options?.version,
+      savedPapers,
+      groups,
+      selectedPlatformIds,
+      activeSaveGroupId,
+      ownedPlatformIds: options?.ownedPlatformIds?.filter((id) => typeof id === 'string' && id.trim()),
+      searchLogs,
+      dedupOverrides,
+      customColumns,
+      schemaVersion: 2,
+    }),
+    emergencyRecovery: {
+      capturedAt: new Date().toISOString(),
+      rejectedRecords: rejected,
+    },
+  };
+
+  return {
+    json: JSON.stringify(payload, null, 2),
+    savedPapers: savedPapers.length,
+    groups: groups.length,
+    rejected: rejected.length,
+  };
 }
 
 export function sanitizeGroup(raw: unknown): LibraryGroup | null {
@@ -95,7 +272,8 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
   if (typeof p.title !== 'string' || !p.title.trim()) return null;
 
   const doi = typeof p.doi === 'string' && p.doi.trim() ? p.doi.trim() : null;
-  const fallbackDoiUrl = doi ? `https://doi.org/${doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')}` : null;
+  const bareDoi = normalizeDoi(doi);
+  const fallbackDoiUrl = bareDoi ? `https://doi.org/${bareDoi}` : null;
   const safeUrl =
     sanitizeExternalUrl(typeof p.url === 'string' ? p.url : null) ||
     fallbackDoiUrl ||
@@ -139,6 +317,11 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
         .filter((e): e is RelatedPaperUrl => e !== null)
     : undefined;
 
+  const safeRetractionUrl = sanitizeExternalUrl(
+    typeof p.retractionNoticeUrl === 'string' ? p.retractionNoticeUrl : null
+  );
+  const sourceRanks = sanitizeSourceRanks(p.sourceRanks);
+
   return {
     id: p.id.trim(),
     title,
@@ -177,7 +360,25 @@ export function sanitizeSavedPaper(raw: unknown): SavedPaperItem | null {
     ...(sanitizeQualityAppraisal(p.qualityAppraisal)
       ? { qualityAppraisal: sanitizeQualityAppraisal(p.qualityAppraisal)! }
       : {}),
+    // Retraction flags drive the library warning badge and sourceRanks feed the RRF consensus
+    // score, so a stored record keeps them across reloads and backups.
+    ...(p.isRetracted === true ? { isRetracted: true } : {}),
+    ...(safeRetractionUrl ? { retractionNoticeUrl: safeRetractionUrl } : {}),
+    ...(sourceRanks ? { sourceRanks } : {}),
   };
+}
+
+function sanitizeSourceRanks(raw: unknown): Partial<Record<ApiSourceId, number>> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Partial<Record<ApiSourceId, number>> = {};
+  let count = 0;
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (key.trim() && typeof val === 'number' && Number.isFinite(val) && val > 0) {
+      out[key as ApiSourceId] = val;
+      count += 1;
+    }
+  }
+  return count > 0 ? out : undefined;
 }
 
 function sanitizeCustomFields(raw: unknown): Record<string, string> {
@@ -264,26 +465,19 @@ export function parseWorkspaceBackup(
   rawJson: string,
   language: SupportedLanguage = 'pt'
 ): BackupParseResult {
-  const isEn = language === 'en';
   if (!rawJson || !rawJson.trim()) {
-    return { ok: false, error: isEn ? 'Empty JSON file.' : 'Arquivo JSON vazio.' };
+    return { ok: false, error: translate(language, 'backupErrEmpty') };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawJson);
   } catch {
-    return {
-      ok: false,
-      error: isEn ? 'Invalid or corrupted JSON.' : 'JSON inválido ou corrompido.',
-    };
+    return { ok: false, error: translate(language, 'backupErrInvalidJson') };
   }
 
   if (!parsed || typeof parsed !== 'object') {
-    return {
-      ok: false,
-      error: isEn ? 'Invalid backup structure.' : 'Estrutura de backup inválida.',
-    };
+    return { ok: false, error: translate(language, 'backupErrInvalidStructure') };
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -291,21 +485,11 @@ export function parseWorkspaceBackup(
     obj.schema !== CARTOGRAPH_BACKUP_SCHEMA &&
     obj.schema !== CARTOGRAPH_BACKUP_SCHEMA_V2
   ) {
-    return {
-      ok: false,
-      error: isEn
-        ? 'Backup schema format not recognized by Cartograph.'
-        : 'Formato de schema não reconhecido pelo Cartograph.',
-    };
+    return { ok: false, error: translate(language, 'backupErrUnknownSchema') };
   }
 
   if (!Array.isArray(obj.savedPapers)) {
-    return {
-      ok: false,
-      error: isEn
-        ? 'Missing papers list in backup file.'
-        : 'Lista de artigos ausente no arquivo de backup.',
-    };
+    return { ok: false, error: translate(language, 'backupErrMissingPapers') };
   }
 
   const groups = Array.isArray(obj.groups)

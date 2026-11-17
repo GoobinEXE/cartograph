@@ -2,6 +2,8 @@ import React from 'react';
 import { Compass, Database, Globe, Layers, Search } from 'lucide-react';
 import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import { useI18n } from '../i18n/context';
+import { PLATFORMS } from '../data/platforms';
+import { OPEN_FEDERATED_SOURCE_COUNT } from '../data/apiSources';
 
 interface NotFoundViewProps {
   invalidPath: string;
@@ -9,40 +11,13 @@ interface NotFoundViewProps {
   onFocusSearch?: () => void;
 }
 
-const NOT_FOUND_COPY = {
-  pt: {
-    code: 'HTTP 404 · COORDENADA NÃO ENCONTRADA',
-    title: 'Esta rota não existe no índice do Cartograph',
-    description:
-      'O caminho solicitado não corresponde a uma vista ativa ou documento técnico do Cartograph. Utilize os atalhos abaixo para retornar ao diretório de 111 plataformas científicas, consultar as 15 APIs federadas ou revisar sua biblioteca PRISMA 2020.',
-    btnPlatforms: 'Diretório de 111 Plataformas',
-    btnFederated: 'Metabuscador (15 APIs)',
-    btnSaved: 'Biblioteca & PRISMA 2020',
-    btnAbout: 'Documentação & Licenças',
-    btnSearch: 'Focar na Barra de Busca',
-    pathLabel: 'Caminho requisitado:',
-  },
-  en: {
-    code: 'HTTP 404 · COORDINATE NOT FOUND',
-    title: 'This route does not exist in the Cartograph index',
-    description:
-      'The requested path does not match an active view or technical document in Cartograph. Use the shortcuts below to return to the 111 scientific platforms directory, query the 15 federated APIs, or review your PRISMA 2020 library.',
-    btnPlatforms: '111 Platforms Directory',
-    btnFederated: 'Federated Search (15 APIs)',
-    btnSaved: 'Library & PRISMA 2020',
-    btnAbout: 'Documentation & Licenses',
-    btnSearch: 'Focus Search Bar',
-    pathLabel: 'Requested path:',
-  },
-} as const;
-
 export const NotFoundView: React.FC<NotFoundViewProps> = ({
   invalidPath,
   onNavigateTab,
   onFocusSearch,
 }) => {
-  const { language } = useI18n();
-  const copy = NOT_FOUND_COPY[language] || NOT_FOUND_COPY.pt;
+  const { t } = useI18n();
+  const counts = { platforms: PLATFORMS.length, apis: OPEN_FEDERATED_SOURCE_COUNT };
 
   return (
     <section
@@ -55,7 +30,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
         <div className="flex items-center justify-between gap-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs font-mono text-[var(--link-academic)]">
             <Compass className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{copy.code}</span>
+            <span>{t('notFoundCode')}</span>
           </div>
           <PrismMonogram className="h-7 w-auto opacity-85" />
         </div>
@@ -65,16 +40,16 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
             id="not-found-heading"
             className="text-2xl sm:text-3xl font-heading font-bold text-[var(--text-primary)] tracking-tight"
           >
-            {copy.title}
+            {t('notFoundTitle')}
           </h1>
           <p className="text-sm sm:text-base text-[var(--text-secondary)] leading-relaxed">
-            {copy.description}
+            {t('notFoundDescription', counts)}
           </p>
         </div>
 
         {invalidPath && (
           <div className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] flex items-center gap-2 text-xs font-mono text-[var(--text-muted)] overflow-x-auto">
-            <span>{copy.pathLabel}</span>
+            <span>{t('notFoundPathLabel')}</span>
             <code className="text-[var(--text-primary)] font-semibold">{invalidPath}</code>
           </div>
         )}
@@ -86,7 +61,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--link-academic)] text-white text-xs sm:text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
           >
             <Globe className="w-4 h-4" aria-hidden="true" />
-            <span>{copy.btnPlatforms}</span>
+            <span>{t('notFoundBtnPlatforms', counts)}</span>
           </button>
 
           <button
@@ -95,7 +70,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
           >
             <Database className="w-4 h-4 text-[var(--link-academic)]" aria-hidden="true" />
-            <span>{copy.btnFederated}</span>
+            <span>{t('notFoundBtnFederated', counts)}</span>
           </button>
 
           <button
@@ -104,7 +79,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
           >
             <Layers className="w-4 h-4 text-[var(--meta-green)]" aria-hidden="true" />
-            <span>{copy.btnSaved}</span>
+            <span>{t('notFoundBtnSaved')}</span>
           </button>
 
           {onFocusSearch && (
@@ -117,7 +92,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
             >
               <Search className="w-4 h-4" aria-hidden="true" />
-              <span>{copy.btnSearch}</span>
+              <span>{t('notFoundBtnSearch')}</span>
             </button>
           )}
         </div>

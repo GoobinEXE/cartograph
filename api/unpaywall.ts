@@ -7,10 +7,22 @@ import {
   type MinimalResponse,
   setEdgeCacheHeaders,
 } from './_security.js';
+import { buildUnpaywallUpstreamUrl } from '../shared/upstreams.mjs';
+import { isBareDoi, normalizeDoi } from '../shared/identifiers.mjs';
 
-const DOI_FORMAT_RE = /^10\.\d{4,9}\/[^\s]+$/i;
 const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_POLITE_EMAIL = 'researcher@cartographsearch.com';
+
+type UpstreamObject = Readonly<Record<string, unknown>>;
+
+// Local narrowing: functions in api/ import only from shared/ and ./_security.js, not src/.
+function asObject(value: unknown): UpstreamObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as UpstreamObject) : {};
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
 
 export default async function handler(
   req: MinimalRequest,
@@ -33,13 +45,9 @@ export default async function handler(
     return;
   }
 
-  const rawDoi = getQueryStringParam(req, 'doi')
-    .slice(0, 220)
-    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
-    .replace(/^doi:\s*/i, '')
-    .trim();
+  const rawDoi = normalizeDoi(getQueryStringParam(req, 'doi').slice(0, 220)) ?? '';
 
-  if (!DOI_FORMAT_RE.test(rawDoi)) {
+  if (!isBareDoi(rawDoi)) {
     res.status(400).json({ ok: false, error: 'Invalid DOI format' });
     return;
   }
@@ -50,9 +58,7 @@ export default async function handler(
     : process.env.UNPAYWALL_EMAIL || DEFAULT_POLITE_EMAIL;
 
   try {
-    const upstreamUrl = `https://api.unpaywall.org/v2/${encodeURIComponent(
-      rawDoi
-    )}?email=${encodeURIComponent(politeEmail)}`;
+    const upstreamUrl = buildUnpaywallUpstreamUrl(rawDoi, politeEmail);
     const response = await fetch(upstreamUrl, {
       headers: {
         'User-Agent': CARTOGRAPH_USER_AGENT,
@@ -82,17 +88,17 @@ export default async function handler(
       return;
     }
 
-    const data = (await response.json()) as Record<string, any>;
-    const bestLoc = data?.best_oa_location || null;
+    const data = asObject(await response.json());
+    const bestLoc = asObject(data.best_oa_location);
     setEdgeCacheHeaders(res, 3600);
     res.status(200).json({
       ok: true,
       doi: rawDoi,
-      isOa: Boolean(data?.is_oa),
-      oaStatus: typeof data?.oa_status === 'string' ? data.oa_status : 'unknown',
-      bestPdfUrl: typeof bestLoc?.url_for_pdf === 'string' ? bestLoc.url_for_pdf : null,
-      bestLandingUrl: typeof bestLoc?.url_for_landing_page === 'string' ? bestLoc.url_for_landing_page : null,
-      hostType: typeof bestLoc?.host_type === 'string' ? bestLoc.host_type : null,
+      isOa: Boolean(data.is_oa),
+      oaStatus: stringOrNull(data.oa_status) ?? 'unknown',
+      bestPdfUrl: stringOrNull(bestLoc.url_for_pdf),
+      bestLandingUrl: stringOrNull(bestLoc.url_for_landing_page),
+      hostType: stringOrNull(bestLoc.host_type),
     });
   } catch (err) {
     res.status(502).json({

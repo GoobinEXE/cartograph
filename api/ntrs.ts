@@ -7,6 +7,7 @@ import {
   setEdgeCacheHeaders,
   validateSearchParams,
 } from './_security.js';
+import { DEDICATED_PROXY_ROUTES, buildDedicatedUpstreamUrl } from '../shared/upstreams.mjs';
 
 export default async function handler(req: MinimalRequest, res: MinimalResponse) {
   if (applyCorsHeaders(req, res, 'GET, OPTIONS')) return;
@@ -23,17 +24,15 @@ export default async function handler(req: MinimalRequest, res: MinimalResponse)
   if (!allowed) return;
 
   const params = validateSearchParams(req, res, {
-    limitKey: 'size',
-    defaultLimit: 8,
-    maxLimit: 20,
+    limitKey: DEDICATED_PROXY_ROUTES.ntrs.limitParam,
+    defaultLimit: DEDICATED_PROXY_ROUTES.ntrs.defaultLimit,
+    maxLimit: DEDICATED_PROXY_ROUTES.ntrs.maxLimit,
     maxQueryLength: 300,
   });
   if (!params) return;
 
   try {
-    const ntrsUrl = `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(
-      params.query
-    )}&page%5Bsize%5D=${params.limit}`;
+    const ntrsUrl = buildDedicatedUpstreamUrl('ntrs', params.query, params.limit);
 
     const response = await fetch(ntrsUrl, {
       headers: {

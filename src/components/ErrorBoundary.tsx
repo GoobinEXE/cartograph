@@ -1,78 +1,94 @@
 import React from 'react';
-import { detectBrowserLanguage } from '../i18n/context';
+import { detectBrowserLanguage, translate } from '../i18n/context';
+import type { Translations } from '../i18n/translations';
+import { loadUserAccessConfig } from '../utils/accessConfig';
+import { triggerFileDownload } from '../utils/fileDownload';
+import { LAYOUT_STORAGE_KEYS, clearLayoutPreferences } from '../utils/layoutPreferences';
 import { workspaceStorageEngine } from '../utils/storageEngine';
+import { buildEmergencyBackupFromRecords } from '../utils/workspaceBackup';
+
+type EmergencyBackupStatus =
+  | { kind: 'idle' }
+  | { kind: 'saved'; papers: number; groups: number; rejected: number }
+  | { kind: 'failed' };
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  errorMessage: string;
+  errorMessage: string | null;
+  backupStatus: EmergencyBackupStatus;
 }
 
+/**
+ * Last-resort recovery screen. It reads the dictionary through `translate()` instead of the
+ * I18n context because the provider subtree may be the part that crashed.
+ */
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   ErrorBoundaryState
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorMessage: '' };
+    this.state = { hasError: false, errorMessage: null, backupStatus: { kind: 'idle' } };
   }
 
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    const isEn = detectBrowserLanguage() === 'en';
+  static getDerivedStateFromError(error: unknown): Partial<ErrorBoundaryState> {
     return {
       hasError: true,
-      errorMessage: error instanceof Error ? error.message : (isEn ? 'Unexpected rendering error' : 'Erro inesperado de renderização'),
+      errorMessage: error instanceof Error && error.message ? error.message : null,
     };
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo): void {
     console.error('[Cartograph ErrorBoundary]', error, info.componentStack);
+    // A crash during the first render happens before App's theme effect commits, so the
+    // recovery screen would ignore the stored dark theme without this.
+    try {
+      const root = document.documentElement;
+      if (!root.hasAttribute('data-theme')) {
+        const stored = window.localStorage.getItem(LAYOUT_STORAGE_KEYS.theme);
+        if (stored === 'light' || stored === 'dark') root.setAttribute('data-theme', stored);
+      }
+    } catch {
+      // storage blocked: keep the default light tokens
+    }
   }
 
   private handleExportEmergencyBackup = async (): Promise<void> => {
     try {
-      const snapshot: Record<string, unknown> = {
-        schemaVersion: 2,
-        emergencyBackupAt: new Date().toISOString(),
-      };
+      // Only workspace keys are read here; the access config (BYOK keys, InstToken,
+      // institutional proxy) is never serialized. Owned platform IDs are not secrets.
+      const records = await workspaceStorageEngine.exportAllRawRecords().catch(() => ({}));
+      let ownedPlatformIds: string[] | undefined;
       try {
-        snapshot.indexedDb = await workspaceStorageEngine.exportAllRawRecords();
+        ownedPlatformIds = loadUserAccessConfig().ownedPlatformIds;
       } catch {
-        // ignore idb errors
+        ownedPlatformIds = undefined;
       }
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key && key.startsWith('cartograph_')) {
-          const raw = window.localStorage.getItem(key);
-          try {
-            snapshot[key] = raw ? JSON.parse(raw) : null;
-          } catch {
-            snapshot[key] = raw;
-          }
-        }
-      }
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
-        type: 'application/json;charset=utf-8',
+
+      const backup = buildEmergencyBackupFromRecords(records, { ownedPlatformIds });
+      triggerFileDownload(
+        `cartograph-emergency-backup-${new Date().toISOString().slice(0, 10)}.json`,
+        backup.json,
+        'application/json;charset=utf-8;'
+      );
+      this.setState({
+        backupStatus: {
+          kind: 'saved',
+          papers: backup.savedPapers,
+          groups: backup.groups,
+          rejected: backup.rejected,
+        },
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `cartograph_emergency_backup_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     } catch {
-      // ignore download errors
+      this.setState({ backupStatus: { kind: 'failed' } });
     }
   };
 
   private handleResetLayoutState = (): void => {
     try {
-      window.localStorage.removeItem('cartograph_sidebar_drawers_v2');
-      window.localStorage.removeItem('cartograph_federated_sidebar_drawers_v1');
-      window.localStorage.removeItem('cartograph_theme_v1');
+      clearLayoutPreferences(window.localStorage);
     } catch {
-      // ignore storage errors
+      // localStorage access itself can throw when site data is blocked
     }
     window.location.reload();
   };
@@ -82,54 +98,72 @@ export class ErrorBoundary extends React.Component<
       return this.props.children;
     }
 
-    const isEn = detectBrowserLanguage() === 'en';
+    const language = detectBrowserLanguage();
+    const tr = (key: keyof Translations, params?: Record<string, string | number>) =>
+      translate(language, key, params);
+    const { backupStatus } = this.state;
 
     return (
-      <div className="min-h-screen bg-[var(--bg-canvas,#090D16)] text-[var(--text-primary,#F8FAFC)] flex items-center justify-center p-6">
-        <div className="max-w-lg w-full rounded-2xl border border-[var(--divider,#1E293B)] bg-[var(--bg-secondary,#0F172A)] p-7 space-y-5 shadow-xl">
+      <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex items-center justify-center p-6">
+        <div className="max-w-lg w-full rounded-2xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-7 space-y-5 shadow-xl">
           <div className="space-y-1.5">
-            <p className="text-xs font-mono uppercase tracking-wider text-sky-400">
-              {isEn ? 'Session Recovery · Cartograph' : 'Recuperação de Sessão · Cartograph'}
+            <p className="text-xs font-mono uppercase tracking-wider text-[var(--link-academic)]">
+              {tr('errorBoundaryEyebrow')}
             </p>
-            <h1 className="text-xl font-semibold">
-              {isEn ? 'An unexpected UI error occurred' : 'Ocorreu uma falha inesperada na interface'}
-            </h1>
-            <p className="text-sm text-[var(--text-secondary,#94A3B8)] leading-relaxed">
-              {isEn
-                ? 'Your saved articles, review groups, and browser notes were not deleted. You can export an immediate backup before reloading.'
-                : 'Seus artigos salvos, grupos de revisão e notas no navegador não foram apagados. Você pode exportar um backup imediato antes de recarregar.'}
+            <h1 className="font-heading text-xl font-semibold">{tr('errorBoundaryTitle')}</h1>
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+              {tr('errorBoundaryBody')}
             </p>
           </div>
 
-          {this.state.errorMessage && (
-            <pre className="text-xs font-mono bg-black/25 rounded-xl p-3 overflow-x-auto text-rose-300 border border-rose-500/20">
-              {this.state.errorMessage}
-            </pre>
-          )}
+          <pre className="text-xs font-mono bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words border border-[var(--divider)]">
+            {this.state.errorMessage ?? tr('errorBoundaryFallbackMessage')}
+          </pre>
 
           <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-sky-500 text-slate-950 hover:bg-sky-400 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 transition-opacity cursor-pointer"
             >
-              {isEn ? 'Reload page' : 'Recarregar página'}
+              {tr('errorBoundaryReload')}
             </button>
             <button
               type="button"
               onClick={this.handleExportEmergencyBackup}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-[var(--divider,#334155)] hover:bg-white/5 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-[var(--divider)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
             >
-              {isEn ? 'Download backup (.json)' : 'Baixar backup (.json)'}
+              {tr('errorBoundaryDownloadBackup')}
             </button>
             <button
               type="button"
               onClick={this.handleResetLayoutState}
-              className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary,#94A3B8)] hover:bg-white/5 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
             >
-              {isEn ? 'Reset layout & reload' : 'Redefinir layout e recarregar'}
+              {tr('errorBoundaryResetLayout')}
             </button>
           </div>
+
+          {backupStatus.kind !== 'idle' && (
+            <p
+              role="status"
+              className="text-[13px] leading-relaxed text-[var(--text-secondary)]"
+            >
+              {backupStatus.kind === 'saved'
+                ? [
+                    tr('errorBoundaryBackupSaved', {
+                      papers: backupStatus.papers,
+                      groups: backupStatus.groups,
+                    }),
+                    backupStatus.rejected > 0
+                      ? tr('errorBoundaryBackupRejected', { count: backupStatus.rejected })
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                : tr('errorBoundaryBackupFailed')}
+            </p>
+          )}
         </div>
       </div>
     );
