@@ -278,7 +278,7 @@ export function LibraryToolbar({
       </div>
 
       {/* Sub-Tab Switcher: Matriz vs Fluxograma PRISMA */}
-      <div className="flex items-center gap-2 border-t border-[var(--divider)] pt-3.5">
+      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--divider)] pt-3.5">
         <button
           type="button"
           onClick={() => onSubTabChange('matrix')}

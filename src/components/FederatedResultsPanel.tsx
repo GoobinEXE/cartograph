@@ -32,6 +32,7 @@ import { UnifiedAreaFilterDrawer } from './UnifiedAreaFilterDrawer';
 import { UserWorkspaceSection } from './UserWorkspaceSection';
 import { CollapsibleSection, SidebarDrawersHeader } from './ui/CollapsibleSection';
 import { usePersistedDrawers } from './ui/usePersistedDrawers';
+import { ResponsiveSidebar } from './ui/ResponsiveSidebar';
 import {
   AlertCircle,
   AlertTriangle,
@@ -254,10 +255,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-6 xl:gap-8 items-start">
       {/* Left Filter & Target Slot Column — Scroll Independente + Gavetas Retráteis */}
-      <aside
-        className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
-        aria-label={t('federatedSidebarAria')}
-      >
+      <ResponsiveSidebar ariaLabel={t('federatedSidebarAria')} triggerLabel={t('mobileFiltersBtn')}>
         <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
         {/* 1. Sort Controls (Primary ordering control — top priority) */}
@@ -577,7 +575,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
           config={userAccessConfig}
           onOpenAccessSettings={onOpenAccessSettings}
         />
-      </aside>
+      </ResponsiveSidebar>
 
       {/* Main Results Column — Classic Borderless Academic Stream */}
       <div className="max-w-3xl">
@@ -646,7 +644,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:w-auto sm:shrink-0">
             {deduplicationSummary && deduplicationSummary.originalCount > 1 && (
               <span
                 className="text-xs text-[var(--text-muted)]"
@@ -804,8 +802,8 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                 )}
 
                 {/* Title Row + Direct PDF / Institutional Proxy Links (Google Scholar Pattern) */}
-                <div className="flex items-baseline justify-between gap-4">
-                  <h3 className="text-[19px] font-medium leading-snug">
+                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 sm:gap-4">
+                  <h3 className="text-[17px] sm:text-[19px] font-medium leading-snug break-words">
                     {safePaperUrl ? (
                       <a
                         href={safePaperUrl}
@@ -820,7 +818,7 @@ export const FederatedResultsPanel: React.FC<FederatedResultsPanelProps> = ({
                     )}
                   </h3>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:shrink-0">
                     {safePdfUrl && (
                       <a
                         href={safePdfUrl}

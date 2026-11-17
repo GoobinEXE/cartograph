@@ -48,6 +48,16 @@ export interface Translations {
   tabPlatforms: string;
   tabFederated: string;
   tabSaved: string;
+  mobileNavAria: string;
+  mobileNavPlatforms: string;
+  mobileNavResults: string;
+  mobileNavLibrary: string;
+  mobileNavHistory: string;
+  mobileFiltersBtn: string;
+  mobileLibraryPanelBtn: string;
+  mobileSheetDone: string;
+  mobileSheetClose: string;
+  mobileSearchTools: string;
   tabFeedback: string;
   tabAbout: string;
   feedbackTitle: string;

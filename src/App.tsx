@@ -32,12 +32,14 @@ import { translateAcademicQueryPtToEn } from './utils/queryBuilder';
 import { loadUserAccessConfig, saveUserAccessConfig } from './utils/accessConfig';
 import { rewriteUrlWithInstitutionalProxy } from './utils/institutionalProxy';
 import { FederatedResultsPanel } from './components/FederatedResultsPanel';
+import { MobileTabBar } from './components/MobileTabBar';
 import { NotFoundView } from './components/NotFoundView';
 import { PrismMonogram, PrismSpectralBar } from './components/PrismLogo';
 import { UnifiedAreaFilterDrawer } from './components/UnifiedAreaFilterDrawer';
 import { UserWorkspaceSection } from './components/UserWorkspaceSection';
 import { CollapsibleSection, SidebarDrawersHeader } from './components/ui/CollapsibleSection';
 import { usePersistedDrawers } from './components/ui/usePersistedDrawers';
+import { ResponsiveSidebar } from './components/ui/ResponsiveSidebar';
 import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
 import { isSupportedLanguage, useI18n } from './i18n/context';
@@ -730,11 +732,72 @@ export default function AcademicCommandCenter() {
           subtitle: localizedCategoryMeta[activeCategory].subtitle,
         };
 
+  /**
+   * Secondary search actions (share, PT→EN, Boolean builder). From `sm` up they sit inside the
+   * search pill; on phones they move to the row under it with 40px touch targets, which leaves the
+   * pill wide enough for the query itself.
+   */
+  const renderSearchTools = (variant: 'pill' | 'touch') => {
+    const isTouch = variant === 'touch';
+    const iconButton = isTouch
+      ? 'w-10 h-10 inline-flex items-center justify-center rounded-full'
+      : 'p-1.5 rounded-full mr-1';
+    const iconSize = isTouch ? 'w-[18px] h-[18px]' : 'w-4 h-4';
+    return (
+      <>
+        <button
+          type="button"
+          onClick={handleTranslatePtToEn}
+          disabled={!isValidQuery || isTranslating}
+          className={`${
+            isTouch ? 'h-10 px-3 rounded-full text-[13.5px]' : 'px-2.5 py-1 rounded-full text-[13px] mr-1'
+          } font-medium transition-colors ${
+            isValidQuery
+              ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
+              : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
+          }`}
+          title={t('translateTitle')}
+          aria-label={t('translateTitle')}
+        >
+          {isTranslating ? '...' : 'PT→EN'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowBooleanDrawer((v) => !v)}
+          aria-pressed={showBooleanDrawer}
+          className={`${iconButton} transition-colors cursor-pointer ${
+            showBooleanDrawer
+              ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+          }`}
+          title={t('booleanBuilderBtn')}
+          aria-label={t('booleanBuilderBtn')}
+        >
+          <SlidersHorizontal className={iconSize} />
+        </button>
+
+        {isValidQuery && (
+          <button
+            type="button"
+            onClick={handleCopySearchShareUrl}
+            className={`${iconButton} text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer`}
+            title={t('shareSearchTitle')}
+            aria-label={t('shareSearchTitle')}
+          >
+            <Share2 className={isTouch ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+          </button>
+        )}
+      </>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-20">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pb-20">
       {/* Academic Search Header — Google Scholar / Semantic Scholar / Consensus Pattern */}
-      <header className="sticky top-0 z-30 bg-[var(--bg-canvas)]/95 backdrop-blur-md border-b border-[var(--divider)]">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-3.5">
+      {/* Phones: the header scrolls away and the tabs live in the bottom bar, so the content gets the screen. */}
+      <header className="relative sm:sticky top-0 z-30 bg-[var(--bg-canvas)]/95 backdrop-blur-md border-b border-[var(--divider)] pt-[env(safe-area-inset-top,0px)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-3.5 pb-3 sm:pb-0">
           {/* Top Search & Brand Row */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-1">
@@ -759,11 +822,11 @@ export default function AcademicCommandCenter() {
                 </a>
 
                 {/* Mobile Controls */}
-                <div className="flex items-center gap-1.5 sm:hidden">
+                <div className="flex items-center gap-1 -mr-2 sm:hidden">
                   <button
                     type="button"
                     onClick={() => setShowAccessModal(true)}
-                    className={`p-2 rounded-full transition-colors cursor-pointer ${
+                    className={`w-10 h-10 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
                       hasActiveAccessEnhancement
                         ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
@@ -771,7 +834,7 @@ export default function AcademicCommandCenter() {
                     title={t('accessSettingsBtn')}
                     aria-label={t('accessSettingsBtn')}
                   >
-                    <KeyRound className="w-4 h-4" />
+                    <KeyRound className="w-[18px] h-[18px]" />
                   </button>
                   <button
                     type="button"
@@ -780,7 +843,7 @@ export default function AcademicCommandCenter() {
                       const codes = availableLanguages.map((opt) => opt.code);
                       setLanguage(codes[(codes.indexOf(language) + 1) % codes.length]);
                     }}
-                    className="px-2.5 py-1.5 rounded-full text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] uppercase cursor-pointer"
+                    className="h-10 min-w-10 px-2 rounded-full text-[13px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] uppercase cursor-pointer"
                     aria-label={t('languageMenuLabel')}
                     title={t('languageMenuLabel')}
                   >
@@ -789,17 +852,17 @@ export default function AcademicCommandCenter() {
                   <button
                     type="button"
                     onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-                    className="p-2 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                    className="w-10 h-10 inline-flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
                     title={t('toggleThemeTitle')}
                     aria-label={t('toggleThemeTitle')}
                   >
-                    {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                    {theme === 'light' ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
                   </button>
                 </div>
               </div>
 
               {/* Borderless Search Pill (Balanced Search Engine Scale) */}
-              <div className="flex-1 max-w-[720px] flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 transition-all">
+              <div className="flex-1 max-w-[720px] flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 min-h-12 sm:min-h-0 transition-all">
                 <Search className="w-[18px] h-[18px] text-[var(--text-muted)] shrink-0 mr-2.5" />
                 <input
                   ref={searchInputRef}
@@ -819,14 +882,16 @@ export default function AcademicCommandCenter() {
                     }
                   }}
                   placeholder={t('searchPlaceholder')}
-                  className="w-full bg-transparent text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+                  enterKeyHint="search"
+                  aria-label={t('searchPlaceholder')}
+                  className="w-full min-w-0 bg-transparent text-base sm:text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
                 />
 
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
-                    className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-1 cursor-pointer"
+                    className="w-9 h-9 sm:w-auto sm:h-auto sm:p-1.5 inline-flex items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-0.5 sm:mr-1 cursor-pointer shrink-0"
                     title={t('clearSearchTitle')}
                     aria-label={t('clearSearchTitle')}
                   >
@@ -834,50 +899,13 @@ export default function AcademicCommandCenter() {
                   </button>
                 )}
 
-                {isValidQuery && (
-                  <button
-                    type="button"
-                    onClick={handleCopySearchShareUrl}
-                    className="p-1.5 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] mr-1 cursor-pointer"
-                    title={t('shareSearchTitle')}
-                    aria-label={t('shareSearchTitle')}
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleTranslatePtToEn}
-                  disabled={!isValidQuery || isTranslating}
-                  className={`px-2.5 py-1 rounded-full text-[13px] font-medium transition-colors mr-1 ${
-                    isValidQuery
-                      ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
-                      : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
-                  }`}
-                  title={t('translateTitle')}
-                >
-                  {isTranslating ? '...' : 'PT→EN'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowBooleanDrawer((v) => !v)}
-                  className={`p-1.5 rounded-full transition-colors mr-1.5 cursor-pointer ${
-                    showBooleanDrawer
-                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-                  title={t('booleanBuilderBtn')}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                </button>
+                <div className="hidden sm:flex items-center">{renderSearchTools('pill')}</div>
 
                 <button
                   type="button"
                   onClick={handleRunFederatedSearch}
                   disabled={!isValidQuery}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-opacity shrink-0 ${
+                  className={`inline-flex items-center gap-1.5 px-4 h-9 sm:h-auto sm:py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold transition-opacity shrink-0 ${
                     isValidQuery
                       ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer'
                       : 'bg-[var(--bg-hover)] text-[var(--text-muted)] cursor-not-allowed'
@@ -891,11 +919,19 @@ export default function AcademicCommandCenter() {
 
             {/* Right Actions: Batch Portal Launch + Theme + Language */}
             <div className="flex items-center justify-between sm:justify-end gap-2">
+              <div
+                className="flex sm:hidden items-center gap-0.5 -ml-2"
+                role="group"
+                aria-label={t('mobileSearchTools')}
+              >
+                {renderSearchTools('touch')}
+              </div>
+
               <button
                 type="button"
                 onClick={handleLaunchSelectedPlatforms}
                 disabled={!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3.5 h-10 sm:h-auto sm:py-2 rounded-full text-[13px] font-semibold transition-colors shrink-0 ${
                   isValidQuery && selectedPlatformIds.length > 0
                     ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] hover:opacity-85 cursor-pointer'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed'
@@ -1017,7 +1053,7 @@ export default function AcademicCommandCenter() {
           )}
 
           {/* Familiar Academic Navigation Bar (Underline Tabs like Google Scholar / Semantic Scholar) */}
-          <nav className="flex items-center gap-6 mt-3 overflow-x-auto">
+          <nav className="hidden sm:flex items-center gap-6 mt-3 overflow-x-auto" aria-label={t('mobileNavAria')}>
             <button
               type="button"
               onClick={() => navigateToTab('platforms')}
@@ -1083,10 +1119,7 @@ export default function AcademicCommandCenter() {
             {activeTab === 'platforms' && (
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-6 xl:gap-8 items-start">
             {/* Left Sidebar — Scroll Individual com Gavetas Retráteis / Expansíveis */}
-            <aside
-              className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-8 select-none"
-              aria-label={t('sidebarAriaLabel')}
-            >
+            <ResponsiveSidebar ariaLabel={t('sidebarAriaLabel')} triggerLabel={t('mobileFiltersBtn')}>
               <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
               {/* Gaveta 1: Sort Controls (Primary ordering control — top priority) */}
@@ -1449,7 +1482,7 @@ export default function AcademicCommandCenter() {
                 config={userAccessConfig}
                 onOpenAccessSettings={openAccessSettings}
               />
-            </aside>
+            </ResponsiveSidebar>
 
             {/* Right Main Directory Area */}
             <div className="min-w-0">
@@ -1943,9 +1976,22 @@ export default function AcademicCommandCenter() {
         </Suspense>
       )}
 
+      <MobileTabBar
+        activeTab={isNotFound ? null : activeTab}
+        resultsCount={federatedPapers.length}
+        savedCount={savedPapers.length}
+        historyCount={searchLogs.length}
+        isSearching={isSearchingApis}
+        onNavigate={(tab) => {
+          navigateToTab(tab);
+          window.scrollTo({ top: 0 });
+        }}
+        onOpenHistory={() => setShowSearchHistoryModal(true)}
+      />
+
       {analyticsConsentPrompt && (
         <div
-          className="fixed bottom-4 right-4 z-40 max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
+          className="fixed left-4 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:left-auto sm:bottom-4 sm:right-4 z-40 sm:max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
           role="region"
           aria-label={t('analyticsConsentAria')}
         >

@@ -160,7 +160,7 @@ export const SearchHistoryDrawer: React.FC<SearchHistoryDrawerProps> = ({
                   className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--divider)] p-4 space-y-2.5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0 flex-1">
+                    <div className="space-y-1 flex-1 min-w-[min(100%,15rem)]">
                       <code className="block text-[13px] font-semibold text-[var(--text-primary)] break-words bg-[var(--bg-canvas)] px-2.5 py-1.5 rounded-lg border border-[var(--divider)]">
                         {entry.query}
                       </code>
