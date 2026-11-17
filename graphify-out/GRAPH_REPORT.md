@@ -1,17 +1,17 @@
-# Graph Report - SUPER PESQUISADOR 2000  (2026-11-16)
+# Graph Report - agent-abe108ef68fb3efdc  (2026-11-17)
 
 ## Corpus Check
-- 116 files · ~111,712 words
+- 149 files · ~119,764 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 14 file(s) not represented in the graph (top: .xml 3, (none) 2, .command 2)
+- Unclassified: 15 file(s) not represented in the graph (top: (none) 3, .xml 3, .command 2)
 
 ## Summary
-- 880 nodes · 2457 edges · 48 communities (40 shown, 8 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 140 edges (avg confidence: 0.92)
+- 1078 nodes · 3415 edges · 47 communities (39 shown, 8 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 142 edges (avg confidence: 0.92)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4ee2d591`
+- Built from commit: `03ccea0c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,20 +19,20 @@
 - App.tsx
 - workspaceBackup.ts
 - Tauri Multi-Platform App Icons
-- academicAggregator.ts
+- sourceAdapters.ts
 - Tauri Desktop Window Configuration
 - Architecture Docs & HTML Shell
 - TypeScript Compiler Configuration
 - dependencies
-- SavedLiteratureDrawer.tsx
+- workspaceState.ts
 - ref_node_assert
 - GitHub Pages Deploy Job
 - CI Release Action Inputs
 - CI Workflow Build Steps
-- BooleanBuilderDrawer.tsx
+- WorkspaceProvider.tsx
 - Railway Deployment Configuration
-- FederatedResultsPanel.tsx
-- academic.ts
+- useI18n
+- academicAggregator.ts
 - PRISM Brand & OG Assets
 - Tauri Desktop Release Job
 - CI Workflow Branch Triggers
@@ -40,48 +40,47 @@
 - CI Web Verification Job
 - CI Platform Build Matrix
 - Tauri Default Capabilities
-- _security.ts
+- launcher-bridge.mjs
 - relevanceRanker.ts
 - seo.ts
-- ErrorBoundary
-- devDependencies
+- context.tsx
+- package.json
 - scripts
 - Linux Desktop Launcher Script
 - Linux Web Bridge Script
 - Rust Cargo Crate Manifest
 - deduplication.ts
-- react
-- accessConfig.ts
-- SavedPaperItem
-- sanitizeExternalUrl
+- AboutView.tsx
+- AccessSettingsModal.tsx
+- LibraryBackupSection.tsx
+- workspaceActions.ts
 - devDependencies
-- citationExporter.ts
+- academic.ts
 - platforms.ts
-- BlindScreeningModal.tsx
-- academicAggregator.ts
+- workspaceReducer.ts
 - @tauri-apps/api@^2.12.4
 - vite
 
 ## God Nodes (most connected - your core abstractions)
-1. `Cartograph Master App Icon (512x512 PNG)` - 55 edges
-2. `AcademicCommandCenter()` - 44 edges
-3. `cleanDoi()` - 41 edges
-4. `useI18n()` - 35 edges
-5. `SavedPaperItem` - 30 edges
-6. `SavedLiteratureDrawer()` - 29 edges
-7. `sanitizeExternalUrl()` - 27 edges
-8. `NormalizedPaper` - 26 edges
-9. `react` - 25 edges
-10. `applyCorsHeaders()` - 22 edges
+1. `useI18n()` - 58 edges
+2. `normalizeDoi()` - 55 edges
+3. `Cartograph Master App Icon (512x512 PNG)` - 55 edges
+4. `SavedPaperItem` - 47 edges
+5. `AcademicCommandCenter()` - 45 edges
+6. `asString()` - 38 edges
+7. `react` - 34 edges
+8. `asRecords()` - 34 edges
+9. `NormalizedPaper` - 33 edges
+10. `asRecord()` - 33 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `AcademicCommandCenter()`  [INFERRED]
   agents/DESIGN_AND_INTEGRATION.md → src/App.tsx
 - `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `AcademicCommandCenter()`  [INFERRED]
   .agents/rules/design-and-integration.md → src/App.tsx
-- `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `NormalizedPaper`  [INFERRED]
+- `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `BooleanQueryState`  [INFERRED]
   agents/DESIGN_AND_INTEGRATION.md → src/types/academic.ts
-- `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `NormalizedPaper`  [INFERRED]
+- `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `BooleanQueryState`  [INFERRED]
   .agents/rules/design-and-integration.md → src/types/academic.ts
 - `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` --references--> `ScreeningStatus`  [INFERRED]
   agents/DESIGN_AND_INTEGRATION.md → src/types/academic.ts
@@ -94,23 +93,23 @@
 - **Cartograph Deterministic Metasearch & PRISMA Pipeline** — agents_boolean_query_engine, agents_federated_aggregator, agents_platform_catalog, agents_deterministic_pro_pipeline [EXTRACTED 1.00]
 - **Cartograph Public Web Entry, SEO & Fallback Surface** — index_spa_entry, index_schema_org_graph, public_404_error_page, public_robots_crawler_policy [INFERRED 0.85]
 
-## Communities (48 total, 8 thin omitted)
+## Communities (47 total, 8 thin omitted)
 
 ### Community 0 - "App.tsx"
-Cohesion: 0.10
-Nodes (34): @vercel/analytics, AboutView, AcademicCommandCenter(), AccessSettingsModal, BooleanBuilderDrawer, FeedbackView, PlatformSortMode, SavedLiteratureDrawer (+26 more)
+Cohesion: 0.11
+Nodes (26): @vercel/analytics, AboutView, AcademicCommandCenter(), BooleanBuilderDrawer, FeedbackView, PLATFORM_SIDEBAR_DRAWER_DEFAULTS, PlatformSortMode, SavedLiteratureDrawer (+18 more)
 
 ### Community 1 - "workspaceBackup.ts"
-Cohesion: 0.17
-Nodes (20): RelatedPaperUrl, WorkspaceStorageKey, BackupParseResult, buildEmergencyBackupFromRecords(), buildWorkspaceBackupPayload(), CARTOGRAPH_BACKUP_SCHEMA, CARTOGRAPH_BACKUP_SCHEMA_V2, CartographEmergencyBackup (+12 more)
+Cohesion: 0.31
+Nodes (12): BackupParseResult, EmergencyBackupResult, parseWorkspaceBackup(), sanitizeCustomColumn(), sanitizeCustomFields(), sanitizeGroup(), sanitizeQualityAppraisal(), sanitizeRecordList() (+4 more)
 
 ### Community 2 - "Tauri Multi-Platform App Icons"
 Cohesion: 0.07
 Nodes (56): Tauri App Icon 128x128@2x (256x256 PNG), Tauri App Icon 128x128 PNG, Tauri App Icon 32x32 PNG, Tauri App Icon 64x64 PNG, Android Adaptive Foreground Icon Variant (ic_launcher_foreground), Android Round Launcher Icon Variant (ic_launcher_round), Android Launcher Icon Variant (ic_launcher), Android HDPI Density Bucket (mipmap-hdpi) (+48 more)
 
-### Community 3 - "academicAggregator.ts"
-Cohesion: 0.09
-Nodes (65): reconstructOpenAlexAbstract(), searchArxiv(), searchCrossref(), searchDataCite(), searchDoaj(), searchEuropePmc(), searchFigshare(), searchGbifLiterature() (+57 more)
+### Community 3 - "sourceAdapters.ts"
+Cohesion: 0.11
+Nodes (90): normalizeDoi(), extractYear(), filterByYear(), nonNegativeCount(), pdfUrlOrNull(), UNTITLED_PAPER_TITLE, joinName(), parseArxivAtom() (+82 more)
 
 ### Community 4 - "Tauri Desktop Window Configuration"
 Cohesion: 0.10
@@ -128,13 +127,13 @@ Nodes (18): compilerOptions, allowImportingTsExtensions, allowJs, isolatedModule
 Cohesion: 0.14
 Nodes (14): dependencies, lucide-react@^0.469.0, react@^18.3.1, react-dom@^18.3.1, @tauri-apps/plugin-http@^2.9.0, @tauri-apps/plugin-opener@^2.7.3, @tauri-apps/plugin-shell@^2.6.0, @vercel/analytics@^2.0.1 (+6 more)
 
-### Community 8 - "SavedLiteratureDrawer.tsx"
-Cohesion: 0.21
-Nodes (18): GROUP_COLORS, LibrarySlotView, SavedLiteratureDrawerProps, CustomExtractionColumn, DedupOverrideRule, LibraryGroup, QualityAppraisalResult, QualityRating (+10 more)
+### Community 8 - "workspaceState.ts"
+Cohesion: 0.31
+Nodes (11): CustomColumnsManagerProps, SavedPaperCardProps, createInitialWorkspaceState(), WorkspaceState, WorkspaceStoreSnapshot, CustomExtractionColumn, DedupOverrideRule, LibraryGroup (+3 more)
 
 ### Community 9 - "ref_node_assert"
-Cohesion: 0.10
-Nodes (16): esbuildBin, outDir, projectRoot, testFiles, testsDir, STORAGE_KEY_USER_ACCESS_CONFIG, createWorkspaceStorageEngine(), readLegacyLocalValue() (+8 more)
+Cohesion: 0.06
+Nodes (42): esbuildBin, outDir, projectRoot, testFiles, testsDir, BooleanBuilderDrawer(), BooleanBuilderDrawerProps, formatMeshInsertionTerm() (+34 more)
 
 ### Community 10 - "GitHub Pages Deploy Job"
 Cohesion: 0.18
@@ -148,21 +147,21 @@ Nodes (11): with, args, cache, node-version, path, prerelease, releaseBody, rele
 Cohesion: 0.29
 Nodes (10): steps, steps, GITHUB_TOKEN, env, id, if, name, run (+2 more)
 
-### Community 13 - "BooleanBuilderDrawer.tsx"
-Cohesion: 0.10
-Nodes (27): 1. Ativação Mandatória de Skills de Design, 2.1 Famílias Tipográficas Canônicas do Projeto, 2. Proibição de Estética Genérica de IA e Padronização Tipográfica Estrita, 3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias, Diretrizes Normativas: UI/UX Intelligence, Rigor Tipográfico e Integração Arquitetural Estrita, 1. Ativação Mandatória de Skills de Design, 2.1 Famílias Tipográficas Canônicas do Projeto, 2. Proibição de Estética Genérica de IA e Padronização Tipográfica Estrita (+19 more)
+### Community 13 - "WorkspaceProvider.tsx"
+Cohesion: 0.11
+Nodes (29): createWorkspaceActions(), buildHydratedWorkspaceState(), HydratedWorkspace, bindFlushToPageLifecycle(), connectWorkspacePersistence(), DEFAULT_TIMERS, LifecycleEventSource, PageLifecycleTargets (+21 more)
 
 ### Community 14 - "Railway Deployment Configuration"
 Cohesion: 0.22
 Nodes (8): build, buildCommand, builder, deploy, restartPolicyMaxRetries, restartPolicyType, startCommand, $schema
 
-### Community 15 - "FederatedResultsPanel.tsx"
+### Community 15 - "useI18n"
 Cohesion: 0.16
-Nodes (22): AccessSettingsModalProps, CitationChaserModal(), FederatedResultsPanel(), FederatedResultsPanelProps, FederatedSidebarSectionKey, MergeInspectorModal(), MergeInspectorModalProps, USER_WORKSPACE_SECTION_TAG (+14 more)
+Nodes (26): lucide-react, react, AccessSettingsModalProps, CitationChaserModal(), CitationChaserModalProps, FEDERATED_SIDEBAR_DRAWER_DEFAULTS, FederatedResultsPanel(), FederatedResultsPanelProps (+18 more)
 
-### Community 16 - "academic.ts"
-Cohesion: 0.11
-Nodes (24): BYOK_UPSTREAM_PROVIDERS, API_SOURCE_AUTHORITY_WEIGHTS, API_SOURCE_REGISTRY, ApiSourceMetadata, BYOK_FEDERATED_SOURCE_COUNT, OPEN_FEDERATED_SOURCE_COUNT, THEMATIC_AREA_TO_SCOPE, TOTAL_FEDERATED_SOURCE_COUNT (+16 more)
+### Community 16 - "academicAggregator.ts"
+Cohesion: 0.10
+Nodes (33): BYOK_UPSTREAM_PROVIDERS, API_SOURCE_REGISTRY, ApiSourceMetadata, sourceMatchesScope(), THEMATIC_AREA_TO_SCOPE, TOTAL_FEDERATED_SOURCE_COUNT, BYOK_PROVIDER_MAP, BYOK_PROVIDERS (+25 more)
 
 ### Community 17 - "PRISM Brand & OG Assets"
 Cohesion: 0.32
@@ -192,23 +191,23 @@ Nodes (6): strategy, args, platform, include, fail-fast, matrix
 Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
 
-### Community 24 - "_security.ts"
-Cohesion: 0.10
-Nodes (54): handler(), handler(), handler(), readHeaderValue(), ALLOWED_TYPES, handler(), sanitizeHttpUrl(), handler() (+46 more)
+### Community 24 - "launcher-bridge.mjs"
+Cohesion: 0.07
+Nodes (68): handler(), handler(), handler(), readHeaderValue(), ALLOWED_TYPES, handler(), sanitizeHttpUrl(), handler() (+60 more)
 
 ### Community 25 - "relevanceRanker.ts"
-Cohesion: 0.17
-Nodes (21): RankedPaperResult, RelevanceBreakdown, extractGlossaryEnglishEquivalents(), buildFrequencyMaps(), clamp(), computeConsensusMetrics(), computeImpactRecencyMetrics(), computeLexicalMetrics() (+13 more)
+Cohesion: 0.18
+Nodes (21): RankedPaperResult, RelevanceBreakdown, buildFrequencyMaps(), clamp(), computeConsensusMetrics(), computeImpactRecencyMetrics(), computeLexicalMetrics(), computePaperRelevance() (+13 more)
 
 ### Community 26 - "seo.ts"
-Cohesion: 0.17
-Nodes (12): AboutSectionId, LanguageCode, ABOUT_SECTIONS_BY_PATH, AppTab, CANONICAL_ORIGIN, CANONICAL_PATH_BY_ABOUT_SECTION, HTML_LANG_MAP, OG_LOCALE_MAP (+4 more)
+Cohesion: 0.15
+Nodes (15): AboutSectionId, LanguageCode, ABOUT_SECTIONS_BY_PATH, AppTab, buildCanonicalPath(), CANONICAL_ORIGIN, CANONICAL_PATH_BY_ABOUT_SECTION, HTML_LANG_MAP (+7 more)
 
-### Community 27 - "ErrorBoundary"
-Cohesion: 0.09
-Nodes (29): EmergencyBackupStatus, ErrorBoundary, ErrorBoundaryState, PrismaFlowDiagram(), PrismaFlowDiagramProps, PLATFORM_TRANSLATIONS_EN, PlatformEnTranslation, AVAILABLE_LANGUAGES (+21 more)
+### Community 27 - "context.tsx"
+Cohesion: 0.08
+Nodes (33): EmergencyBackupStatus, ErrorBoundary, ErrorBoundaryState, PersistedDrawers, readDrawerState(), usePersistedDrawers(), writeDrawerState(), AVAILABLE_LANGUAGES (+25 more)
 
-### Community 28 - "devDependencies"
+### Community 28 - "package.json"
 Cohesion: 0.20
 Nodes (9): description, tailwindcss@^4.0.6, @types/node@^22.10.2, name, private, type, version, tailwindcss (+1 more)
 
@@ -217,63 +216,59 @@ Cohesion: 0.18
 Nodes (11): scripts, bridge, build, desktop, desktop:build, dev, preview, start (+3 more)
 
 ### Community 36 - "deduplication.ts"
-Cohesion: 0.13
-Nodes (33): CitationChaserModalProps, chasePaperCitations(), CitationChaseDirection, CitationChaseResult, normalizeOpenAlexWork(), normalizeS2EdgePaper(), reconstructAbstract(), resolveOpenAlexWorkSeed() (+25 more)
+Cohesion: 0.06
+Nodes (53): 1. Ativação Mandatória de Skills de Design, 2.1 Famílias Tipográficas Canônicas do Projeto, 2. Proibição de Estética Genérica de IA e Padronização Tipográfica Estrita, 3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias, Diretrizes Normativas: UI/UX Intelligence, Rigor Tipográfico e Integração Arquitetural Estrita, 1. Ativação Mandatória de Skills de Design, 2.1 Famílias Tipográficas Canônicas do Projeto, 2. Proibição de Estética Genérica de IA e Padronização Tipográfica Estrita (+45 more)
 
-### Community 37 - "react"
-Cohesion: 0.19
-Nodes (15): react, AboutView(), AboutViewProps, FeedbackView(), FeedbackViewProps, NotFoundView(), NotFoundViewProps, PrismMonogram() (+7 more)
-
-### Community 38 - "accessConfig.ts"
+### Community 37 - "AboutView.tsx"
 Cohesion: 0.23
-Nodes (13): AccessSettingsModal(), BYOK_PROVIDER_MAP, BYOK_PROVIDERS, AccessModel, InstitutionalProxyConfig, CAPES_CAFE_COVERED_PLATFORM_IDS, createDefaultUserAccessConfig(), loadUserAccessConfig() (+5 more)
+Nodes (11): AboutView(), AboutViewProps, NotFoundView(), NotFoundViewProps, PrismMonogram(), PrismSpectralBar(), API_SOURCE_DOCS, ApiSourceDoc (+3 more)
 
-### Community 39 - "SavedPaperItem"
-Cohesion: 0.18
-Nodes (11): BibliometricsPanel(), BibliometricsPanelProps, BibliometricsPanel, formatSearchLogsAsMarkdown(), SearchHistoryDrawer(), SearchHistoryDrawerProps, SavedPaperItem, BibliometricsSummary (+3 more)
+### Community 38 - "AccessSettingsModal.tsx"
+Cohesion: 0.33
+Nodes (8): AccessSettingsModal, AccessSettingsModal(), InstitutionalProxyConfig, CAPES_CAFE_COVERED_PLATFORM_IDS, buildDoiProxyUrl(), buildPrefixProxyUrl(), DEFAULT_INSTITUTIONAL_PROXY, rewriteUrlWithInstitutionalProxy()
 
-### Community 40 - "sanitizeExternalUrl"
-Cohesion: 0.20
-Nodes (14): ExtractedPaperMetadata, detectStudyDesign(), extractSampleSize(), parseAbstractMetadata(), SAMPLE_SIZE_REGEXES, SECTION_PATTERNS, STUDY_DESIGN_PATTERNS, cleanBibValue() (+6 more)
+### Community 39 - "LibraryBackupSection.tsx"
+Cohesion: 0.19
+Nodes (22): LibraryBackupSection(), GROUP_COLORS, LibrarySlotView, LibrarySortMode, LibrarySubTab, resolveImportTargetGroup(), SAVED_CARD_DRAWER_HEADER_CLASS, SAVED_CARD_DRAWER_TITLE_CLASS (+14 more)
+
+### Community 40 - "workspaceActions.ts"
+Cohesion: 0.23
+Nodes (16): LibraryBackupSectionProps, LibrarySidebarProps, SavedLiteratureDrawerProps, BackupRestoreResult, DEFAULT_GROUP_COLOR, LibraryImportResult, WorkspaceActionDeps, WorkspaceActions (+8 more)
 
 ### Community 41 - "devDependencies"
 Cohesion: 0.15
 Nodes (13): devDependencies, @tailwindcss/vite@^4.0.6, @tauri-apps/cli@^2.12.4, @types/react@^18.3.18, @types/react-dom@^18.3.5, typescript@~5.6.2, @vitejs/plugin-react@^4.3.4, @tailwindcss/vite (+5 more)
 
-### Community 42 - "citationExporter.ts"
-Cohesion: 0.27
-Nodes (17): SavedLiteratureDrawer(), escapeCsvCell(), escapeLatex(), exportSavedPapersCsv(), exportSavedPapersRis(), exportSynthesisLatexTable(), exportSynthesisMarkdown(), extractSurname() (+9 more)
+### Community 42 - "academic.ts"
+Cohesion: 0.05
+Nodes (88): BibliometricsPanel(), BibliometricsPanelProps, BlindScreeningModal(), BlindScreeningModalProps, ModalMode, CustomColumnsManager(), BibliometricsPanel, LibraryBibliometricsTab() (+80 more)
 
 ### Community 43 - "platforms.ts"
-Cohesion: 0.22
-Nodes (13): lucide-react, UnifiedAreaFilterDrawer(), UnifiedAreaFilterDrawerProps, countSourcesForScope(), mapAreaToSearchScope(), ACCESS_BADGES, CATEGORY_META, getLocalizedThematicAreas() (+5 more)
+Cohesion: 0.11
+Nodes (22): UnifiedAreaFilterDrawer(), UnifiedAreaFilterDrawerProps, API_SOURCE_AUTHORITY_WEIGHTS, BYOK_FEDERATED_SOURCE_COUNT, countSourcesForScope(), mapAreaToSearchScope(), ACCESS_BADGES, CATEGORY_META (+14 more)
 
-### Community 44 - "BlindScreeningModal.tsx"
-Cohesion: 0.26
-Nodes (12): BlindScreeningModal(), BlindScreeningModalProps, ModalMode, ScreeningStatus, BlindReviewItem, BlindReviewPackage, CARTOGRAPH_BLIND_SCHEMA, CohensKappaResult (+4 more)
-
-### Community 45 - "academicAggregator.ts"
-Cohesion: 0.26
-Nodes (10): sourceMatchesScope(), deduplicatePapers(), diagnoseSourceError(), federatedSearchCache, planFederatedSources(), PlannedFederatedSource, runFederatedSearch(), runWithSourceAbortAndTimeout() (+2 more)
+### Community 44 - "workspaceReducer.ts"
+Cohesion: 0.21
+Nodes (14): importIntoLibrary(), inferRelatedKind(), LibraryImportPlan, linkRelatedPaper(), planLibraryImport(), resolveTargetGroup(), restoreWorkspaceBackup(), togglePresetSelection() (+6 more)
 
 ## Knowledge Gaps
 - **21 isolated node(s):** `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)`, `Tauri App Icon 128x128@2x (256x256 PNG)`, `Tauri App Icon 128x128 PNG` (+16 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 239 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 263 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `App.tsx`, `deduplication.ts`, `accessConfig.ts`, `SavedPaperItem`, `dependencies`, `SavedLiteratureDrawer.tsx`, `platforms.ts`, `BlindScreeningModal.tsx`, `BooleanBuilderDrawer.tsx`, `FederatedResultsPanel.tsx`, `seo.ts`, `ErrorBoundary`, `devDependencies`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+- **Why does `normalizeDoi()` connect `sourceAdapters.ts` to `workspaceBackup.ts`, `deduplication.ts`, `academic.ts`, `useI18n`, `launcher-bridge.mjs`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
 - **Are the 55 inferred relationships involving `Cartograph Master App Icon (512x512 PNG)` (e.g. with `Tauri App Icon 128x128@2x (256x256 PNG)` and `Tauri App Icon 128x128 PNG`) actually correct?**
   _`Cartograph Master App Icon (512x512 PNG)` has 55 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cartograph`, `Cartograph Favicon (Squircle 512x512)`, `Cartograph OpenGraph Social Banner (PNG)` to the rest of the system?**
   _21 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.09615384615384616 - nodes in this community are weakly interconnected._
-- **Why does `NormalizedPaper` connect `deduplication.ts` to `App.tsx`, `academicAggregator.ts`, `SavedPaperItem`, `SavedLiteratureDrawer.tsx`, `citationExporter.ts`, `academicAggregator.ts`, `BooleanBuilderDrawer.tsx`, `FederatedResultsPanel.tsx`, `academic.ts`, `relevanceRanker.ts`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
+  _Cohesion score 0.11290322580645161 - nodes in this community are weakly interconnected._
+- **Why does `NormalizedPaper` connect `deduplication.ts` to `App.tsx`, `sourceAdapters.ts`, `workspaceActions.ts`, `academic.ts`, `workspaceReducer.ts`, `WorkspaceProvider.tsx`, `useI18n`, `academicAggregator.ts`, `relevanceRanker.ts`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `AcademicCommandCenter()` (e.g. with `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias` and `3. Padrão de Integração Excepcional: Tolerância Zero para Soluções Provisórias`) actually correct?**
   _`AcademicCommandCenter()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Tauri Multi-Platform App Icons` be split into smaller, more focused modules?**
