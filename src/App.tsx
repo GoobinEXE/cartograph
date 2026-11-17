@@ -291,7 +291,8 @@ export default function AcademicCommandCenter() {
   const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
   const [federatedQuery, setFederatedQuery] = useState<string>('');
   const [sourceStatuses, setSourceStatuses] = useState<SourceFetchStatus[]>([]);
-  const [dedupSummary, setDedupSummary] = useState<DeduplicationSummary | null>(null);
+  // Log entry of the last completed search, appended once the deduplicated count is known.
+  const [pendingSearchLog, setPendingSearchLog] = useState<SearchLogEntry | null>(null);
   const [isSearchingApis, setIsSearchingApis] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isLaunchingTabs, setIsLaunchingTabs] = useState(false);
@@ -528,11 +529,11 @@ export default function AcademicCommandCenter() {
     setIsSearchingApis(true);
     setFederatedQuery(effectiveQuery);
     setRawFederatedPapers([]);
-    setDedupSummary(null);
     setSourceStatuses([]);
+    setPendingSearchLog(null);
 
     try {
-      const { rawPapers, statuses, deduplicationSummary } = await runFederatedSearch(
+      const { rawPapers, statuses } = await runFederatedSearch(
         effectiveQuery,
         effectiveYearFrom,
         {
@@ -546,7 +547,6 @@ export default function AcademicCommandCenter() {
             }
             setRawFederatedPapers(progress.rawPapers);
             setSourceStatuses(progress.statuses);
-            setDedupSummary(progress.deduplicationSummary);
           },
         }
       );
@@ -557,7 +557,6 @@ export default function AcademicCommandCenter() {
 
       setRawFederatedPapers(rawPapers);
       setSourceStatuses(statuses);
-      setDedupSummary(deduplicationSummary);
 
       const bySource: SearchLogEntry['bySource'] = {};
       statuses.forEach((s) => {
@@ -575,10 +574,11 @@ export default function AcademicCommandCenter() {
         scope: scopeOverride,
         dedupEnabled,
         totalRaw: rawPapers.length,
-        totalUnique: dedupEnabled ? deduplicationSummary.uniqueCount : rawPapers.length,
+        // Provisional: the effect below replaces it with the deduplicated count of this result.
+        totalUnique: rawPapers.length,
         bySource,
       };
-      workspaceActions.appendSearchLog(newLog);
+      setPendingSearchLog(newLog);
 
       trackAcademicEvent('federated_search', {
         query_length: effectiveQuery.length,
@@ -704,18 +704,33 @@ export default function AcademicCommandCenter() {
     return result;
   };
 
+  // The only deduplication pass of a search: the aggregator streams raw records and this memo
+  // applies the researcher's split overrides to each snapshot.
   const dedupComputation = useMemo(
     () => deduplicatePapersAdvanced(rawFederatedPapers, dedupOverrides),
     [rawFederatedPapers, dedupOverrides]
   );
+
+  useEffect(() => {
+    if (!pendingSearchLog) return;
+    workspaceActions.appendSearchLog({
+      ...pendingSearchLog,
+      totalUnique: pendingSearchLog.dedupEnabled
+        ? dedupComputation.summary.uniqueCount
+        : pendingSearchLog.totalRaw,
+    });
+    setPendingSearchLog(null);
+  }, [pendingSearchLog, dedupComputation, workspaceActions]);
 
   const federatedPapers = useMemo(
     () => (dedupEnabled ? dedupComputation.papers : rawFederatedPapers),
     [dedupEnabled, dedupComputation.papers, rawFederatedPapers]
   );
 
+  // Null until a search has produced a snapshot (statuses arrive with the first one).
+  const hasSearchSnapshot = sourceStatuses.length > 0 || rawFederatedPapers.length > 0;
   const effectiveDedupSummary = useMemo<DeduplicationSummary | null>(() => {
-    if (!dedupSummary && rawFederatedPapers.length === 0) return null;
+    if (!hasSearchSnapshot) return null;
     if (!dedupEnabled) {
       return {
         originalCount: rawFederatedPapers.length,
@@ -727,7 +742,7 @@ export default function AcademicCommandCenter() {
       };
     }
     return dedupComputation.summary;
-  }, [dedupSummary, rawFederatedPapers.length, dedupEnabled, dedupComputation.summary]);
+  }, [hasSearchSnapshot, rawFederatedPapers.length, dedupEnabled, dedupComputation.summary]);
 
   const sourceBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
