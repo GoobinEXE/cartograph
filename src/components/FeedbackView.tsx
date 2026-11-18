@@ -2,6 +2,7 @@ import { intlLocale } from '../i18n/localized';
 import React, { useState } from 'react';
 import { FeedbackType, UserFeedbackItem } from '../types/academic';
 import { useI18n } from '../i18n/context';
+import { copyTextSafely } from '../utils/fileDownload';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
 import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import {
@@ -127,7 +128,8 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ onFeedbackSent }) =>
 ${item.institution ? `- **${t('feedbackMarkdownInstitution')}** ${item.institution}\n` : ''}${item.relatedUrl ? `- **${t('feedbackMarkdownUrl')}** ${item.relatedUrl}\n` : ''}${item.userEmail ? `- **${t('feedbackMarkdownContact')}** ${item.userEmail}\n` : ''}
 ${item.message}`;
 
-    await navigator.clipboard.writeText(text);
+    const copied = await copyTextSafely(text);
+    if (!copied) return;
     setCopiedKey(item.id);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -145,7 +147,7 @@ ${item.message}`;
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Header Banner */}
-      <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 sm:p-8">
+      <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 sm:p-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 mb-2">
@@ -166,15 +168,16 @@ ${item.message}`;
 
       {/* Success Notification Banner */}
       {successBanner && (
-        <div className="p-4 rounded-xl bg-[var(--accent-blue-tint)] text-[var(--link-academic)] text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="p-4 rounded-xl bg-[var(--accent-blue-tint)] text-[var(--link-academic)] text-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Check className="w-4 h-4 shrink-0 text-[var(--meta-green)]" />
             <span>{successBanner}</span>
           </div>
           <button
             type="button"
             onClick={() => setSuccessBanner(null)}
-            className="text-xs opacity-70 hover:opacity-100 cursor-pointer ml-3"
+            aria-label={t('mobileCloseSheetBtn')}
+            className="w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-lg text-xs opacity-70 hover:opacity-100 cursor-pointer"
           >
             ✕
           </button>
@@ -182,7 +185,7 @@ ${item.message}`;
       )}
 
       {/* Main Feedback Form — Soft Surface, Borderless */}
-      <form onSubmit={handleSubmit} className="bg-[var(--bg-secondary)] rounded-2xl p-6 sm:p-8 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-[var(--bg-secondary)] rounded-2xl p-5 sm:p-8 space-y-6">
         {/* Type Selector Pills */}
         <div>
           <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-2.5">
@@ -197,7 +200,7 @@ ${item.message}`;
                   key={ft.id}
                   type="button"
                   onClick={() => setType(ft.id)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
+                  className={`min-h-11 flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer text-left ${
                     isSelected
                       ? 'bg-[var(--link-academic)] text-white shadow-xs'
                       : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-canvas)] hover:text-[var(--text-primary)]'
@@ -216,18 +219,24 @@ ${item.message}`;
           <label className="block text-[13px] font-semibold text-[var(--text-primary)] mb-2">
             {t('feedbackRatingLabel')}
           </label>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((star) => {
               const active = (hoverRating ?? rating) >= star;
               return (
                 <button
                   key={star}
                   type="button"
-                  onMouseEnter={() => setHoverRating(star)}
-                  onMouseLeave={() => setHoverRating(null)}
+                  onPointerEnter={(e) => {
+                    if (e.pointerType === 'mouse') setHoverRating(star);
+                  }}
+                  onPointerLeave={(e) => {
+                    if (e.pointerType === 'mouse') setHoverRating(null);
+                  }}
                   onClick={() => setRating(star)}
-                  className="p-1 text-[var(--text-muted)] hover:text-amber-400 transition-colors cursor-pointer"
+                  className="w-11 h-11 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-amber-400 transition-colors cursor-pointer"
                   title={t('feedbackRatingOutOf', { star })}
+                  aria-label={t('feedbackRatingOutOf', { star })}
+                  aria-pressed={rating === star}
                 >
                   <Star
                     className={`w-5 h-5 transition-transform hover:scale-110 ${
@@ -254,7 +263,7 @@ ${item.message}`;
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder={t('feedbackSubjectPlaceholder')}
-            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-base md:text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
           />
         </div>
 
@@ -269,7 +278,7 @@ ${item.message}`;
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={t('feedbackMessagePlaceholder')}
-            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25 resize-y"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-base md:text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25 resize-y"
           />
         </div>
 
@@ -284,7 +293,7 @@ ${item.message}`;
               value={institution}
               onChange={(e) => setInstitution(e.target.value)}
               placeholder={t('feedbackInstitutionPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
 
@@ -293,11 +302,14 @@ ${item.message}`;
               {t('feedbackUrlLabel')}
             </label>
             <input
-              type="text"
+              type="url"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
               value={relatedUrl}
               onChange={(e) => setRelatedUrl(e.target.value)}
               placeholder={t('feedbackUrlPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
 
@@ -307,23 +319,26 @@ ${item.message}`;
             </label>
             <input
               type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
               placeholder={t('feedbackEmailPlaceholder')}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-canvas)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
             />
           </div>
         </div>
 
         {/* Action Button */}
-        <div className="pt-2 flex items-center justify-between gap-4">
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <span className="text-[13px] text-[var(--text-muted)]">
             {t('feedbackFooterHint')}
           </span>
           <button
             type="submit"
             disabled={!subject.trim() || !message.trim() || isSubmitting}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold transition-opacity shrink-0 cursor-pointer ${
+            className={`w-full sm:w-auto min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold transition-opacity shrink-0 cursor-pointer ${
               subject.trim() && message.trim() && !isSubmitting
                 ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90'
                 : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] cursor-not-allowed opacity-60'
@@ -353,8 +368,8 @@ ${item.message}`;
                 className="bg-[var(--bg-secondary)] rounded-2xl p-5 transition-colors flex flex-col justify-between gap-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-medium">
                         {item.type}
                       </span>
@@ -365,16 +380,16 @@ ${item.message}`;
                         {'★'.repeat(item.rating)}
                       </span>
                     </div>
-                    <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                    <h4 className="text-[15px] font-semibold text-[var(--text-primary)] break-words">
                       {item.subject}
                     </h4>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleCopyMarkdown(item)}
-                      className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-canvas)] transition-colors cursor-pointer"
+                      className="min-h-11 md:min-h-0 inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-2 md:px-2.5 md:py-1 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-canvas)] transition-colors cursor-pointer"
                       title={t('feedbackCopyMarkdownTitle')}
                     >
                       {copiedKey === item.id ? (
@@ -388,15 +403,16 @@ ${item.message}`;
                     <button
                       type="button"
                       onClick={() => handleRemoveHistoryItem(item.id)}
-                      className="p-1 text-[var(--text-muted)] hover:text-rose-500 transition-colors cursor-pointer"
+                      className="w-11 h-11 md:w-9 md:h-9 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
                       title={t('feedbackRemoveHistoryTitle')}
+                      aria-label={t('feedbackRemoveHistoryTitle')}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                     </button>
                   </div>
                 </div>
 
-                <p className="text-[13.5px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                <p className="text-[13.5px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words">
                   {item.message}
                 </p>
 
@@ -413,10 +429,10 @@ ${item.message}`;
                           href={safeRelatedUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[var(--link-academic)] hover:underline"
+                          className="inline-flex items-center gap-1 text-[var(--link-academic)] hover:underline break-all"
                         >
-                          <span>{item.relatedUrl}</span>
-                          <ExternalLink className="w-3 h-3" />
+                          <span className="break-all">{item.relatedUrl}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                       );
                     })()}

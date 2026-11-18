@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { GitMerge, Split, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitMerge, Split } from 'lucide-react';
 import { MergeClusterEntry } from '../types/academic';
 import { useI18n } from '../i18n/context';
 import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { MobileSheet } from './ui/MobileSheet';
 
 interface MergeInspectorModalProps {
   isOpen: boolean;
@@ -20,19 +21,7 @@ export const MergeInspectorModal: React.FC<MergeInspectorModalProps> = ({
   onClose,
 }) => {
   const { t } = useI18n();
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  const [highlightDiffs, setHighlightDiffs] = useState(true);
 
   const visibleClusters = focusClusterId
     ? clusters.filter((c) => c.clusterId === focusClusterId)
@@ -45,127 +34,180 @@ export const MergeInspectorModal: React.FC<MergeInspectorModalProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('mergeInspectorTitle')}
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-[var(--divider)]">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[17px] font-semibold text-[var(--text-primary)]">
-              <GitMerge className="w-5 h-5 text-[var(--link-academic)] shrink-0" />
-              <span className="truncate">{t('mergeInspectorTitle')}</span>
-            </div>
-            <p className="text-[13px] text-[var(--text-muted)] mt-1">
-              {t('mergeInspectorSubtitle')}
-            </p>
-          </div>
+    <MobileSheet
+      open={isOpen}
+      onClose={onClose}
+      desktopMode="modal"
+      desktopMaxWidthClass="md:max-w-3xl"
+      initialSnap="full"
+      closeLabel={t('mobileCloseSheetBtn')}
+      dragHandleLabel={t('mobileDragHandleLabel')}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <GitMerge className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+          <span>{t('mergeInspectorTitle')}</span>
+        </span>
+      }
+      subtitle={t('mergeInspectorSubtitle')}
+      footer={
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] cursor-pointer"
-            aria-label={t('closeModalBtn')}
+            className="w-full sm:w-auto min-h-11 md:min-h-0 px-4 py-2 md:py-1.5 rounded-xl md:rounded-lg text-sm font-medium bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            {t('closeModalBtn')}
           </button>
         </div>
+      }
+    >
+      <div className="space-y-4">
+        {visibleClusters.length > 0 && (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              aria-pressed={highlightDiffs}
+              onClick={() => setHighlightDiffs((prev) => !prev)}
+              className={`min-h-11 md:min-h-8 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl md:rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                highlightDiffs
+                  ? 'border-[var(--link-academic)] bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                  : 'border-[var(--divider)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`w-2 h-2 rounded-full ${
+                  highlightDiffs ? 'bg-[var(--link-academic)]' : 'bg-[var(--text-muted)]'
+                }`}
+              />
+              <span>{t('mergeDiffOnlyToggle')}</span>
+            </button>
+          </div>
+        )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          {visibleClusters.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)] text-center py-8">
-              {t('noPapersInViewTitle')}
-            </p>
-          ) : (
-            visibleClusters.map((cluster) => {
-              const primary = cluster.constituents[0];
-              return (
-                <div
-                  key={cluster.clusterId}
-                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 space-y-3.5"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[var(--divider)]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--link-academic)]/15 text-[var(--link-academic)]">
-                        {renderRuleLabel(cluster)}
-                      </span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {t('mergeClusterCount', { count: cluster.constituents.length })}
-                      </span>
-                    </div>
+        {visibleClusters.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)] text-center py-8">
+            {t('noPapersInViewTitle')}
+          </p>
+        ) : (
+          visibleClusters.map((cluster) => {
+            const primary = cluster.constituents[0];
+            if (!primary) return null;
+
+            const hasTitleDiff = cluster.constituents.some((r) => r.title !== primary.title);
+            const hasVenueDiff = cluster.constituents.some((r) => r.venue !== primary.venue);
+            const hasYearDiff = cluster.constituents.some((r) => r.year !== primary.year);
+            const hasDoiDiff = cluster.constituents.some((r) => (r.doi ?? '') !== (primary.doi ?? ''));
+            const diffFieldCount = [hasTitleDiff, hasVenueDiff, hasYearDiff, hasDoiDiff].filter(Boolean).length;
+
+            return (
+              <div
+                key={cluster.clusterId}
+                className="rounded-xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-3 sm:p-4 space-y-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[var(--divider)]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--accent-blue-tint)] text-[var(--link-academic)]">
+                      {renderRuleLabel(cluster)}
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)] tabular-nums">
+                      {t('mergeClusterCount', { count: cluster.constituents.length })}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {cluster.constituents.map((record, idx) => {
-                      const safeUrl = sanitizeExternalUrl(record.url);
-                      const safePdf = sanitizeExternalUrl(record.pdfUrl);
-                      const isTitleDiff = record.title !== primary.title;
-                      const isVenueDiff = record.venue !== primary.venue;
-                      const isYearDiff = record.year !== primary.year;
+                  {highlightDiffs && diffFieldCount > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--link-academic)] tabular-nums">
+                      {diffFieldCount} Δ
+                    </span>
+                  )}
+                </div>
 
-                      return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {cluster.constituents.map((record, idx) => {
+                    const safeUrl = sanitizeExternalUrl(record.url);
+                    const safePdf = sanitizeExternalUrl(record.pdfUrl);
+                    const isTitleDiff = highlightDiffs && idx > 0 && record.title !== primary.title;
+                    const isVenueDiff = highlightDiffs && idx > 0 && record.venue !== primary.venue;
+                    const isYearDiff = highlightDiffs && idx > 0 && record.year !== primary.year;
+                    const isDoiDiff = highlightDiffs && idx > 0 && (record.doi ?? '') !== (primary.doi ?? '');
+
+                    return (
+                      <div
+                        key={record.id}
+                        className="rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] p-3 sm:p-3.5 space-y-2 text-[13px] min-w-0"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-[var(--text-primary)] min-w-0 break-words">
+                            {record.sourceLabel}
+                          </span>
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => onSplitPair(primary.id, record.id)}
+                              className="min-h-11 md:min-h-0 inline-flex items-center gap-1.5 px-3 py-2 md:px-2.5 md:py-1 rounded-xl md:rounded-lg text-xs font-medium bg-[var(--bg-subtle)] text-[var(--link-academic)] hover:underline cursor-pointer shrink-0"
+                            >
+                              <Split className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                              <span>{t('splitPairBtn')}</span>
+                            </button>
+                          )}
+                        </div>
+
                         <div
-                          key={record.id}
-                          className="rounded-xl bg-[var(--bg-primary)] border border-[var(--divider)] p-3.5 space-y-2 text-[13px]"
+                          className={`font-medium leading-snug break-words ${
+                            isTitleDiff
+                              ? 'text-[var(--link-academic)] bg-[var(--accent-blue-tint)]/60 px-1.5 py-0.5 -mx-1.5 rounded'
+                              : 'text-[var(--text-primary)]'
+                          }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-[var(--text-primary)]">
-                              {record.sourceLabel}
-                            </span>
-                            {idx > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => onSplitPair(primary.id, record.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-subtle)] text-[var(--link-academic)] hover:underline cursor-pointer"
-                              >
-                                <Split className="w-3.5 h-3.5" />
-                                <span>{t('splitPairBtn')}</span>
-                              </button>
-                            )}
-                          </div>
+                          {record.title}
+                        </div>
 
-                          <div
-                            className={`font-medium leading-snug ${
-                              isTitleDiff ? 'text-[var(--link-academic)]' : 'text-[var(--text-primary)]'
+                        <div className="text-xs text-[var(--meta-green)] break-words">
+                          {record.authors.length > 0
+                            ? record.authors.slice(0, 4).join(', ')
+                            : t('noAuthors')}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+                          <span
+                            className={`break-words ${
+                              isVenueDiff ? 'font-semibold text-[var(--link-academic)]' : ''
                             }`}
                           >
-                            {record.title}
-                          </div>
-
-                          <div className="text-xs text-[var(--meta-green)]">
-                            {record.authors.length > 0
-                              ? record.authors.slice(0, 4).join(', ')
-                              : t('noAuthors')}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-                            <span className={isVenueDiff ? 'font-semibold text-[var(--text-primary)]' : ''}>
-                              {record.venue || '-'}
+                            {record.venue || '-'}
+                          </span>
+                          <span
+                            className={`tabular-nums ${
+                              isYearDiff ? 'font-semibold text-[var(--link-academic)]' : ''
+                            }`}
+                          >
+                            {record.year ?? 's.d.'}
+                          </span>
+                          {record.doi && (
+                            <span
+                              className={`break-all ${
+                                isDoiDiff ? 'font-semibold text-[var(--link-academic)]' : ''
+                              }`}
+                            >
+                              DOI: {record.doi}
                             </span>
-                            <span className={isYearDiff ? 'font-semibold text-[var(--text-primary)]' : ''}>
-                              {record.year ?? 's.d.'}
-                            </span>
-                            {record.doi && <span>DOI: {record.doi}</span>}
-                          </div>
-
-                          {record.abstractText && (
-                            <p className="text-xs text-[var(--text-secondary)] line-clamp-3 leading-relaxed">
-                              {record.abstractText}
-                            </p>
                           )}
+                        </div>
 
-                          <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                        {record.abstractText && (
+                          <p className="text-xs text-[var(--text-secondary)] line-clamp-3 leading-relaxed">
+                            {record.abstractText}
+                          </p>
+                        )}
+
+                        {(safeUrl || safePdf) && (
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-1 text-xs">
                             {safeUrl && (
                               <a
                                 href={safeUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[var(--link-academic)] hover:underline"
+                                className="min-h-11 md:min-h-0 inline-flex items-center px-3 md:px-0 py-1.5 md:py-0 rounded-xl md:rounded-none bg-[var(--bg-secondary)] md:bg-transparent border border-[var(--divider)] md:border-0 text-[var(--link-academic)] hover:underline"
                               >
                                 {t('openPage')}
                               </a>
@@ -175,32 +217,22 @@ export const MergeInspectorModal: React.FC<MergeInspectorModalProps> = ({
                                 href={safePdf}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[var(--meta-green)] hover:underline"
+                                className="min-h-11 md:min-h-0 inline-flex items-center px-3 md:px-0 py-1.5 md:py-0 rounded-xl md:rounded-none bg-[var(--bg-secondary)] md:bg-transparent border border-[var(--divider)] md:border-0 text-[var(--meta-green)] font-medium hover:underline"
                               >
                                 {t('freePdf')}
                               </a>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className="px-6 py-3.5 border-t border-[var(--divider)] flex justify-end bg-[var(--bg-secondary)]">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] cursor-pointer"
-          >
-            {t('closeModalBtn')}
-          </button>
-        </div>
+              </div>
+            );
+          })
+        )}
       </div>
-    </div>
+    </MobileSheet>
   );
 };

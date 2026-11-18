@@ -3,6 +3,7 @@ import { BookMarked, FileText, History, LayoutGrid, Loader2 } from 'lucide-react
 import { useI18n } from '../i18n/context';
 import type { Translations } from '../i18n/translations';
 import type { AppTab } from '../utils/seo';
+import { PrismSpectralBar } from './PrismLogo';
 
 interface MobileTabBarProps {
   /** `null` when no workspace tab is current (404 page, About, Feedback). */
@@ -23,9 +24,9 @@ interface TabItem {
 }
 
 /**
- * Phone navigation (< `sm`): the four workspace destinations of the header tab row, pinned to the
- * bottom edge within thumb reach and padded clear of the home indicator. The header row takes
- * over from `sm` up, so only one of the two is ever rendered visibly.
+ * Compact viewport navigation (< `md`, 768px): the four primary workspace destinations pinned
+ * within thumb reach and padded clear of home indicators and landscape safe areas. The top header
+ * navigation takes over from `md` up.
  */
 export function MobileTabBar({
   activeTab,
@@ -48,42 +49,50 @@ export function MobileTabBar({
   return (
     <nav
       aria-label={t('mobileNavAria')}
-      className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-[var(--divider)] bg-[var(--bg-canvas)]/95 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]"
+      className="md:hidden glass-chrome fixed inset-x-0 bottom-0 z-40 border-t border-[var(--divider)] bg-[var(--bg-canvas)]/90 pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
     >
       <ul className="grid grid-cols-4">
         {items.map((item) => {
           const isCurrent = item.key !== 'history' && activeTab === item.key;
           const showSpinner = item.key === 'federated' && isSearching;
           const Icon = showSpinner ? Loader2 : item.icon;
+          const labelText = t(item.label);
+          const hasCount = item.count !== undefined && item.count > 0;
           return (
             <li key={item.key}>
               <button
                 type="button"
+                data-full-bleed="true"
                 onClick={() => (item.key === 'history' ? onOpenHistory() : onNavigate(item.key))}
                 aria-current={isCurrent ? 'page' : undefined}
-                className={`relative w-full h-14 flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium cursor-pointer select-none transition-colors ${
+                aria-label={hasCount ? `${labelText} (${item.count})` : labelText}
+                className={`group relative w-full min-h-[56px] py-1.5 flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium cursor-pointer select-none transition-colors active:bg-[var(--bg-subtle)]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--link-academic)] ${
                   isCurrent ? 'text-[var(--link-academic)]' : 'text-[var(--text-secondary)]'
                 }`}
               >
-                <span className="relative">
+                {isCurrent && (
+                  <PrismSpectralBar className="absolute top-0 left-1/2 -translate-x-1/2 h-[2.5px] w-9 rounded-full" />
+                )}
+                <span
+                  className={`relative pressable inline-flex items-center justify-center px-3 py-0.5 rounded-full transition-colors duration-150 ${
+                    isCurrent ? 'bg-[var(--accent-blue-tint)]' : ''
+                  }`}
+                >
                   <Icon
                     aria-hidden="true"
-                    className={`w-[22px] h-[22px] ${showSpinner ? 'animate-spin motion-reduce:animate-none' : ''}`}
+                    className={`w-[21px] h-[21px] ${showSpinner ? 'animate-spin motion-reduce:animate-none' : ''}`}
                     strokeWidth={isCurrent ? 2.25 : 1.75}
                   />
-                  {item.count !== undefined && item.count > 0 && (
-                    <span className="absolute -top-1.5 left-[14px] min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--link-academic)] text-white text-[10.5px] font-semibold leading-[18px] text-center tabular-nums">
-                      {item.count > 999 ? '999+' : item.count}
+                  {hasCount && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-1 left-[26px] min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--link-academic)] text-[var(--bg-canvas)] text-[10.5px] font-semibold leading-[18px] text-center tabular-nums"
+                    >
+                      {item.count! > 999 ? '999+' : item.count}
                     </span>
                   )}
                 </span>
-                <span>{t(item.label)}</span>
-                {isCurrent && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full bg-[var(--link-academic)]"
-                  />
-                )}
+                <span className="truncate max-w-full px-1 leading-tight">{labelText}</span>
               </button>
             </li>
           );

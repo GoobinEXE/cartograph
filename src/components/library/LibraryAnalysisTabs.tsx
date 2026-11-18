@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import type { Prisma2020Counts, SavedPaperItem } from '../../types/academic';
+import type { Prisma2020Counts, SavedPaperItem, ScreeningStatus } from '../../types/academic';
 import { PrismaFlowDiagram } from '../PrismaFlowDiagram';
 
 const BibliometricsPanel = lazy(() =>
@@ -7,8 +7,14 @@ const BibliometricsPanel = lazy(() =>
 );
 
 /** PRISMA 2020 flow of the selected slot. */
-export function LibraryPrismaTab({ counts }: { counts: Prisma2020Counts }) {
-  return <PrismaFlowDiagram counts={counts} />;
+export function LibraryPrismaTab({
+  counts,
+  onSelectStatusFilter,
+}: {
+  counts: Prisma2020Counts;
+  onSelectStatusFilter?: (status: 'all' | ScreeningStatus) => void;
+}) {
+  return <PrismaFlowDiagram counts={counts} onSelectStatusFilter={onSelectStatusFilter} />;
 }
 
 /** SVG bibliometrics of the selected slot, loaded on first use. */

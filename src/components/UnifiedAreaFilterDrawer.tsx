@@ -70,9 +70,9 @@ export const UnifiedAreaFilterDrawer: React.FC<UnifiedAreaFilterDrawerProps> = (
       isOpen={isOpen}
       onToggle={onToggleOpen}
       className="border-b border-[var(--divider)] pb-3"
-      headerClassName="w-full flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left"
+      headerClassName="w-full min-h-11 md:min-h-0 flex items-center justify-between py-2 md:py-1.5 px-2 rounded-lg transition-colors cursor-pointer hover:bg-[var(--bg-secondary)] select-none text-left touch-manipulation"
       titleClassName="flex items-center gap-1.5 min-w-0"
-      contentClassName="space-y-0.5 text-[13.5px] pt-1.5"
+      contentClassName="space-y-1 md:space-y-0.5 text-[14px] md:text-[13.5px] pt-2 md:pt-1.5"
       title={
         <>
           <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
@@ -97,7 +97,7 @@ export const UnifiedAreaFilterDrawer: React.FC<UnifiedAreaFilterDrawerProps> = (
               e.stopPropagation();
               onSelectArea('all');
             }}
-            className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+            className="min-h-9 md:min-h-0 px-2 md:px-0 text-xs text-[var(--link-academic)] hover:underline cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
           >
             {t('clearFilter')}
           </button>
@@ -107,14 +107,14 @@ export const UnifiedAreaFilterDrawer: React.FC<UnifiedAreaFilterDrawerProps> = (
       <button
         type="button"
         onClick={() => onSelectArea('all')}
-        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
+        className={`w-full min-h-11 md:min-h-0 flex items-center justify-between px-3 md:px-2.5 py-2 md:py-1.5 rounded-xl md:rounded-lg transition-colors cursor-pointer text-left touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
           selectedArea === 'all'
             ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
         }`}
       >
-        <div className="flex items-center gap-2 truncate">
-          <Globe className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+        <div className="flex items-center gap-2.5 md:gap-2 truncate">
+          <Globe className="w-4 h-4 md:w-3.5 md:h-3.5 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
           <span className="truncate">{t('areaAll')}</span>
         </div>
         <span className="text-xs text-[var(--text-muted)] tabular-nums shrink-0">
@@ -130,14 +130,14 @@ export const UnifiedAreaFilterDrawer: React.FC<UnifiedAreaFilterDrawerProps> = (
             key={areaKey}
             type="button"
             onClick={() => onSelectArea(areaKey)}
-            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
+            className={`w-full min-h-11 md:min-h-0 flex items-center justify-between px-3 md:px-2.5 py-2 md:py-1.5 rounded-xl md:rounded-lg transition-colors cursor-pointer text-left touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
               isSelected
                 ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <div className="flex items-center gap-2 truncate">
-              {renderAreaIcon(areaKey, 'w-3.5 h-3.5 text-[var(--text-muted)] shrink-0')}
+            <div className="flex items-center gap-2.5 md:gap-2 truncate">
+              {renderAreaIcon(areaKey, 'w-4 h-4 md:w-3.5 md:h-3.5 text-[var(--text-muted)] shrink-0')}
               <span className="truncate">{meta.label}</span>
             </div>
             <span className="text-xs text-[var(--text-muted)] tabular-nums shrink-0">

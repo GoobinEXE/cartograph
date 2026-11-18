@@ -26,7 +26,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
     >
       <PrismSpectralBar className="h-1 w-full" />
 
-      <div className="p-6 sm:p-10 space-y-6">
+      <div className="p-5 sm:p-10 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs font-mono text-[var(--link-academic)]">
             <Compass className="w-3.5 h-3.5" aria-hidden="true" />
@@ -48,37 +48,37 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
         </div>
 
         {invalidPath && (
-          <div className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] flex items-center gap-2 text-xs font-mono text-[var(--text-muted)] overflow-x-auto">
-            <span>{t('notFoundPathLabel')}</span>
-            <code className="text-[var(--text-primary)] font-semibold">{invalidPath}</code>
+          <div className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] flex flex-wrap sm:flex-nowrap items-baseline gap-2 text-xs font-mono text-[var(--text-muted)]">
+            <span className="shrink-0">{t('notFoundPathLabel')}</span>
+            <code className="text-[var(--text-primary)] font-semibold break-all">{invalidPath}</code>
           </div>
         )}
 
-        <div className="pt-2 flex flex-wrap items-center gap-3">
+        <div className="pt-2 grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => onNavigateTab('platforms')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--link-academic)] text-white text-xs sm:text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+            className="min-h-11 inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-xl bg-[var(--link-academic)] text-white text-xs sm:text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
           >
-            <Globe className="w-4 h-4" aria-hidden="true" />
+            <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>{t('notFoundBtnPlatforms', counts)}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigateTab('federated')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
+            className="min-h-11 inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
           >
-            <Database className="w-4 h-4 text-[var(--link-academic)]" aria-hidden="true" />
+            <Database className="w-4 h-4 shrink-0 text-[var(--link-academic)]" aria-hidden="true" />
             <span>{t('notFoundBtnFederated', counts)}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigateTab('saved')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
+            className="min-h-11 inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
           >
-            <Layers className="w-4 h-4 text-[var(--meta-green)]" aria-hidden="true" />
+            <Layers className="w-4 h-4 shrink-0 text-[var(--meta-green)]" aria-hidden="true" />
             <span>{t('notFoundBtnSaved')}</span>
           </button>
 
@@ -89,9 +89,9 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
                 onNavigateTab('platforms');
                 setTimeout(() => onFocusSearch(), 60);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
+              className="min-h-11 inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--divider)] text-xs sm:text-sm font-medium transition-colors cursor-pointer"
             >
-              <Search className="w-4 h-4" aria-hidden="true" />
+              <Search className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{t('notFoundBtnSearch')}</span>
             </button>
           )}

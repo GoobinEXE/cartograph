@@ -44,42 +44,48 @@ export function NewGroupSection({ isOpen, onToggle, onCreated }: NewGroupSection
       titleClassName={SAVED_CARD_DRAWER_TITLE_CLASS}
       title={
         <>
-          <FolderPlus className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
+          <FolderPlus className="w-4 h-4 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
           <span className="truncate">{t('newResearchGroupTitle')}</span>
         </>
       }
     >
-      <form onSubmit={handleCreateNewGroup} className="space-y-2.5">
+      <form onSubmit={handleCreateNewGroup} className="space-y-3">
         <input
           type="text"
           value={newGroupName}
           onChange={(e) => setNewGroupName(e.target.value)}
           placeholder={t('slotPlaceholder')}
-          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+          aria-label={t('newResearchGroupTitle')}
+          className="w-full min-h-11 md:min-h-0 px-3 py-2 md:py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
         />
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5" aria-label={t('groupColorAria')}>
-            {GROUP_COLORS.map((c) => (
-              <button
-                key={c.hex}
-                type="button"
-                onClick={() => setNewGroupColor(c.hex)}
-                className={`w-4 h-4 rounded-full transition-transform cursor-pointer ${
-                  newGroupColor === c.hex
-                    ? 'scale-125 ring-2 ring-[var(--text-primary)] ring-offset-1 ring-offset-[var(--bg-secondary)]'
-                    : 'opacity-70 hover:opacity-100'
-                }`}
-                style={{ backgroundColor: c.hex }}
-                title={`${t('colorPrefix')} ${localize(c.label, language)}`}
-              />
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5" aria-label={t('groupColorAria')}>
+            {GROUP_COLORS.map((c) => {
+              const label = `${t('colorPrefix')} ${localize(c.label, language)}`;
+              return (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => setNewGroupColor(c.hex)}
+                  aria-label={label}
+                  aria-pressed={newGroupColor === c.hex}
+                  className={`w-8 h-8 md:w-5 md:h-5 rounded-full transition-transform cursor-pointer ${
+                    newGroupColor === c.hex
+                      ? 'scale-110 ring-2 ring-[var(--text-primary)] ring-offset-2 ring-offset-[var(--bg-secondary)]'
+                      : 'opacity-75 hover:opacity-100'
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={label}
+                />
+              );
+            })}
           </div>
 
           <button
             type="submit"
             disabled={!newGroupName.trim()}
-            className="px-3 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[13px] font-semibold transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="min-h-11 md:min-h-0 px-3.5 py-2 md:py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[13px] font-semibold transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {t('createSlotPlusBtn')}
           </button>

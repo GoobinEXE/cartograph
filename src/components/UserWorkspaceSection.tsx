@@ -93,7 +93,7 @@ export const UserWorkspaceSection: React.FC<UserWorkspaceSectionProps> = ({
             key={item.id}
             type="button"
             onClick={() => onOpenAccessSettings(item.id)}
-            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+            className="w-full min-h-11 lg:min-h-0 flex items-center justify-between gap-2 px-2 py-2.5 lg:py-1.5 rounded-lg hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
           >
             <span className="flex items-center gap-2 min-w-0 text-[var(--text-secondary)]">
               {item.icon}
@@ -110,7 +110,7 @@ export const UserWorkspaceSection: React.FC<UserWorkspaceSectionProps> = ({
       <button
         type="button"
         onClick={() => onOpenAccessSettings('proxy')}
-        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[12.5px] font-medium text-[var(--text-primary)] hover:border-[var(--link-academic)] hover:text-[var(--link-academic)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+        className="w-full min-h-11 lg:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 lg:py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[12.5px] font-medium text-[var(--text-primary)] hover:border-[var(--link-academic)] hover:text-[var(--link-academic)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
       >
         <Settings2 className="w-3.5 h-3.5 shrink-0" />
         <span>{t('userWorkspaceManageBtn')}</span>
