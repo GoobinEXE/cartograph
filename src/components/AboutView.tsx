@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { PrismMonogram, PrismSpectralBar } from './PrismLogo';
 import { PLATFORMS } from '../data/platforms';
 import {
@@ -10,7 +10,9 @@ import {
 import { API_SOURCE_DOCS } from '../data/apiSourceDocs';
 import { intlLocale, localize, proseLanguage } from '../i18n/localized';
 import { denyAnalyticsConsent, grantAnalyticsConsent, isAnalyticsAllowed } from '../utils/analytics';
+import { copyTextSafely } from '../utils/fileDownload';
 import { useI18n } from '../i18n/context';
+import type { SourceCategoryTag } from '../types/academic';
 import {
   ArrowLeft,
   ArrowRight,
@@ -47,9 +49,26 @@ export const AboutView: React.FC<AboutViewProps> = ({
   const isEn = proseLanguage(language) === 'en';
   const [internalSection, setInternalSection] = useState<AboutSectionId>('cartograph');
   const [copiedCitation, setCopiedCitation] = useState<'abnt' | 'apa' | 'bibtex' | null>(null);
+  const articleRef = useRef<HTMLElement | null>(null);
 
   const currentSection = controlledSection ?? internalSection;
   const currentYear = new Date().getFullYear();
+
+  const categoryLabels: Record<SourceCategoryTag, string> = isEn
+    ? {
+        general: 'Multidisciplinary',
+        health: 'Health & Bio',
+        'exact-tech': 'Exact & Tech',
+        'econ-policy': 'Econ & Policy',
+        datasets: 'Datasets',
+      }
+    : {
+        general: 'Multidisciplinar',
+        health: 'Saúde & Bio',
+        'exact-tech': 'Exatas & Tech',
+        'econ-policy': 'Econ. & Políticas',
+        datasets: 'Dados',
+      };
 
   const citationFormats = {
     abnt: `CARTOGRAPH. Cartograph: Hub de Metabusca Científica, Tecnológica e Revisão Sistemática PRISMA 2020 (Versão 2.4). [Programa de computador]. 2026. Disponível em: https://cartographsearch.com. Acesso em: ${new Date().toLocaleDateString(intlLocale(language))}.`,
@@ -120,7 +139,16 @@ export const AboutView: React.FC<AboutViewProps> = ({
     } else {
       setInternalSection(sec);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+      if (isDesktop) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        requestAnimationFrame(() => {
+          articleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    }
   };
 
   const currentIndex = sectionsMeta.findIndex((s) => s.id === currentSection);
@@ -129,20 +157,171 @@ export const AboutView: React.FC<AboutViewProps> = ({
     currentIndex < sectionsMeta.length - 1 ? sectionsMeta[currentIndex + 1] : null;
 
   const handleCopyCitation = async (format: 'abnt' | 'apa' | 'bibtex') => {
-    try {
-      await navigator.clipboard.writeText(citationFormats[format]);
-      setCopiedCitation(format);
-      setTimeout(() => setCopiedCitation(null), 2200);
-    } catch {
-      // ignore clipboard restriction
-    }
+    const copied = await copyTextSafely(citationFormats[format]);
+    if (!copied) return;
+    setCopiedCitation(format);
+    setTimeout(() => setCopiedCitation(null), 2200);
   };
 
+  const technicalSpecsBlock = (
+    <div className="border-t border-[var(--divider)] pt-5 px-2 space-y-3 text-sm">
+      <div className="text-xs font-semibold text-[var(--text-muted)]">
+        {isEn ? 'Technical Specifications' : 'Ficha Técnica'}
+      </div>
+      <dl className="space-y-2 text-sm">
+        <div className="flex justify-between gap-2">
+          <dt className="text-[var(--text-muted)]">
+            {isEn ? 'Curated Platforms' : 'Plataformas Curadas'}
+          </dt>
+          <dd className="font-medium text-[var(--text-primary)]">
+            {PLATFORMS.length} {isEn ? 'portals' : 'portais'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-[var(--text-muted)]">
+            {isEn ? 'Real-Time APIs' : 'APIs em Tempo Real'}
+          </dt>
+          <dd className="font-medium text-[var(--text-primary)]">
+            {isEn
+              ? `${OPEN_FEDERATED_SOURCE_COUNT} open + ${BYOK_FEDERATED_SOURCE_COUNT} with your key`
+              : `${OPEN_FEDERATED_SOURCE_COUNT} abertas + ${BYOK_FEDERATED_SOURCE_COUNT} com chave própria`}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-[var(--text-muted)]">
+            {isEn ? 'Screening Guideline' : 'Diretriz de Triagem'}
+          </dt>
+          <dd className="font-medium text-[var(--meta-green)]">PRISMA 2020</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-[var(--text-muted)]">
+            {isEn ? 'Data Persistence' : 'Persistência de Dados'}
+          </dt>
+          <dd className="font-medium text-[var(--text-primary)]">Local-First</dd>
+        </div>
+      </dl>
+
+      {onNavigateTab && (
+        <div className="pt-3 space-y-1.5">
+          <button
+            type="button"
+            onClick={() => onNavigateTab('platforms')}
+            className="w-full min-h-11 lg:min-h-0 flex items-center justify-between px-3 py-2.5 lg:py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--link-academic)] transition-colors cursor-pointer"
+          >
+            <span>{isEn ? 'Go to Platforms Directory' : 'Ir para o Diretório de Bases'}</span>
+            <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('feedback')}
+            className="w-full min-h-11 lg:min-h-0 flex items-center justify-between px-3 py-2.5 lg:py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <span>{isEn ? 'Submit Suggestion or Report' : 'Enviar Sugestão ou Relato'}</span>
+            <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const institutionalSummaryCard = (
+    <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
+      <div className="flex items-center gap-2.5">
+        <PrismMonogram className="h-7 w-auto shrink-0" />
+        <div>
+          <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
+            Cartograph
+          </div>
+          <div className="text-xs text-[var(--text-muted)]">
+            {isEn ? 'Version 2.4' : 'Versão 2.4'}
+          </div>
+        </div>
+      </div>
+
+      <PrismSpectralBar className="h-[2px] w-full opacity-85" />
+
+      <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+        {isEn
+          ? 'Technical documentation, methodological guidelines, and legal terms.'
+          : 'Documentação técnica, diretrizes metodológicas e termos legais do sistema.'}
+      </p>
+    </div>
+  );
+
+  const citationCards: Array<{
+    id: 'abnt' | 'apa' | 'bibtex';
+    title: string;
+    subtitle: React.ReactNode;
+    copyLabel: string;
+    isPre?: boolean;
+  }> = [
+    {
+      id: 'abnt',
+      title: isEn ? 'ABNT Standard (NBR 6023:2018)' : 'Padrão ABNT (NBR 6023:2018)',
+      subtitle: isEn
+        ? 'Recommended for Brazilian theses, dissertations, and Portuguese-language journals.'
+        : 'Recomendado para teses, dissertações, TCCs e periódicos brasileiros.',
+      copyLabel: isEn ? 'Copy ABNT' : 'Copiar ABNT',
+    },
+    {
+      id: 'apa',
+      title: isEn ? 'APA Style (7th Edition)' : 'Padrão APA (7ª Edição)',
+      subtitle: isEn
+        ? 'Recommended for international journals, psychology, social sciences, and health sciences.'
+        : 'Recomendado para periódicos internacionais, psicologia, ciências sociais e saúde.',
+      copyLabel: isEn ? 'Copy APA' : 'Copiar APA',
+    },
+    {
+      id: 'bibtex',
+      title: isEn
+        ? 'BibTeX Entry (LaTeX / Overleaf / Zotero)'
+        : 'Entrada BibTeX (LaTeX / Overleaf / Zotero)',
+      subtitle: isEn ? (
+        <>
+          Ready for direct inclusion in <code>.bib</code> files.
+        </>
+      ) : (
+        <>
+          Pronto para inclusão direta em arquivos <code>.bib</code>.
+        </>
+      ),
+      copyLabel: isEn ? 'Copy BibTeX' : 'Copiar BibTeX',
+      isPre: true,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-8 xl:gap-12 items-start pb-16">
-      {/* LEFT SIDEBAR: DOCUMENT NAVIGATION & TECHNICAL SPEC */}
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-5 lg:gap-8 xl:gap-12 items-start pb-16">
+      {/* MOBILE STICKY SECTION CHIPS (< 1024px) */}
+      <nav
+        className="lg:hidden sticky top-0 z-20 bg-[var(--bg-canvas)]/95 backdrop-blur-md py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b border-[var(--divider)] overflow-x-auto no-scrollbar flex items-center gap-2"
+        aria-label={isEn ? 'About page sections' : 'Seções da página Sobre'}
+      >
+        {sectionsMeta.map((sec) => {
+          const Icon = sec.icon;
+          const isActive = currentSection === sec.id;
+          return (
+            <button
+              key={sec.id}
+              type="button"
+              onClick={() => handleSelectSection(sec.id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`min-h-10 shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                isActive
+                  ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] border border-[var(--link-academic)]/30'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--divider)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span>{sec.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* LEFT SIDEBAR: DOCUMENT NAVIGATION & TECHNICAL SPEC (DESKTOP) */}
       <aside
-        className="space-y-6 lg:sticky lg:top-24"
+        className="hidden lg:block space-y-6 lg:sticky lg:top-24"
         aria-label={
           isEn
             ? 'Institutional navigation and legal documentation'
@@ -184,94 +363,17 @@ export const AboutView: React.FC<AboutViewProps> = ({
         </nav>
 
         {/* 2. Technical Specifications & Quick Actions */}
-        <div className="border-t border-[var(--divider)] pt-5 px-2 space-y-3 text-sm">
-          <div className="text-xs font-semibold text-[var(--text-muted)]">
-            {isEn ? 'Technical Specifications' : 'Ficha Técnica'}
-          </div>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">
-                {isEn ? 'Curated Platforms' : 'Plataformas Curadas'}
-              </dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                {PLATFORMS.length} {isEn ? 'portals' : 'portais'}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">
-                {isEn ? 'Real-Time APIs' : 'APIs em Tempo Real'}
-              </dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                {isEn
-                  ? `${OPEN_FEDERATED_SOURCE_COUNT} open + ${BYOK_FEDERATED_SOURCE_COUNT} with your key`
-                  : `${OPEN_FEDERATED_SOURCE_COUNT} abertas + ${BYOK_FEDERATED_SOURCE_COUNT} com chave própria`}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">
-                {isEn ? 'Screening Guideline' : 'Diretriz de Triagem'}
-              </dt>
-              <dd className="font-medium text-[var(--meta-green)]">PRISMA 2020</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-muted)]">
-                {isEn ? 'Data Persistence' : 'Persistência de Dados'}
-              </dt>
-              <dd className="font-medium text-[var(--text-primary)]">Local-First</dd>
-            </div>
-          </dl>
-
-          {onNavigateTab && (
-            <div className="pt-3 space-y-1.5">
-              <button
-                type="button"
-                onClick={() => onNavigateTab('platforms')}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--link-academic)] transition-colors cursor-pointer"
-              >
-                <span>{isEn ? 'Go to Platforms Directory' : 'Ir para o Diretório de Bases'}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigateTab('feedback')}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                <span>{isEn ? 'Submit Suggestion or Report' : 'Enviar Sugestão ou Relato'}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
+        {technicalSpecsBlock}
 
         {/* 3. Institutional Summary Card (Context footer) */}
-        <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-4">
-          <div className="flex items-center gap-2.5">
-            <PrismMonogram className="h-7 w-auto shrink-0" />
-            <div>
-              <div className="text-base font-heading font-semibold text-[var(--text-primary)] leading-tight">
-                Cartograph
-              </div>
-              <div className="text-xs text-[var(--text-muted)]">
-                {isEn ? 'Version 2.4' : 'Versão 2.4'}
-              </div>
-            </div>
-          </div>
-
-          <PrismSpectralBar className="h-[2px] w-full opacity-85" />
-
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            {isEn
-              ? 'Technical documentation, methodological guidelines, and legal terms.'
-              : 'Documentação técnica, diretrizes metodológicas e termos legais do sistema.'}
-          </p>
-        </div>
+        {institutionalSummaryCard}
       </aside>
 
       {/* RIGHT CONTENT COLUMN */}
-      <div className="min-w-0 bg-[var(--bg-secondary)]/50 rounded-2xl p-6 sm:p-10 lg:p-12 border border-[var(--divider)]">
+      <div className="min-w-0 bg-[var(--bg-secondary)]/50 rounded-2xl p-4 sm:p-10 lg:p-12 border border-[var(--divider)]">
         {/* SECTION 1: ABOUT CARTOGRAPH */}
         {currentSection === 'cartograph' && (
-          <article className="space-y-8 max-w-4xl">
+          <article ref={articleRef} className="space-y-8 max-w-4xl scroll-mt-16">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
                 {isEn
@@ -390,7 +492,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
 
         {/* SECTION 2: FEDERATED SCIENTIFIC APIS (generated from API_SOURCE_REGISTRY) */}
         {currentSection === 'apis' && (
-          <article className="space-y-8">
+          <article ref={articleRef} className="space-y-8 scroll-mt-16">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
                 {isEn ? 'Real-Time Data Sources' : 'Fontes de Dados em Tempo Real'}
@@ -407,8 +509,93 @@ export const AboutView: React.FC<AboutViewProps> = ({
               </p>
             </header>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            {/* Mobile-first compact structured cards (< 768px) */}
+            <div className="md:hidden space-y-3">
+              {Object.values(API_SOURCE_REGISTRY).map((meta, idx) => {
+                const doc = API_SOURCE_DOCS[meta.id];
+                const transportBadge = meta.requiresByok
+                  ? 'BYOK'
+                  : meta.transport === 'proxy'
+                    ? isEn
+                      ? 'Open · Proxy'
+                      : 'Aberta · Proxy'
+                    : isEn
+                      ? 'Open · Direct'
+                      : 'Aberta · Direta';
+                return (
+                  <div
+                    key={meta.id}
+                    className="rounded-xl border border-[var(--divider)] bg-[var(--bg-canvas)] p-4 space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex items-baseline gap-2">
+                        <span className="text-xs font-mono tabular-nums text-[var(--text-muted)] shrink-0">
+                          {idx + 1}.
+                        </span>
+                        <h2 className="text-[15px] font-semibold text-[var(--text-primary)] leading-snug break-words">
+                          {doc.apiName}
+                        </h2>
+                      </div>
+                      <span
+                        className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-medium ${
+                          meta.requiresByok
+                            ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                            : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--divider)]'
+                        }`}
+                      >
+                        {transportBadge}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                      <span className="text-[var(--meta-green)] font-medium">
+                        {doc.organization}
+                      </span>
+                      <span className="text-[var(--divider)]" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="text-[var(--text-muted)]">
+                        {localize(doc.license, language)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {meta.categories.map((cat) => (
+                        <span
+                          key={cat}
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+                        >
+                          {categoryLabels[cat]}
+                        </span>
+                      ))}
+                    </div>
+
+                    <p className="text-[13.5px] text-[var(--text-secondary)] leading-relaxed">
+                      {localize(doc.scope, language)}
+                    </p>
+
+                    {onNavigateTab && (
+                      <div className="pt-1 border-t border-[var(--divider)] flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onNavigateTab('federated')}
+                          className="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-[var(--link-academic)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                        >
+                          <span>
+                            {isEn ? 'Query in Federated Search' : 'Consultar na Busca Federada'}
+                          </span>
+                          <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="hidden md:table w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b-2 border-[var(--divider)] text-xs font-semibold text-[var(--text-muted)]">
                     <th className="py-3.5 pr-4 w-10">#</th>
@@ -454,7 +641,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
 
         {/* SECTION 3: HOW TO CITE */}
         {currentSection === 'citation' && (
-          <article className="space-y-8 max-w-4xl">
+          <article ref={articleRef} className="space-y-8 max-w-4xl scroll-mt-16">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
                 {isEn ? 'Methodological Reference' : 'Referência Metodológica'}
@@ -472,125 +659,55 @@ export const AboutView: React.FC<AboutViewProps> = ({
             </header>
 
             <div className="space-y-6">
-              {/* ABNT */}
-              <div className="bg-[var(--bg-canvas)] rounded-xl p-6 border border-[var(--divider)] space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      {isEn ? 'ABNT Standard (NBR 6023:2018)' : 'Padrão ABNT (NBR 6023:2018)'}
-                    </h2>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      {isEn
-                        ? 'Recommended for Brazilian theses, dissertations, and Portuguese-language journals.'
-                        : 'Recomendado para teses, dissertações, TCCs e periódicos brasileiros.'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCitation('abnt')}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--link-academic)] transition-colors cursor-pointer shrink-0"
-                  >
-                    {copiedCitation === 'abnt' ? (
-                      <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                    <span>
-                      {copiedCitation === 'abnt'
-                        ? isEn ? 'Copied' : 'Copiado'
-                        : isEn ? 'Copy ABNT' : 'Copiar ABNT'}
-                    </span>
-                  </button>
-                </div>
-                <div className="p-4 rounded-lg bg-[var(--bg-secondary)] text-base text-[var(--text-primary)] leading-relaxed break-words">
-                  {citationFormats.abnt}
-                </div>
-              </div>
-
-              {/* APA 7 */}
-              <div className="bg-[var(--bg-canvas)] rounded-xl p-6 border border-[var(--divider)] space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      {isEn ? 'APA Style (7th Edition)' : 'Padrão APA (7ª Edição)'}
-                    </h2>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      {isEn
-                        ? 'Recommended for international journals, psychology, social sciences, and health sciences.'
-                        : 'Recomendado para periódicos internacionais, psicologia, ciências sociais e saúde.'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCitation('apa')}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--link-academic)] transition-colors cursor-pointer shrink-0"
-                  >
-                    {copiedCitation === 'apa' ? (
-                      <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                    <span>
-                      {copiedCitation === 'apa'
-                        ? isEn ? 'Copied' : 'Copiado'
-                        : isEn ? 'Copy APA' : 'Copiar APA'}
-                    </span>
-                  </button>
-                </div>
-                <div className="p-4 rounded-lg bg-[var(--bg-secondary)] text-base text-[var(--text-primary)] leading-relaxed break-words">
-                  {citationFormats.apa}
-                </div>
-              </div>
-
-              {/* BibTeX */}
-              <div className="bg-[var(--bg-canvas)] rounded-xl p-6 border border-[var(--divider)] space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                      {isEn
-                        ? 'BibTeX Entry (LaTeX / Overleaf / Zotero)'
-                        : 'Entrada BibTeX (LaTeX / Overleaf / Zotero)'}
-                    </h2>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      {isEn ? (
-                        <>
-                          Ready for direct inclusion in <code>.bib</code> files.
-                        </>
+              {citationCards.map((card) => (
+                <div
+                  key={card.id}
+                  className="bg-[var(--bg-canvas)] rounded-xl p-4 sm:p-6 border border-[var(--divider)] space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                        {card.title}
+                      </h2>
+                      <p className="text-sm text-[var(--text-muted)]">{card.subtitle}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCitation(card.id)}
+                      className="min-h-11 md:min-h-0 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 md:py-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--link-academic)] transition-colors cursor-pointer shrink-0"
+                    >
+                      {copiedCitation === card.id ? (
+                        <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
                       ) : (
-                        <>
-                          Pronto para inclusão direta em arquivos <code>.bib</code>.
-                        </>
+                        <Copy className="w-3.5 h-3.5" />
                       )}
-                    </p>
+                      <span>
+                        {copiedCitation === card.id
+                          ? isEn
+                            ? 'Copied'
+                            : 'Copiado'
+                          : card.copyLabel}
+                      </span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCitation('bibtex')}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-xs font-semibold text-[var(--link-academic)] transition-colors cursor-pointer shrink-0"
-                  >
-                    {copiedCitation === 'bibtex' ? (
-                      <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                    <span>
-                      {copiedCitation === 'bibtex'
-                        ? isEn ? 'Copied' : 'Copiado'
-                        : isEn ? 'Copy BibTeX' : 'Copiar BibTeX'}
-                    </span>
-                  </button>
+                  {card.isPre ? (
+                    <pre className="p-4 rounded-lg bg-[var(--bg-secondary)] text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                      {citationFormats[card.id]}
+                    </pre>
+                  ) : (
+                    <div className="p-4 rounded-lg bg-[var(--bg-secondary)] text-sm sm:text-base text-[var(--text-primary)] leading-relaxed break-words">
+                      {citationFormats[card.id]}
+                    </div>
+                  )}
                 </div>
-                <pre className="p-4 rounded-lg bg-[var(--bg-secondary)] text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed overflow-x-auto whitespace-pre-wrap">
-                  {citationFormats.bibtex}
-                </pre>
-              </div>
+              ))}
             </div>
           </article>
         )}
 
         {/* SECTION 4: COPYRIGHT & LICENSES */}
         {currentSection === 'copyright' && (
-          <article className="space-y-8 max-w-4xl">
+          <article ref={articleRef} className="space-y-8 max-w-4xl scroll-mt-16">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
                 {isEn ? 'Intellectual Property and Copyright' : 'Propriedade Intelectual e Direitos Autorais'}
@@ -694,7 +811,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
 
         {/* SECTION 5: PRIVACY & TERMS */}
         {currentSection === 'privacy' && (
-          <article className="space-y-8 max-w-4xl">
+          <article ref={articleRef} className="space-y-8 max-w-4xl scroll-mt-16">
             <header className="border-b border-[var(--divider)] pb-6 space-y-3">
               <div className="text-sm font-medium text-[var(--link-academic)]">
                 {isEn ? 'Data Protection and Operational Terms' : 'Proteção de Dados e Termos Operacionais'}
@@ -863,7 +980,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
                       }
                       setMetricsAllowed(isAnalyticsAllowed());
                     }}
-                    className="ml-auto px-3.5 py-1.5 rounded-full text-[13px] font-semibold border border-[var(--divider)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                    className="ml-auto min-h-11 md:min-h-0 px-3.5 py-2 md:py-1.5 rounded-full text-[13px] font-semibold border border-[var(--divider)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
                   >
                     {metricsAllowed ? t('privacyMetricsTurnOff') : t('privacyMetricsTurnOn')}
                   </button>
@@ -879,7 +996,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
             <button
               type="button"
               onClick={() => handleSelectSection(prevSection.id)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)] transition-colors cursor-pointer text-left"
+              className="min-h-11 flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)] transition-colors cursor-pointer text-left"
             >
               <ArrowLeft className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
               <div>
@@ -897,7 +1014,7 @@ export const AboutView: React.FC<AboutViewProps> = ({
             <button
               type="button"
               onClick={() => handleSelectSection(nextSection.id)}
-              className="flex items-center justify-end gap-3 px-4 py-3 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)] transition-colors cursor-pointer text-right"
+              className="min-h-11 flex items-center justify-end gap-3 px-4 py-3 rounded-xl bg-[var(--bg-canvas)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)] transition-colors cursor-pointer text-right"
             >
               <div>
                 <div className="text-xs text-[var(--text-muted)]">
@@ -911,6 +1028,12 @@ export const AboutView: React.FC<AboutViewProps> = ({
             <div />
           )}
         </div>
+      </div>
+
+      {/* MOBILE TECHNICAL SPECS & INSTITUTIONAL SUMMARY (< 1024px) */}
+      <div className="lg:hidden space-y-6">
+        {technicalSpecsBlock}
+        {institutionalSummaryCard}
       </div>
     </div>
   );

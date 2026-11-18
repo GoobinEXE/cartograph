@@ -2,7 +2,7 @@ import React from 'react';
 import { detectBrowserLanguage, translate } from '../i18n/context';
 import type { Translations } from '../i18n/translations';
 import { loadUserAccessConfig } from '../utils/accessConfig';
-import { triggerFileDownload } from '../utils/fileDownload';
+import { canUseNativeShare, shareOrDownloadFile } from '../utils/fileDownload';
 import { LAYOUT_STORAGE_KEYS, clearLayoutPreferences } from '../utils/layoutPreferences';
 import { workspaceStorageEngine } from '../utils/storageEngine';
 import { buildEmergencyBackupFromRecords } from '../utils/workspaceBackup';
@@ -66,11 +66,13 @@ export class ErrorBoundary extends React.Component<
       }
 
       const backup = buildEmergencyBackupFromRecords(records, { ownedPlatformIds });
-      triggerFileDownload(
+      const result = await shareOrDownloadFile(
         `cartograph-emergency-backup-${new Date().toISOString().slice(0, 10)}.json`,
         backup.json,
-        'application/json;charset=utf-8;'
+        'application/json;charset=utf-8;',
+        'Cartograph Emergency Backup'
       );
+      if (result === 'cancelled') return;
       this.setState({
         backupStatus: {
           kind: 'saved',
@@ -104,8 +106,8 @@ export class ErrorBoundary extends React.Component<
     const { backupStatus } = this.state;
 
     return (
-      <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex items-center justify-center p-6">
-        <div className="max-w-lg w-full rounded-2xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-7 space-y-5 shadow-xl">
+      <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex items-center justify-center p-4 sm:p-6">
+        <div className="max-w-lg w-full rounded-2xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-4 sm:p-7 space-y-4 sm:space-y-5 shadow-xl">
           <div className="space-y-1.5">
             <p className="text-xs font-mono uppercase tracking-wider text-[var(--link-academic)]">
               {tr('errorBoundaryEyebrow')}
@@ -116,29 +118,29 @@ export class ErrorBoundary extends React.Component<
             </p>
           </div>
 
-          <pre className="text-xs font-mono bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words border border-[var(--divider)]">
+          <pre className="text-xs font-mono bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl p-3 max-h-40 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words border border-[var(--divider)]">
             {this.state.errorMessage ?? tr('errorBoundaryFallbackMessage')}
           </pre>
 
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="min-h-11 w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               {tr('errorBoundaryReload')}
             </button>
             <button
               type="button"
               onClick={this.handleExportEmergencyBackup}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-[var(--divider)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+              className="min-h-11 w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-medium border border-[var(--divider)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
             >
-              {tr('errorBoundaryDownloadBackup')}
+              {canUseNativeShare() ? tr('shareBackupBtn') : tr('errorBoundaryDownloadBackup')}
             </button>
             <button
               type="button"
               onClick={this.handleResetLayoutState}
-              className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+              className="min-h-11 w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
             >
               {tr('errorBoundaryResetLayout')}
             </button>

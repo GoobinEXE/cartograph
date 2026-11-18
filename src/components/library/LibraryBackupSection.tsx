@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { FileSearch, HardDriveDownload, Loader2, Upload } from 'lucide-react';
+import { FileSearch, HardDriveDownload, Loader2, Share2, Upload } from 'lucide-react';
 import { useI18n } from '../../i18n/context';
 import { resolveIdentifierBatch } from '../../services/doiBatchResolver';
 import {
@@ -11,6 +11,7 @@ import type { SavedPaperItem } from '../../types/academic';
 import { parseAbstractMetadata } from '../../utils/abstractParser';
 import { parseImportedReferences } from '../../utils/bibImporter';
 import { triggerFileDownload } from '../../utils/citationExporter';
+import { canUseNativeShare, shareOrDownloadFile } from '../../utils/fileDownload';
 import {
   exportWorkspaceBackup,
   parseWorkspaceBackup,
@@ -58,6 +59,19 @@ export function LibraryBackupSection({
   const [isResolvingBatchDoi, setIsResolvingBatchDoi] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const buildBackupJson = () =>
+    exportWorkspaceBackup({
+      savedPapers: items,
+      groups,
+      selectedPlatformIds,
+      activeSaveGroupId,
+      ownedPlatformIds,
+      searchLogs,
+      dedupOverrides,
+      customColumns,
+      schemaVersion: 2,
+    });
+
   const handleResolveBatchDoi = async () => {
     if (!batchDoiText.trim() || isResolvingBatchDoi) return;
     setIsResolvingBatchDoi(true);
@@ -89,17 +103,7 @@ export function LibraryBackupSection({
   };
 
   const handleDownloadBackupJson = () => {
-    const json = exportWorkspaceBackup({
-      savedPapers: items,
-      groups,
-      selectedPlatformIds,
-      activeSaveGroupId,
-      ownedPlatformIds,
-      searchLogs,
-      dedupOverrides,
-      customColumns,
-      schemaVersion: 2,
-    });
+    const json = buildBackupJson();
     const dateStamp = new Date().toISOString().slice(0, 10);
     triggerFileDownload(
       `cartograph-backup-${dateStamp}.json`,
@@ -107,7 +111,22 @@ export function LibraryBackupSection({
       'application/json;charset=utf-8;'
     );
     setImportFeedback(t('backupExportedFeedback'));
-    setTimeout(() => setImportFeedback(null), 4000);
+    window.setTimeout(() => setImportFeedback(null), 4000);
+  };
+
+  const handleShareBackupJson = async () => {
+    const json = buildBackupJson();
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const result = await shareOrDownloadFile(
+      `cartograph-backup-${dateStamp}.json`,
+      json,
+      'application/json;charset=utf-8',
+      'Cartograph Backup'
+    );
+    if (result !== 'cancelled') {
+      setImportFeedback(t('backupExportedFeedback'));
+      window.setTimeout(() => setImportFeedback(null), 4000);
+    }
   };
 
   const handleFileImport = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -168,7 +187,7 @@ export function LibraryBackupSection({
       contentClassName="space-y-3"
       title={
         <>
-          <HardDriveDownload className="w-4 h-4 text-[var(--meta-green)] shrink-0" />
+          <HardDriveDownload className="w-4 h-4 text-[var(--meta-green)] shrink-0" aria-hidden="true" />
           <span className="truncate">{t('localBackupTitle')}</span>
         </>
       }
@@ -180,7 +199,7 @@ export function LibraryBackupSection({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".bib,.ris,.json"
+        accept=".bib,.ris,.json,application/json,text/plain,text/*"
         onChange={handleFileImport}
         className="hidden"
       />
@@ -193,7 +212,7 @@ export function LibraryBackupSection({
           id="restore-mode-select"
           value={restoreMode}
           onChange={(e) => setRestoreMode(e.target.value as 'merge' | 'replace')}
-          className="flex-1 px-2 py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] cursor-pointer"
+          className="flex-1 min-h-10 md:min-h-0 px-2.5 py-1.5 md:py-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-base md:text-xs text-[var(--text-primary)] cursor-pointer"
         >
           <option value="merge">{t('restoreModeMerge')}</option>
           <option value="replace">{t('restoreModeReplace')}</option>
@@ -204,29 +223,40 @@ export function LibraryBackupSection({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+          className="min-h-11 md:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
         >
-          <Upload className="w-3.5 h-3.5 text-[var(--link-academic)]" />
+          <Upload className="w-3.5 h-3.5 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
           <span>{t('importBtn')}</span>
         </button>
 
         <button
           type="button"
           onClick={handleDownloadBackupJson}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
+          className="min-h-11 md:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer"
           title={t('backupJsonTitle')}
         >
-          <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)]" />
+          <HardDriveDownload className="w-3.5 h-3.5 text-[var(--meta-green)] shrink-0" aria-hidden="true" />
           <span>{t('backupJsonBtn')}</span>
         </button>
       </div>
 
       <button
         type="button"
-        onClick={() => setShowBatchDoiPanel((prev) => !prev)}
-        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--link-academic)] transition-colors cursor-pointer"
+        onClick={handleShareBackupJson}
+        className={`${
+          canUseNativeShare() ? 'inline-flex' : 'inline-flex md:hidden'
+        } w-full min-h-11 md:min-h-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-colors cursor-pointer`}
       >
-        <FileSearch className="w-3.5 h-3.5" />
+        <Share2 className="w-3.5 h-3.5 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+        <span>{t('shareBackupBtn')}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setShowBatchDoiPanel((prev) => !prev)}
+        className="w-full min-h-11 md:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--link-academic)] transition-colors cursor-pointer"
+      >
+        <FileSearch className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
         <span>{t('batchDoiBtn')}</span>
       </button>
 
@@ -240,15 +270,15 @@ export function LibraryBackupSection({
             value={batchDoiText}
             onChange={(e) => setBatchDoiText(e.target.value)}
             placeholder={t('batchDoiPlaceholder')}
-            className="w-full px-2.5 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
+            className="w-full px-2.5 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-base md:text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
           />
           <button
             type="button"
             disabled={!batchDoiText.trim() || isResolvingBatchDoi}
             onClick={handleResolveBatchDoi}
-            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] cursor-pointer disabled:opacity-45"
+            className="w-full min-h-11 md:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] cursor-pointer disabled:opacity-45"
           >
-            {isResolvingBatchDoi && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {isResolvingBatchDoi && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
             <span>
               {isResolvingBatchDoi ? t('batchDoiResolving') : t('batchDoiResolveAction')}
             </span>
@@ -257,7 +287,10 @@ export function LibraryBackupSection({
       )}
 
       {importFeedback && (
-        <div className="text-xs px-2.5 py-2 rounded-lg bg-[var(--accent-blue-tint)] text-[var(--link-academic)] leading-snug">
+        <div
+          role="status"
+          className="text-xs px-2.5 py-2 rounded-lg bg-[var(--accent-blue-tint)] text-[var(--link-academic)] leading-snug"
+        >
           {importFeedback}
         </div>
       )}

@@ -19,11 +19,11 @@ import {
 import { useI18n } from '../../i18n/context';
 import { useWorkspaceActions } from '../../state/workspace';
 import type { CustomExtractionColumn, LibraryGroup, SavedPaperItem } from '../../types/academic';
-import { parseAbstractMetadata } from '../../utils/abstractParser';
 import { formatAbntCitation } from '../../utils/citationExporter';
 import { getScreeningReasonLabels } from '../../utils/prismaFlow';
 import { sanitizeExternalUrl } from '../../utils/urlSafety';
 import { ExtractedVariablesPanel, QualityAppraisalSection } from './SavedPaperPanels';
+import { getExtractedMetadataForItem } from './libraryShared';
 import type { LibraryCardState } from './useLibraryCardState';
 
 interface SavedPaperCardProps {
@@ -35,6 +35,7 @@ interface SavedPaperCardProps {
   customColumns: CustomExtractionColumn[];
   cardState: LibraryCardState;
   onChaseCitations: (item: SavedPaperItem) => void;
+  onRequestRemovePaper?: (item: SavedPaperItem) => void;
 }
 
 /** One study of the screening matrix: metadata, PRISMA decision, citation, extraction fields and notes. */
@@ -46,24 +47,12 @@ export function SavedPaperCard({
   customColumns,
   cardState,
   onChaseCitations,
+  onRequestRemovePaper,
 }: SavedPaperCardProps) {
   const { language, t } = useI18n();
   const actions = useWorkspaceActions();
 
-  const meta = item.abstractText
-    ? parseAbstractMetadata(
-        item.title,
-        item.abstractText,
-        item.publicationType,
-        language
-      )
-    : item.extractedMetadata ||
-      parseAbstractMetadata(
-        item.title,
-        item.abstractText,
-        item.publicationType,
-        language
-      );
+  const meta = getExtractedMetadataForItem(item, language);
   const isDetailsOpen = Boolean(cardState.expandedDetails[item.id]);
   const currentStatus = item.screeningStatus || 'unscreened';
   const itemGroup = item.groupId
@@ -72,9 +61,9 @@ export function SavedPaperCard({
   const unpaywallEntry = cardState.unpaywallState[item.id];
 
   return (
-    <div className="bg-[var(--bg-secondary)] rounded-2xl p-5 space-y-3.5">
+    <div className="content-auto-card bg-[var(--bg-secondary)] rounded-2xl p-4 sm:p-5 space-y-3.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-3xl">
+        <div className="max-w-3xl min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             {itemGroup ? (
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--text-primary)] border border-[var(--divider)]">
@@ -92,13 +81,13 @@ export function SavedPaperCard({
 
             {item.isRetracted && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-600 text-white">
-                <AlertTriangle className="w-3 h-3" />
+                <AlertTriangle className="w-3 h-3" aria-hidden="true" />
                 <span>{t('retractedBadge')}</span>
               </span>
             )}
           </div>
 
-          <h4 className="text-[18px] font-medium text-[var(--link-academic)] leading-snug">
+          <h4 className="text-[17px] sm:text-[18px] font-medium text-[var(--link-academic)] leading-snug">
             {sanitizeExternalUrl(item.url) ? (
               <a
                 href={sanitizeExternalUrl(item.url)!}
@@ -123,10 +112,10 @@ export function SavedPaperCard({
         </div>
 
         {/* Group / Slot Assignment + Priority + Remove Controls */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
           {/* Move between Groups or to Ungrouped */}
-          <div className="inline-flex items-center gap-1.5 bg-[var(--bg-canvas)] rounded-lg px-2.5 py-1 border border-[var(--divider)]">
-            <Folder className="w-3.5 h-3.5 text-[var(--link-academic)] shrink-0" />
+          <div className="inline-flex items-center gap-1.5 bg-[var(--bg-canvas)] rounded-lg px-2.5 py-1 min-h-10 md:min-h-0 border border-[var(--divider)] flex-1 sm:flex-initial min-w-0">
+            <Folder className="w-3.5 h-3.5 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
             <select
               value={item.groupId && groupNameMap[item.groupId] ? item.groupId : ''}
               onChange={(e) =>
@@ -135,7 +124,8 @@ export function SavedPaperCard({
                   e.target.value ? e.target.value : null
                 )
               }
-              className="bg-transparent text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none"
+              aria-label={t('movePaperGroupTitle')}
+              className="w-full bg-transparent text-base md:text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none"
               title={t('movePaperGroupTitle')}
             >
               <option value="">{t('ungroupedOption')}</option>
@@ -155,7 +145,8 @@ export function SavedPaperCard({
                 e.target.value as SavedPaperItem['relevanceTag']
               )
             }
-            className="bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-lg px-2.5 py-1 text-[13px] font-medium text-[var(--text-primary)] cursor-pointer"
+            aria-label={t('sortByLabel')}
+            className="min-h-10 md:min-h-0 bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-lg px-2.5 py-1 text-base md:text-[13px] font-medium text-[var(--text-primary)] cursor-pointer"
           >
             <option value="alta">{t('priorityHigh')}</option>
             <option value="media">{t('priorityMedium')}</option>
@@ -164,11 +155,14 @@ export function SavedPaperCard({
 
           <button
             type="button"
-            onClick={() => actions.removePaper(item.id)}
-            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+            onClick={() =>
+              onRequestRemovePaper ? onRequestRemovePaper(item) : actions.removePaper(item.id)
+            }
+            className="min-w-10 min-h-10 md:min-w-0 md:min-h-0 p-2 md:p-1.5 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
             title={t('removeTooltip')}
+            aria-label={t('removeTooltip')}
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -177,14 +171,14 @@ export function SavedPaperCard({
       {(meta.studyDesign || meta.sampleSize) && (
         <div className="flex flex-wrap items-center gap-2">
           {meta.studyDesign && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--link-academic)] border border-[var(--divider)]">
-              <Microscope className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 md:py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--link-academic)] border border-[var(--divider)]">
+              <Microscope className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               {meta.studyDesign}
             </span>
           )}
           {meta.sampleSize && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--meta-green)] border border-[var(--divider)]">
-              <Users className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 md:py-0.5 rounded-md text-xs font-medium bg-[var(--bg-canvas)] text-[var(--meta-green)] border border-[var(--divider)] tabular-nums">
+              <Users className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               {meta.sampleSize}
             </span>
           )}
@@ -200,13 +194,14 @@ export function SavedPaperCard({
         <button
           type="button"
           onClick={() => actions.updateScreening(item.id, 'included')}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
+          aria-pressed={currentStatus === 'included'}
+          className={`min-h-10 md:min-h-0 inline-flex items-center gap-1.5 px-3 md:px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
             currentStatus === 'included'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)]'
           }`}
         >
-          <CheckCircle2 className="w-3.5 h-3.5" />
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span>{t('decisionInclude')}</span>
         </button>
 
@@ -219,26 +214,28 @@ export function SavedPaperCard({
               item.exclusionReason || 'populacao_inadequada'
             )
           }
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
+          aria-pressed={currentStatus === 'excluded'}
+          className={`min-h-10 md:min-h-0 inline-flex items-center gap-1.5 px-3 md:px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
             currentStatus === 'excluded'
               ? 'bg-rose-600 text-white shadow-xs'
               : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] border border-[var(--divider)]'
           }`}
         >
-          <XCircle className="w-3.5 h-3.5" />
+          <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span>{t('decisionExclude')}</span>
         </button>
 
         <button
           type="button"
           onClick={() => actions.updateScreening(item.id, 'unscreened')}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
+          aria-pressed={currentStatus === 'unscreened'}
+          className={`min-h-10 md:min-h-0 inline-flex items-center gap-1.5 px-3 md:px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium cursor-pointer transition-colors ${
             currentStatus === 'unscreened'
               ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] border border-[var(--divider)] shadow-xs'
               : 'bg-[var(--bg-canvas)] text-[var(--text-muted)] hover:bg-[var(--bg-subtle)]'
           }`}
         >
-          <HelpCircle className="w-3.5 h-3.5" />
+          <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span>{t('decisionPending')}</span>
         </button>
 
@@ -249,7 +246,8 @@ export function SavedPaperCard({
             onChange={(e) =>
               actions.updateScreening(item.id, 'excluded', e.target.value)
             }
-            className="bg-[var(--bg-canvas)] border border-rose-300 dark:border-rose-900/40 rounded-lg px-2.5 py-1 text-[13px] text-rose-700 dark:text-rose-300 cursor-pointer font-medium"
+            aria-label={t('triageChooseReasonTitle')}
+            className="w-full sm:w-auto min-h-10 md:min-h-0 bg-[var(--bg-canvas)] border border-rose-300 dark:border-rose-900/40 rounded-lg px-2.5 py-1 text-base md:text-[13px] text-rose-700 dark:text-rose-300 cursor-pointer font-medium"
           >
             {Object.entries(getScreeningReasonLabels(language)).map(([key, label]) => (
               <option key={key} value={key}>
@@ -268,7 +266,7 @@ export function SavedPaperCard({
           </span>
           {formatAbntCitation(item)}
         </div>
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--divider)]">
+        <div className="flex flex-wrap items-center gap-2 pt-1.5 border-t border-[var(--divider)]">
           {(['abnt', 'apa'] as const).map((styleKey) => {
             const activeKey = `${styleKey}-${item.id}`;
             const isCopied = cardState.copiedInTextKey === activeKey;
@@ -277,12 +275,12 @@ export function SavedPaperCard({
                 key={styleKey}
                 type="button"
                 onClick={() => cardState.copyInTextCitation(item, styleKey)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="min-h-9 md:min-h-0 inline-flex items-center gap-1.5 px-2.5 py-1 md:py-0.5 rounded-md text-xs font-medium bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 {isCopied ? (
-                  <Check className="w-3 h-3 text-emerald-500" />
+                  <Check className="w-3 h-3 text-emerald-500" aria-hidden="true" />
                 ) : (
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3 h-3" aria-hidden="true" />
                 )}
                 <span>
                   {isCopied
@@ -302,9 +300,10 @@ export function SavedPaperCard({
         <button
           type="button"
           onClick={() => cardState.toggleDetails(item.id)}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+          aria-expanded={isDetailsOpen}
+          className="min-h-10 md:min-h-0 inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
         >
-          <FileText className="w-4 h-4" />
+          <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span>
             {isDetailsOpen ? t('hideExtractedVars') : t('showExtractedVars')}
           </span>
@@ -318,7 +317,7 @@ export function SavedPaperCard({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {customColumns.map((col) => (
             <div key={col.id}>
-              <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+              <label className="block text-xs md:text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
                 {col.label}
               </label>
               <input
@@ -328,7 +327,7 @@ export function SavedPaperCard({
                   actions.updateCustomField(item.id, col.id, e.target.value)
                 }
                 placeholder={col.placeholder || col.label}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
+                className="w-full min-h-11 md:min-h-0 px-3 md:px-2.5 py-2 md:py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-base md:text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)]"
               />
             </div>
           ))}
@@ -350,17 +349,18 @@ export function SavedPaperCard({
           value={item.researcherNotes}
           onChange={(e) => actions.updateNotes(item.id, e.target.value)}
           placeholder={t('notesPlaceholder')}
-          className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--link-academic)]/20 transition-all border border-[var(--divider)]"
+          aria-label={t('notesLabel')}
+          className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-canvas)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--link-academic)]/20 transition-all border border-[var(--divider)]"
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-5 text-[13px] text-[var(--text-muted)]">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-[var(--text-muted)]">
         {sanitizeExternalUrl(item.url) && (
           <a
             href={sanitizeExternalUrl(item.url)!}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-[var(--link-academic)] hover:underline"
+            className="min-h-10 md:min-h-0 inline-flex items-center font-medium text-[var(--link-academic)] hover:underline"
           >
             {t('openSource')}
           </a>
@@ -370,7 +370,7 @@ export function SavedPaperCard({
             href={sanitizeExternalUrl(item.pdfUrl)!}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-[var(--meta-green)] hover:underline"
+            className="min-h-10 md:min-h-0 inline-flex items-center font-medium text-[var(--meta-green)] hover:underline"
           >
             [PDF] {t('downloadFullPdf')}
           </a>
@@ -381,7 +381,7 @@ export function SavedPaperCard({
               href={sanitizeExternalUrl(unpaywallEntry?.pdfUrl)!}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+              className="min-h-10 md:min-h-0 inline-flex items-center font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
             >
               [{t('unpaywallFoundBadge')}]
             </a>
@@ -393,12 +393,12 @@ export function SavedPaperCard({
               type="button"
               disabled={unpaywallEntry?.status === 'loading'}
               onClick={() => cardState.findUnpaywall(item)}
-              className="inline-flex items-center gap-1 font-medium text-[var(--link-academic)] hover:underline cursor-pointer disabled:opacity-50"
+              className="min-h-10 md:min-h-0 inline-flex items-center gap-1.5 font-medium text-[var(--link-academic)] hover:underline cursor-pointer disabled:opacity-50"
             >
               {unpaywallEntry?.status === 'loading' ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
               ) : (
-                <FileSearch className="w-3.5 h-3.5" />
+                <FileSearch className="w-3.5 h-3.5" aria-hidden="true" />
               )}
               <span>
                 {unpaywallEntry?.status === 'not_found'
@@ -411,21 +411,21 @@ export function SavedPaperCard({
         <button
           type="button"
           onClick={() => onChaseCitations(item)}
-          className="inline-flex items-center gap-1 font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+          className="min-h-10 md:min-h-0 inline-flex items-center gap-1.5 font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
         >
-          <GitBranch className="w-3.5 h-3.5" />
+          <GitBranch className="w-3.5 h-3.5" aria-hidden="true" />
           <span>{t('chaseCitationsBtn')}</span>
         </button>
 
-        <span>{t('citedByCount', { count: item.citationCount })}</span>
+        <span className="tabular-nums">{t('citedByCount', { count: item.citationCount })}</span>
 
         {library.length > 1 && (
           <button
             type="button"
             onClick={() => cardState.toggleLinking(item, library)}
-            className="inline-flex items-center gap-1 font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
+            className="min-h-10 md:min-h-0 inline-flex items-center gap-1.5 font-medium text-[var(--link-academic)] hover:underline cursor-pointer"
           >
-            <Link2 className="w-3.5 h-3.5" />
+            <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
             <span>{t('linkPreprintAction')}</span>
           </button>
         )}
@@ -434,7 +434,7 @@ export function SavedPaperCard({
       {item.relatedUrls && item.relatedUrls.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
           <span className="font-semibold text-[var(--text-primary)] inline-flex items-center gap-1">
-            <Link2 className="w-3.5 h-3.5 text-[var(--link-academic)]" />
+            <Link2 className="w-3.5 h-3.5 text-[var(--link-academic)]" aria-hidden="true" />
             {t('relatedLinksTitle')}:
           </span>
           {item.relatedUrls.map((rel, relIdx) => {
@@ -446,7 +446,7 @@ export function SavedPaperCard({
                 href={safeRel}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-2 py-0.5 rounded-md bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--link-academic)] hover:underline"
+                className="px-2 py-1 md:py-0.5 rounded-md bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--link-academic)] hover:underline"
               >
                 [{rel.kind === 'preprint' ? 'Preprint' : rel.kind === 'published' ? 'Published' : 'Ref'}] {rel.label}
               </a>
@@ -460,7 +460,8 @@ export function SavedPaperCard({
           <select
             value={cardState.linkCandidateId}
             onChange={(e) => cardState.setLinkCandidateId(e.target.value)}
-            className="flex-1 min-w-[200px] bg-[var(--bg-subtle)] border border-[var(--divider)] rounded-lg px-2.5 py-1.5 text-[var(--text-primary)]"
+            aria-label={t('linkPreprintAction')}
+            className="flex-1 min-w-[200px] min-h-10 md:min-h-0 bg-[var(--bg-subtle)] border border-[var(--divider)] rounded-lg px-2.5 py-1.5 text-base md:text-xs text-[var(--text-primary)]"
           >
             {library
               .filter((other) => other.id !== item.id)
@@ -479,16 +480,17 @@ export function SavedPaperCard({
                 cardState.closeLinking();
               }
             }}
-            className="px-3 py-1.5 rounded-lg bg-[var(--link-academic)] text-white font-medium cursor-pointer disabled:opacity-50"
+            className="min-h-10 md:min-h-0 px-3 py-1.5 rounded-lg bg-[var(--link-academic)] text-white font-medium cursor-pointer disabled:opacity-50"
           >
             {t('linkPreprintAction')}
           </button>
           <button
             type="button"
             onClick={cardState.closeLinking}
-            className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-subtle)] text-[var(--text-secondary)] cursor-pointer"
+            aria-label={t('cancelActionBtn')}
+            className="min-w-10 min-h-10 md:min-w-0 md:min-h-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg-subtle)] text-[var(--text-secondary)] inline-flex items-center justify-center cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       )}

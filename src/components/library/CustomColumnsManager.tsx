@@ -35,7 +35,7 @@ export function CustomColumnsManager({
             label
               .toLowerCase()
               .normalize('NFD')
-              .replace(/[̀-ͯ]/g, '')
+              .replace(/[\u0300-\u036f]/g, '')
               .replace(/[^a-z0-9]+/g, '_')
               .replace(/^_|_$/g, '') || `col_${Date.now()}`;
           const uniqueId = customColumns.some((c) => c.id === id)
@@ -51,13 +51,14 @@ export function CustomColumnsManager({
           value={newColLabel}
           onChange={(e) => onNewColLabelChange(e.target.value)}
           placeholder={t('customColNamePlaceholder')}
-          className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)]"
+          aria-label={t('customColNamePlaceholder')}
+          className="flex-1 min-w-[200px] min-h-11 md:min-h-0 px-3 py-2 md:py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-base md:text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)]"
         />
         <button
           type="submit"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
+          className="min-h-11 md:min-h-0 inline-flex items-center gap-1.5 px-3.5 py-2 md:py-1.5 rounded-lg text-[13px] font-medium bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span>{t('customColAddBtn')}</span>
         </button>
       </form>
@@ -68,16 +69,16 @@ export function CustomColumnsManager({
           {customColumns.map((col) => (
             <span
               key={col.id}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-medium text-[var(--text-primary)]"
+              className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-medium text-[var(--text-primary)]"
             >
               <span>{col.label}</span>
               <button
                 type="button"
                 onClick={() => onSaveColumns(customColumns.filter((c) => c.id !== col.id))}
-                className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                className="min-w-9 min-h-9 inline-flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] cursor-pointer"
                 aria-label={`Remove ${col.label}`}
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </span>
           ))}

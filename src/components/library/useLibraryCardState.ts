@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SavedPaperItem } from '../../types/academic';
 import { resolveUnpaywallPdf } from '../../services/unpaywallResolver';
 import { formatInTextCitation } from '../../utils/citationExporter';
+import { copyTextSafely } from '../../utils/fileDownload';
 import type { UnpaywallLookup } from './libraryShared';
 
 export interface LibraryCardState {
@@ -35,13 +36,11 @@ export function useLibraryCardState(unpaywallEmail: string | undefined): Library
 
   const copyInTextCitation = async (item: SavedPaperItem, style: 'abnt' | 'apa') => {
     const text = formatInTextCitation(item, style, 'parenthetical');
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyTextSafely(text);
+    if (ok) {
       const key = `${style}-${item.id}`;
       setCopiedInTextKey(key);
-      setTimeout(() => setCopiedInTextKey(null), 1800);
-    } catch {
-      // ignore
+      window.setTimeout(() => setCopiedInTextKey(null), 1800);
     }
   };
 

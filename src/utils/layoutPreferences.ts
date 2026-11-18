@@ -9,6 +9,10 @@ export const LAYOUT_STORAGE_KEYS = {
   platformsSidebarDrawers: 'cartograph_sidebar_drawers_v2',
   federatedSidebarDrawers: 'cartograph_federated_sidebar_drawers_v1',
   savedSidebarDrawers: 'cartograph_saved_sidebar_drawers_v1',
+  mobileMatrixViewMode: 'cartograph_mobile_matrix_mode_v1',
+  mobileMatrixFocusColumn: 'cartograph_mobile_matrix_focus_col_v1',
+  mobileTriageHaptics: 'cartograph_mobile_triage_haptics_v1',
+  mobileTriageAutoExclude: 'cartograph_mobile_triage_auto_exclude_v1',
 } as const;
 
 export type LayoutStorageKey = (typeof LAYOUT_STORAGE_KEYS)[keyof typeof LAYOUT_STORAGE_KEYS];
@@ -53,4 +57,26 @@ export function clearLayoutPreferences(storage: Pick<Storage, 'removeItem'> | nu
       // ignore storage errors (private mode, blocked site data)
     }
   }
+}
+
+/**
+ * Updates `meta[name="theme-color"]` tags to match the active manual theme so mobile browser
+ * chrome and PWA status bars stay synchronized instead of following OS media queries.
+ */
+export function syncThemeColorMeta(theme: 'light' | 'dark'): void {
+  if (typeof document === 'undefined') return;
+  const color = theme === 'dark' ? '#0E1015' : '#FFFFFF';
+  const tags = document.querySelectorAll('meta[name="theme-color"]');
+  if (tags.length > 0) {
+    tags.forEach((tag) => {
+      tag.removeAttribute('media');
+      tag.setAttribute('content', color);
+    });
+    return;
+  }
+  if (!document.head) return;
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', 'theme-color');
+  meta.setAttribute('content', color);
+  document.head.appendChild(meta);
 }

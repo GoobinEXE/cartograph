@@ -1,7 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, Check, Copy, ExternalLink, X } from 'lucide-react';
-import { sanitizeExternalUrl } from '../utils/urlSafety';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  ExternalLink,
+  RotateCcw,
+  Share2,
+} from 'lucide-react';
 import { useI18n } from '../i18n/context';
+import { canUseNativeShare, copyTextSafely, shareTextSafely } from '../utils/fileDownload';
+import { sanitizeExternalUrl } from '../utils/urlSafety';
+import { MobileSheet } from './ui/MobileSheet';
 
 export interface WebLaunchTarget {
   id: string;
@@ -18,6 +27,11 @@ interface WebLaunchDrawerProps {
   onClose: () => void;
 }
 
+interface ResolvedWebLaunchTarget extends WebLaunchTarget {
+  safeHref: string;
+  hostname: string;
+}
+
 export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
   isOpen,
   query,
@@ -27,162 +41,335 @@ export const WebLaunchDrawer: React.FC<WebLaunchDrawerProps> = ({
 }) => {
   const { t } = useI18n();
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
+  const [hideOpened, setHideOpened] = useState(false);
+  const [queryCopied, setQueryCopied] = useState(false);
+  const [linksFeedback, setLinksFeedback] = useState<'shared' | 'copied' | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
 
   useEffect(() => {
     setOpenedIds(new Set());
+    setQueryCopied(false);
+    setLinksFeedback(null);
+    setCopiedAll(false);
   }, [query, targets]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || targets.length === 0) return null;
+  const safeTargets = useMemo<ResolvedWebLaunchTarget[]>(() => {
+    return targets
+      .map((target) => {
+        const safeHref = sanitizeExternalUrl(target.url);
+        if (!safeHref) return null;
+        let hostname = safeHref;
+        try {
+          hostname = new URL(safeHref).hostname.replace(/^www\./, '');
+        } catch {
+          // Keep full URL as fallback if URL parsing fails
+        }
+        return {
+          ...target,
+          safeHref,
+          hostname,
+        };
+      })
+      .filter((item): item is ResolvedWebLaunchTarget => item !== null);
+  }, [targets]);
 
   const markOpened = (id: string) => {
     setOpenedIds((prev) => {
+      if (prev.has(id)) return prev;
       const next = new Set(prev);
       next.add(id);
       return next;
     });
   };
 
-  const handleCopyAllUrls = async () => {
-    const safeList = targets
-      .map((t) => {
-        const safe = sanitizeExternalUrl(t.url);
-        return safe ? `${t.name}: ${safe}` : null;
-      })
-      .filter(Boolean)
-      .join('\n');
+  const totalCount = safeTargets.length;
+  const openedCount = safeTargets.reduce((acc, item) => acc + (openedIds.has(item.id) ? 1 : 0), 0);
+  const progressPercent = totalCount > 0 ? Math.round((openedCount / totalCount) * 100) : 0;
+  const nextItem = safeTargets.find((item) => !openedIds.has(item.id)) ?? null;
+  const visibleTargets = hideOpened
+    ? safeTargets.filter((item) => !openedIds.has(item.id))
+    : safeTargets;
 
-    if (!safeList) return;
-    try {
-      await navigator.clipboard.writeText(safeList);
-      setCopiedAll(true);
-      setTimeout(() => setCopiedAll(false), 2500);
-    } catch {
-      // ignore clipboard restriction
+  const formattedLinksPayload = useMemo(
+    () => safeTargets.map((item) => `${item.name}: ${item.safeHref}`).join('\n'),
+    [safeTargets]
+  );
+
+  const handleCopyQuery = async () => {
+    if (!query.trim()) return;
+    const ok = await copyTextSafely(query);
+    if (ok) {
+      setQueryCopied(true);
+      window.setTimeout(() => setQueryCopied(false), 2200);
     }
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="web-launch-dialog-title"
-    >
-      <div
-        className="w-full max-w-xl bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-[var(--divider)] flex items-start justify-between gap-4">
-          <div>
-            <h2
-              id="web-launch-dialog-title"
-              className="text-base font-heading font-semibold text-[var(--text-primary)]"
-            >
-              {t('webLaunchTitle', { count: targets.length })}
-            </h2>
-            <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-snug">
-              {blockedOrBrowserLimited ? t('webLaunchBlockedDesc') : t('webLaunchDirectDesc')}
-            </p>
+  const handleShareSessionLinks = async () => {
+    if (!formattedLinksPayload) return;
+    const body = query.trim() ? `${query.trim()}\n\n${formattedLinksPayload}` : formattedLinksPayload;
+    const result = await shareTextSafely(
+      t('webLaunchTitle', { count: totalCount }),
+      body
+    );
+    if (result === 'shared' || result === 'copied') {
+      setLinksFeedback(result);
+      window.setTimeout(() => setLinksFeedback(null), 2400);
+    }
+  };
+
+  const handleCopyAllUrls = async () => {
+    if (!formattedLinksPayload) return;
+    const ok = await copyTextSafely(formattedLinksPayload);
+    if (ok) {
+      setCopiedAll(true);
+      window.setTimeout(() => setCopiedAll(false), 2500);
+    }
+  };
+
+  const nativeShareAvailable = canUseNativeShare();
+
+  const footer = (
+    <div className="space-y-2.5">
+      {nextItem ? (
+        <a
+          href={nextItem.safeHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => markOpened(nextItem.id)}
+          className="min-h-12 w-full inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[15px] font-semibold hover:opacity-90 active:scale-[0.98] transition-[transform,opacity] duration-150 touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-canvas)]"
+        >
+          <span className="truncate">
+            {t('launchQueueNextBtn', {
+              current: Math.min(totalCount, openedCount + 1),
+              total: totalCount,
+              name: nextItem.name,
+            })}
+          </span>
+          <ArrowUpRight className="w-4 h-4 shrink-0" aria-hidden="true" />
+        </a>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-center gap-2 text-[13.5px] font-medium text-[var(--meta-green)] py-1">
+            <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>{t('launchQueueAllDone')}</span>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOpenedIds(new Set())}
+              className="flex-1 min-h-11 inline-flex items-center justify-center gap-1.5 px-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--divider)] text-[14px] font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+            >
+              <RotateCcw className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>{t('launchQueueResetBtn')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-11 px-4 rounded-xl bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+            >
+              {t('webLaunchCloseBtn')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="hidden sm:flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
+        <span className="inline-flex items-center gap-1.5 min-w-0">
+          <ExternalLink className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{t('webLaunchTip')}</span>
+        </span>
+        {nextItem && (
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
-            aria-label={t('webLaunchCloseAria')}
+            className="px-3 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-primary)] font-medium cursor-pointer hover:bg-[var(--bg-hover)] shrink-0"
           >
-            <X className="w-4 h-4" />
+            {t('webLaunchCloseBtn')}
           </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <MobileSheet
+      open={isOpen && totalCount > 0}
+      onClose={onClose}
+      title={t('webLaunchTitle', { count: totalCount })}
+      subtitle={blockedOrBrowserLimited ? t('webLaunchBlockedDesc') : t('webLaunchDirectDesc')}
+      initialSnap="full"
+      desktopMode="modal"
+      desktopMaxWidthClass="md:max-w-xl"
+      closeLabel={t('webLaunchCloseAria')}
+      dragHandleLabel={t('mobileDragHandleLabel')}
+      bodyClassName="!px-0 !pt-0 !pb-2"
+      footer={footer}
+    >
+      {/* Queue Progress + Query Copy + Share Controls */}
+      <div className="px-4 sm:px-6 py-3 bg-[var(--bg-secondary)] border-b border-[var(--divider)] space-y-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-[var(--text-primary)] tabular-nums">
+              {t('launchQueueProgress', { opened: openedCount, total: totalCount })}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hideOpened}
+              onClick={() => setHideOpened((prev) => !prev)}
+              className={`min-h-9 md:min-h-0 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors cursor-pointer touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
+                hideOpened
+                  ? 'bg-[var(--accent-blue-tint)] border-[var(--link-academic)]/40 text-[var(--link-academic)]'
+                  : 'bg-[var(--bg-canvas)] border-[var(--divider)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+              }`}
+            >
+              {t('launchQueueHideOpenedToggle')}
+            </button>
+          </div>
+          <div
+            className="h-1.5 w-full rounded-full bg-[var(--bg-hover)] overflow-hidden"
+            role="progressbar"
+            aria-label={t('launchQueueProgress', { opened: openedCount, total: totalCount })}
+            aria-valuenow={progressPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="h-full rounded-full bg-[var(--meta-green)] transition-[width] duration-250 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
 
-        <div className="px-5 py-3 bg-[var(--bg-secondary)] border-b border-[var(--divider)] flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="text-[var(--text-secondary)] truncate max-w-md">
-            {t('webLaunchQueryLabel')} <code className="font-mono text-[var(--text-primary)]">{query}</code>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-xl px-3 py-2">
+          <span className="shrink-0 font-medium">{t('webLaunchQueryLabel')}</span>
+          <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar">
+            <code className="font-mono text-[var(--text-primary)] whitespace-nowrap">{query}</code>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={handleCopyAllUrls}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] font-medium cursor-pointer"
+            onClick={() => void handleCopyQuery()}
+            className="flex-1 min-w-[130px] min-h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-xs font-medium text-[var(--text-primary)] cursor-pointer touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
           >
-            {copiedAll ? (
-              <Check className="w-3.5 h-3.5 text-[var(--meta-green)]" />
+            {queryCopied ? (
+              <Check className="w-3.5 h-3.5 text-[var(--meta-green)] shrink-0" aria-hidden="true" />
             ) : (
-              <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              <Copy className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
             )}
-            <span>{copiedAll ? t('webLaunchCopiedAll') : t('webLaunchCopyAll')}</span>
+            <span>{queryCopied ? t('launchQueueQueryCopied') : t('launchQueueCopyQueryBtn')}</span>
           </button>
-        </div>
 
-        <div className="max-h-[55vh] overflow-y-auto divide-y divide-[var(--divider)]">
-          {targets.map((target) => {
-            const safeHref = sanitizeExternalUrl(target.url);
-            if (!safeHref) return null;
+          <button
+            type="button"
+            onClick={() => void handleShareSessionLinks()}
+            className="flex-1 min-w-[130px] min-h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-xs font-medium text-[var(--text-primary)] cursor-pointer touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+          >
+            {linksFeedback ? (
+              <Check className="w-3.5 h-3.5 text-[var(--meta-green)] shrink-0" aria-hidden="true" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+            )}
+            <span>
+              {linksFeedback === 'shared'
+                ? t('paperSharedFeedback')
+                : linksFeedback === 'copied'
+                ? t('webLaunchCopiedAll')
+                : t('launchQueueShareSessionBtn')}
+            </span>
+          </button>
+
+          {nativeShareAvailable && (
+            <button
+              type="button"
+              onClick={() => void handleCopyAllUrls()}
+              className="hidden sm:inline-flex min-h-10 items-center justify-center gap-1.5 px-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] hover:bg-[var(--bg-hover)] text-xs font-medium text-[var(--text-primary)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)]"
+            >
+              {copiedAll ? (
+                <Check className="w-3.5 h-3.5 text-[var(--meta-green)] shrink-0" aria-hidden="true" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
+              )}
+              <span>{copiedAll ? t('webLaunchCopiedAll') : t('webLaunchCopyAll')}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Portals Queue List */}
+      <div className="divide-y divide-[var(--divider)]">
+        {visibleTargets.length === 0 ? (
+          <div className="px-4 sm:px-6 py-8 text-center space-y-2">
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              {t('launchQueueAllDone')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpenedIds(new Set())}
+              className="min-h-10 inline-flex items-center gap-1.5 px-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--divider)] text-xs font-semibold text-[var(--link-academic)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{t('launchQueueResetBtn')}</span>
+            </button>
+          </div>
+        ) : (
+          visibleTargets.map((target) => {
             const isOpened = openedIds.has(target.id);
+            const isUpNext = nextItem?.id === target.id;
 
             return (
               <div
                 key={target.id}
-                className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-[var(--bg-secondary)] transition-colors"
+                className={`px-4 sm:px-6 py-3 flex items-center justify-between gap-3 transition-colors ${
+                  isUpNext
+                    ? 'bg-[var(--accent-blue-tint)]/55'
+                    : 'hover:bg-[var(--bg-secondary)]'
+                }`}
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[var(--text-primary)] truncate">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[14.5px] sm:text-sm font-medium text-[var(--text-primary)] truncate">
                       {target.name}
                     </span>
                     <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] shrink-0">
                       {target.shortTag}
                     </span>
                     {isOpened && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--meta-green)]">
-                        <Check className="w-3 h-3" />
-                        <span>{t('webLaunchOpenedBadge')}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--meta-green)] shrink-0">
+                        <Check className="w-3 h-3" aria-hidden="true" />
+                        <span>{t('launchQueueOpenedBadge')}</span>
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">
-                    {safeHref}
+                  <div className="md:hidden text-xs text-[var(--text-muted)] truncate mt-0.5 font-mono">
+                    {target.hostname}
+                  </div>
+                  <div className="hidden md:block text-xs text-[var(--text-muted)] truncate mt-0.5">
+                    {target.safeHref}
                   </div>
                 </div>
 
                 <a
-                  href={safeHref}
+                  href={target.safeHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => markOpened(target.id)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 shrink-0"
+                  className={`min-h-11 md:min-h-0 inline-flex items-center gap-1 px-3.5 md:px-3 py-2 md:py-1.5 rounded-xl md:rounded-lg text-xs font-semibold shrink-0 transition-opacity touch-manipulation select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
+                    isOpened
+                      ? 'bg-[var(--bg-secondary)] border border-[var(--divider)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                      : 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90'
+                  }`}
                 >
                   <span>{t('webLaunchOpenBtn')}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </a>
               </div>
             );
-          })}
-        </div>
-
-        <div className="px-5 py-3 bg-[var(--bg-secondary)] border-t border-[var(--divider)] flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
-          <span className="inline-flex items-center gap-1.5">
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>{t('webLaunchTip')}</span>
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--divider)] text-[var(--text-primary)] font-medium cursor-pointer hover:bg-[var(--bg-hover)] shrink-0"
-          >
-            {t('webLaunchCloseBtn')}
-          </button>
-        </div>
+          })
+        )}
       </div>
-    </div>
+    </MobileSheet>
   );
 };

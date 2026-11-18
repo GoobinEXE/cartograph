@@ -236,8 +236,11 @@ export interface CustomExtractionColumn {
   placeholder?: string;
 }
 
+export type LibraryMatrixMobileMode = 'cards' | 'compare';
+
 export interface SavedPaperItem extends NormalizedPaper {
   savedAt: string;
+  screenedAt?: string;
   researcherNotes: string;
   relevanceTag: 'alta' | 'media' | 'revisar';
   screeningStatus?: ScreeningStatus;

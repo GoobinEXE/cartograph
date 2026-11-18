@@ -53,7 +53,7 @@ export function CollapsibleSection({
             event.stopPropagation();
             onToggle();
           }}
-          className={`flex-1 min-w-0 text-left cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${titleClassName}`}
+          className={`flex-1 min-w-0 min-h-11 lg:min-h-0 text-left cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${titleClassName}`}
         >
           {title}
         </button>
@@ -88,13 +88,13 @@ export function SidebarDrawersHeader({ allOpen, onToggleAll }: SidebarDrawersHea
   return (
     <div className="flex items-center justify-between px-2 pb-2.5 border-b border-[var(--divider)]">
       <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-        <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+        <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)]" aria-hidden="true" />
         <span>{t('filtersNavTitle')}</span>
       </div>
       <button
         type="button"
         onClick={onToggleAll}
-        className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] rounded"
+        className="min-h-11 lg:min-h-0 inline-flex items-center px-2 -mr-2 lg:px-0 lg:mr-0 text-xs text-[var(--link-academic)] hover:underline cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] rounded"
         title={allOpen ? t('collapseAllTitle') : t('expandAllTitle')}
       >
         {allOpen ? t('collapseAll') : t('expandAll')}

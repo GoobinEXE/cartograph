@@ -40,6 +40,7 @@ import { UserWorkspaceSection } from './components/UserWorkspaceSection';
 import { CollapsibleSection, SidebarDrawersHeader } from './components/ui/CollapsibleSection';
 import { usePersistedDrawers } from './components/ui/usePersistedDrawers';
 import { ResponsiveSidebar } from './components/ui/ResponsiveSidebar';
+import { MobileSheet } from './components/ui/MobileSheet';
 import { WebLaunchDrawer, WebLaunchTarget } from './components/WebLaunchDrawer';
 import type { AboutSectionId } from './components/AboutView';
 import { isSupportedLanguage, useI18n } from './i18n/context';
@@ -59,7 +60,8 @@ import {
 } from './utils/analytics';
 import { CartographBackupPayload } from './utils/workspaceBackup';
 import { deduplicatePapersAdvanced } from './utils/deduplication';
-import { LAYOUT_STORAGE_KEYS } from './utils/layoutPreferences';
+import { LAYOUT_STORAGE_KEYS, syncThemeColorMeta } from './utils/layoutPreferences';
+import { copyTextSafely, shareTextSafely } from './utils/fileDownload';
 import { useWorkspace, type BackupRestoreMode, type BackupRestoreResult } from './state/workspace';
 import {
   ArrowUpRight,
@@ -68,11 +70,13 @@ import {
   Globe,
   History,
   KeyRound,
+  Languages,
   LayoutGrid,
   List,
   Loader2,
   Moon,
   Search,
+  Settings2,
   Share2,
   SlidersHorizontal,
   Sun,
@@ -111,6 +115,14 @@ const PLATFORM_SIDEBAR_DRAWER_DEFAULTS: Record<SidebarSectionKey, boolean> = {
   categories: true,
   access: true,
   areas: true,
+};
+
+const PLATFORM_SIDEBAR_MOBILE_DEFAULTS: Record<SidebarSectionKey, boolean> = {
+  sort: true,
+  presets: true,
+  categories: false,
+  access: false,
+  areas: false,
 };
 
 const PLATFORM_DRAWER_HEADER_CLASS =
@@ -174,13 +186,26 @@ export default function AcademicCommandCenter() {
   };
 
   const navigateToTab = (tab: AppTab) => {
+    if (typeof window !== 'undefined') {
+      tabScrollPositionsRef.current[activeTab] = window.scrollY;
+    }
+    const isChangingTab = tab !== activeTab || isNotFound;
     setIsNotFound(false);
     setActiveTab(tab);
     syncBrowserHistory(tab, aboutSection);
     trackAcademicEvent('navigation_view', { view: tab });
+    if (typeof window !== 'undefined' && isChangingTab) {
+      const nextScrollY = tabScrollPositionsRef.current[tab] ?? 0;
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: nextScrollY, behavior: 'instant' as ScrollBehavior });
+      });
+    }
   };
 
   const navigateToAboutSection = (section: AboutSectionId) => {
+    if (typeof window !== 'undefined' && activeTab !== 'about') {
+      tabScrollPositionsRef.current[activeTab] = window.scrollY;
+    }
     setIsNotFound(false);
     setAboutSection(section);
     setActiveTab('about');
@@ -220,6 +245,7 @@ export default function AcademicCommandCenter() {
     [selectedArea]
   );
   const [showBooleanDrawer, setShowBooleanDrawer] = useState(false);
+  const [showMobileQuickTools, setShowMobileQuickTools] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const [platformSortBy, setPlatformSortBy] = useState<PlatformSortMode>('curated');
@@ -228,7 +254,14 @@ export default function AcademicCommandCenter() {
     allDrawersOpen,
     toggleDrawer: toggleSidebarDrawer,
     toggleAllDrawers: toggleAllSidebarDrawers,
-  } = usePersistedDrawers(STORAGE_KEY_SIDEBAR_DRAWERS, PLATFORM_SIDEBAR_DRAWER_DEFAULTS);
+  } = usePersistedDrawers(
+    STORAGE_KEY_SIDEBAR_DRAWERS,
+    typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 1023.98px)').matches
+      ? PLATFORM_SIDEBAR_MOBILE_DEFAULTS
+      : PLATFORM_SIDEBAR_DRAWER_DEFAULTS
+  );
 
   const localizedPresets = useMemo(() => getLocalizedLaunchPresets(t), [t]);
   const localizedCategoryMeta = useMemo(() => getLocalizedCategoryMeta(t), [t]);
@@ -278,12 +311,14 @@ export default function AcademicCommandCenter() {
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
   const didAutoSearchRef = useRef(false);
+  const tabScrollPositionsRef = useRef<Record<string, number>>({});
 
   // Cancels the in-flight federated search when the app unmounts.
   useEffect(() => () => searchAbortRef.current?.abort(), []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    syncThemeColorMeta(theme);
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme);
     } catch {
@@ -358,6 +393,27 @@ export default function AcademicCommandCenter() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // Close the mobile quick-tools sheet if the viewport widens past md (768px).
+  useEffect(() => {
+    if (
+      !showMobileQuickTools ||
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return;
+    }
+    const media = window.matchMedia('(min-width: 768px)');
+    if (media.matches) {
+      setShowMobileQuickTools(false);
+      return;
+    }
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setShowMobileQuickTools(false);
+    };
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [showMobileQuickTools]);
 
   // Close language dropdown on outside click
   useEffect(() => {
@@ -464,12 +520,24 @@ export default function AcademicCommandCenter() {
 
   const handleCopySearchShareUrl = async () => {
     if (!isValidQuery) return;
-    try {
-      const shareUrl = `${window.location.origin}/federated?q=${encodeURIComponent(trimmedQuery)}`;
-      await navigator.clipboard.writeText(shareUrl);
+    const shareUrl = `${window.location.origin}/federated?q=${encodeURIComponent(trimmedQuery)}`;
+    const copied = await copyTextSafely(shareUrl);
+    setStatusBanner(copied ? t('shareLinkCopied') : t('shareLinkError'));
+    setTimeout(() => setStatusBanner(null), copied ? 4000 : 3500);
+  };
+
+  const handleShareSearch = async () => {
+    if (!isValidQuery) return;
+    const shareUrl = `${window.location.origin}/federated?q=${encodeURIComponent(trimmedQuery)}`;
+    const result = await shareTextSafely(
+      `Cartograph — ${trimmedQuery}`,
+      trimmedQuery,
+      shareUrl
+    );
+    if (result === 'copied') {
       setStatusBanner(t('shareLinkCopied'));
       setTimeout(() => setStatusBanner(null), 4000);
-    } catch {
+    } else if (result === 'failed') {
       setStatusBanner(t('shareLinkError'));
       setTimeout(() => setStatusBanner(null), 3500);
     }
@@ -485,14 +553,33 @@ export default function AcademicCommandCenter() {
     const effectiveYearFrom =
       yearFromOverride !== undefined ? (yearFromOverride ?? undefined) : yearStartNum;
 
+    if (typeof window !== 'undefined') {
+      if (activeTab !== 'federated') {
+        tabScrollPositionsRef.current[activeTab] = window.scrollY;
+      }
+      tabScrollPositionsRef.current.federated = 0;
+      if (
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(max-width: 767.98px)').matches
+      ) {
+        searchInputRef.current?.blur();
+      }
+    }
+
     searchAbortRef.current?.abort();
     const controller = new AbortController();
     searchAbortRef.current = controller;
     const requestId = ++searchRequestIdRef.current;
 
+    const enteringFederated = activeTab !== 'federated' || isNotFound;
     setIsNotFound(false);
     setActiveTab('federated');
     syncBrowserHistory('federated', aboutSection, effectiveQuery);
+    if (typeof window !== 'undefined' && enteringFederated) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      });
+    }
     setIsSearchingApis(true);
     setFederatedQuery(effectiveQuery);
     setRawFederatedPapers([]);
@@ -732,77 +819,118 @@ export default function AcademicCommandCenter() {
           subtitle: localizedCategoryMeta[activeCategory].subtitle,
         };
 
-  /**
-   * Secondary search actions (share, PT→EN, Boolean builder). From `sm` up they sit inside the
-   * search pill; on phones they move to the row under it with 40px touch targets, which leaves the
-   * pill wide enough for the query itself.
-   */
-  const renderSearchTools = (variant: 'pill' | 'touch') => {
-    const isTouch = variant === 'touch';
-    const iconButton = isTouch
-      ? 'w-10 h-10 inline-flex items-center justify-center rounded-full'
-      : 'p-1.5 rounded-full mr-1';
-    const iconSize = isTouch ? 'w-[18px] h-[18px]' : 'w-4 h-4';
+  const renderPlatformAreaTags = (thematicAreas: ThematicArea[], spacingClass: string) => {
+    const areaTags = thematicAreas.filter((area) => area !== 'multidisciplinar');
+    const hiddenMobileCount = Math.max(0, areaTags.length - 2);
     return (
-      <>
-        <button
-          type="button"
-          onClick={handleTranslatePtToEn}
-          disabled={!isValidQuery || isTranslating}
-          className={`${
-            isTouch ? 'h-10 px-3 rounded-full text-[13.5px]' : 'px-2.5 py-1 rounded-full text-[13px] mr-1'
-          } font-medium transition-colors ${
-            isValidQuery
-              ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
-              : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
-          }`}
-          title={t('translateTitle')}
-          aria-label={t('translateTitle')}
-        >
-          {isTranslating ? '...' : 'PT→EN'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowBooleanDrawer((v) => !v)}
-          aria-pressed={showBooleanDrawer}
-          className={`${iconButton} transition-colors cursor-pointer ${
-            showBooleanDrawer
-              ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-          }`}
-          title={t('booleanBuilderBtn')}
-          aria-label={t('booleanBuilderBtn')}
-        >
-          <SlidersHorizontal className={iconSize} />
-        </button>
-
-        {isValidQuery && (
+      <div className={`flex flex-wrap gap-1.5 md:gap-1 ${spacingClass}`}>
+        {areaTags.map((area, index) => (
           <button
+            key={area}
             type="button"
-            onClick={handleCopySearchShareUrl}
-            className={`${iconButton} text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer`}
-            title={t('shareSearchTitle')}
-            aria-label={t('shareSearchTitle')}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSelectUnifiedArea(area);
+            }}
+            className={`${
+              index >= 2 ? 'hidden md:inline-flex' : 'inline-flex'
+            } items-center gap-1 text-[11px] px-2.5 py-1 md:px-2 md:py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors`}
           >
-            <Share2 className={isTouch ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+            {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-75')}
+            <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
           </button>
+        ))}
+        {hiddenMobileCount > 0 && (
+          <span className="md:hidden inline-flex items-center text-[11px] px-2 py-1 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] font-medium tabular-nums">
+            +{hiddenMobileCount}
+          </span>
         )}
-      </>
+      </div>
     );
   };
 
+  const hasBooleanTerms = Boolean(
+    booleanState.mainConcept.trim() ||
+      booleanState.andTerms.trim() ||
+      booleanState.orTerms.trim() ||
+      booleanState.notTerms.trim() ||
+      booleanState.exactPhrase.trim() ||
+      booleanState.yearFrom.trim() ||
+      booleanState.studyDesign !== 'any'
+  );
+
+  const activePlatformFilterCount =
+    (activeCategory !== 'all' ? 1 : 0) +
+    (accessFilter !== 'all' ? 1 : 0) +
+    (ownedOnlyFilter ? 1 : 0) +
+    (selectedArea !== 'all' ? 1 : 0) +
+    (platformSortBy !== 'curated' ? 1 : 0);
+
+  const clearAllPlatformFilters = () => {
+    setPlatformSortBy('curated');
+    setActiveCategory('all');
+    setAccessFilter('all');
+    setOwnedOnlyFilter(false);
+    handleSelectUnifiedArea('all');
+  };
+
+  /** Secondary search actions (PT→EN, Boolean builder, share) inside the desktop search pill. */
+  const renderSearchTools = () => (
+    <>
+      <button
+        type="button"
+        onClick={handleTranslatePtToEn}
+        disabled={!isValidQuery || isTranslating}
+        className={`px-2.5 py-1 rounded-full text-[13px] mr-1 font-medium transition-colors ${
+          isValidQuery
+            ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer'
+            : 'text-[var(--text-muted)] opacity-40 cursor-not-allowed'
+        }`}
+        title={t('translateTitle')}
+        aria-label={t('translateTitle')}
+      >
+        {isTranslating ? '...' : 'PT→EN'}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setShowBooleanDrawer((v) => !v)}
+        aria-pressed={showBooleanDrawer}
+        className={`p-1.5 rounded-full mr-1 transition-colors cursor-pointer ${
+          showBooleanDrawer
+            ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+        }`}
+        title={t('booleanBuilderBtn')}
+        aria-label={t('booleanBuilderBtn')}
+      >
+        <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+      </button>
+
+      {isValidQuery && (
+        <button
+          type="button"
+          onClick={handleCopySearchShareUrl}
+          className="p-1.5 rounded-full mr-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer"
+          title={t('shareSearchTitle')}
+          aria-label={t('shareSearchTitle')}
+        >
+          <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </>
+  );
+
   return (
-    <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pb-20">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-20">
       {/* Academic Search Header — Google Scholar / Semantic Scholar / Consensus Pattern */}
-      {/* Phones: the header scrolls away and the tabs live in the bottom bar, so the content gets the screen. */}
-      <header className="relative sm:sticky top-0 z-30 bg-[var(--bg-canvas)]/95 backdrop-blur-md border-b border-[var(--divider)] pt-[env(safe-area-inset-top,0px)]">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-3.5 pb-3 sm:pb-0">
+      <header className="relative md:sticky top-0 z-30 glass-chrome bg-[var(--bg-canvas)]/90 border-b border-[var(--divider)] pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-2.5 md:pt-3.5 pb-2.5 md:pb-0">
           {/* Top Search & Brand Row */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-1">
-              {/* Brand Wordmark with Prism Monogram */}
-              <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 md:gap-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-2.5 md:gap-5 flex-1">
+              {/* Row 1 Compact Header: Brand Wordmark + Mobile Action Triggers */}
+              <div className="min-h-11 md:min-h-0 flex items-center justify-between gap-2">
                 <a
                   href="/"
                   onClick={(e) => {
@@ -814,56 +942,63 @@ export default function AcademicCommandCenter() {
                   className="inline-flex items-center gap-2.5 font-heading tracking-tight text-[var(--text-primary)] shrink-0 hover:opacity-90 transition-opacity"
                   title={t('brandTitle')}
                 >
-                  <PrismMonogram className="h-[30px] w-auto" />
+                  <PrismMonogram className="h-[28px] md:h-[30px] w-auto" />
                   <div className="flex flex-col leading-none">
                     <span className="font-heading font-semibold text-[18px] tracking-tight">Cartograph</span>
-                    <span className="text-[11.5px] text-[var(--text-muted)] font-medium mt-0.5">{t('appTagline')}</span>
+                    <span className="hidden sm:inline text-[11.5px] text-[var(--text-muted)] font-medium mt-0.5">{t('appTagline')}</span>
                   </div>
                 </a>
 
-                {/* Mobile Controls */}
-                <div className="flex items-center gap-1 -mr-2 sm:hidden">
+                {/* Mobile Compact Controls (< 768px): 44x44px Boolean Builder + Quick Tools Sheet */}
+                <div className="flex items-center gap-1.5 -mr-1.5 md:hidden">
                   <button
                     type="button"
-                    onClick={() => setShowAccessModal(true)}
-                    className={`w-10 h-10 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    onClick={() => setShowBooleanDrawer((v) => !v)}
+                    aria-pressed={showBooleanDrawer}
+                    className={`relative w-11 h-11 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
+                      showBooleanDrawer || hasBooleanTerms
+                        ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                    }`}
+                    title={t('booleanBuilderBtn')}
+                    aria-label={t('booleanBuilderBtn')}
+                  >
+                    <SlidersHorizontal className="w-[18px] h-[18px]" aria-hidden="true" />
+                    {hasBooleanTerms && !showBooleanDrawer && (
+                      <span
+                        className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[var(--link-academic)]"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileQuickTools(true)}
+                    aria-haspopup="dialog"
+                    aria-expanded={showMobileQuickTools}
+                    className={`relative w-11 h-11 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-academic)] ${
                       hasActiveAccessEnhancement
                         ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
                     }`}
-                    title={t('accessSettingsBtn')}
-                    aria-label={t('accessSettingsBtn')}
+                    title={t('mobileQuickToolsBtn')}
+                    aria-label={t('mobileQuickToolsBtn')}
                   >
-                    <KeyRound className="w-[18px] h-[18px]" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Cycles through every registered UI language (pt → en → es → fr → pt).
-                      const codes = availableLanguages.map((opt) => opt.code);
-                      setLanguage(codes[(codes.indexOf(language) + 1) % codes.length]);
-                    }}
-                    className="h-10 min-w-10 px-2 rounded-full text-[13px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] uppercase cursor-pointer"
-                    aria-label={t('languageMenuLabel')}
-                    title={t('languageMenuLabel')}
-                  >
-                    {language}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-                    className="w-10 h-10 inline-flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
-                    title={t('toggleThemeTitle')}
-                    aria-label={t('toggleThemeTitle')}
-                  >
-                    {theme === 'light' ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
+                    <Settings2 className="w-[18px] h-[18px]" aria-hidden="true" />
+                    {hasActiveAccessEnhancement && (
+                      <span
+                        className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[var(--link-academic)] ring-2 ring-[var(--bg-canvas)]"
+                        aria-hidden="true"
+                      />
+                    )}
                   </button>
                 </div>
               </div>
 
-              {/* Borderless Search Pill (Balanced Search Engine Scale) */}
-              <div className="flex-1 max-w-[720px] flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1.5 min-h-12 sm:min-h-0 transition-all">
-                <Search className="w-[18px] h-[18px] text-[var(--text-muted)] shrink-0 mr-2.5" />
+              {/* Row 2: Mobile-First Search Pill */}
+              <div className="flex-1 max-w-[720px] flex items-center bg-[var(--bg-subtle)] focus-within:bg-[var(--bg-secondary)] focus-within:ring-2 focus-within:ring-[var(--link-academic)]/25 rounded-full pl-4 pr-1.5 py-1 md:py-1.5 min-h-12 md:min-h-0 transition-all">
+                <Search className="w-[18px] h-[18px] text-[var(--text-muted)] shrink-0 mr-2.5" aria-hidden="true" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -884,65 +1019,79 @@ export default function AcademicCommandCenter() {
                   placeholder={t('searchPlaceholder')}
                   enterKeyHint="search"
                   aria-label={t('searchPlaceholder')}
-                  className="w-full min-w-0 bg-transparent text-base sm:text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+                  className="w-full min-w-0 bg-transparent text-base md:text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
                 />
 
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
-                    className="w-9 h-9 sm:w-auto sm:h-auto sm:p-1.5 inline-flex items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-0.5 sm:mr-1 cursor-pointer shrink-0"
+                    className="w-11 h-11 md:w-auto md:h-auto md:p-1.5 inline-flex items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] mr-0.5 md:mr-1 cursor-pointer shrink-0"
                     title={t('clearSearchTitle')}
                     aria-label={t('clearSearchTitle')}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-4 h-4 md:w-3.5 md:h-3.5" aria-hidden="true" />
                   </button>
                 )}
 
-                <div className="hidden sm:flex items-center">{renderSearchTools('pill')}</div>
+                <div className="hidden md:flex items-center">{renderSearchTools()}</div>
 
                 <button
                   type="button"
                   onClick={handleRunFederatedSearch}
                   disabled={!isValidQuery}
-                  className={`inline-flex items-center gap-1.5 px-4 h-9 sm:h-auto sm:py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold transition-opacity shrink-0 ${
+                  className={`inline-flex items-center justify-center gap-1.5 min-h-11 md:min-h-0 px-4 md:py-1.5 rounded-full text-[14px] md:text-[13px] font-semibold transition-opacity shrink-0 ${
                     isValidQuery
                       ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer'
                       : 'bg-[var(--bg-hover)] text-[var(--text-muted)] cursor-not-allowed'
                   }`}
                 >
-                  {isSearchingApis && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {isSearchingApis && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                   <span>{t('searchBtn')}</span>
                 </button>
               </div>
             </div>
 
-            {/* Right Actions: Batch Portal Launch + Theme + Language */}
-            <div className="flex items-center justify-between sm:justify-end gap-2">
-              <div
-                className="flex sm:hidden items-center gap-0.5 -ml-2"
-                role="group"
-                aria-label={t('mobileSearchTools')}
-              >
-                {renderSearchTools('touch')}
+            {/* Contextual Mobile Batch Portal Launch Pill (only shown when portals selected + query entered) */}
+            {!isNotFound && activeTab === 'platforms' && selectedPlatformIds.length > 0 && isValidQuery && (
+              <div className="md:hidden flex items-center">
+                <button
+                  type="button"
+                  onClick={handleLaunchSelectedPlatforms}
+                  disabled={isLaunchingTabs}
+                  className="w-full min-h-11 inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[var(--accent-blue-tint)] text-[var(--link-academic)] text-[13.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                  title={t('openPortalsTitle')}
+                >
+                  {isLaunchingTabs ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  <span className="tabular-nums">
+                    {t('openPortalsCount', { count: selectedPlatformIds.length })}
+                  </span>
+                </button>
               </div>
+            )}
 
+            {/* Desktop Right Actions: Batch Portal Launch + Access + Theme + Language */}
+            <div className="hidden md:flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={handleLaunchSelectedPlatforms}
                 disabled={!isValidQuery || selectedPlatformIds.length === 0 || isLaunchingTabs}
-                className={`inline-flex items-center gap-1.5 px-3.5 h-10 sm:h-auto sm:py-2 rounded-full text-[13px] font-semibold transition-colors shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors shrink-0 ${
                   isValidQuery && selectedPlatformIds.length > 0
                     ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] hover:opacity-85 cursor-pointer'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed'
                 }`}
                 title={t('openPortalsTitle')}
               >
-                <span>{t('openPortalsCount', { count: selectedPlatformIds.length })}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <span className="tabular-nums">{t('openPortalsCount', { count: selectedPlatformIds.length })}</span>
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
 
-              <div className="hidden sm:flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => openAccessSettings('proxy')}
@@ -953,7 +1102,7 @@ export default function AcademicCommandCenter() {
                   }`}
                   title={t('accessSettingsBtn')}
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
+                  <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
                   <span className="hidden xl:inline">{t('accessSettingsBtn')}</span>
                 </button>
                 <button
@@ -963,7 +1112,7 @@ export default function AcademicCommandCenter() {
                   title={t('toggleThemeTitle')}
                   aria-label={t('toggleThemeTitle')}
                 >
-                  {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                  {theme === 'light' ? <Moon className="w-4 h-4" aria-hidden="true" /> : <Sun className="w-4 h-4" aria-hidden="true" />}
                 </button>
 
                 <div className="relative" ref={langMenuRef}>
@@ -975,7 +1124,7 @@ export default function AcademicCommandCenter() {
                     title={isAutoLanguage ? `${t('languageMenuLabel')} · ${t('languageSystemHint')}` : t('languageMenuLabel')}
                   >
                     <span>{language}</span>
-                    <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" aria-hidden="true" />
                   </button>
 
                   {showLangMenu && (
@@ -1029,8 +1178,16 @@ export default function AcademicCommandCenter() {
               <BooleanBuilderDrawer
                 state={booleanState}
                 onChange={setBooleanState}
+                onClose={() => setShowBooleanDrawer(false)}
                 onApplyCompiledQuery={(compiled) => {
                   setQuery(compiled);
+                  if (
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function' &&
+                    window.matchMedia('(max-width: 767.98px)').matches
+                  ) {
+                    setShowBooleanDrawer(false);
+                  }
                   setStatusBanner(t('booleanAppliedBanner'));
                   setTimeout(() => setStatusBanner(null), 3500);
                 }}
@@ -1040,20 +1197,24 @@ export default function AcademicCommandCenter() {
 
           {/* Status Banner */}
           {statusBanner && (
-            <div className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-[var(--accent-blue-tint)] text-[13px] text-[var(--link-academic)] flex items-center justify-between">
-              <span>{statusBanner}</span>
+            <div
+              role="status"
+              className="mt-2.5 pl-3.5 pr-1.5 py-1 md:py-1.5 rounded-lg bg-[var(--accent-blue-tint)] text-[13px] text-[var(--link-academic)] flex items-center justify-between gap-2"
+            >
+              <span className="min-w-0 py-1">{statusBanner}</span>
               <button
                 type="button"
                 onClick={() => setStatusBanner(null)}
-                className="ml-3 cursor-pointer"
+                aria-label={t('mobileCloseSheetBtn')}
+                className="min-w-11 min-h-11 md:min-w-0 md:min-h-0 md:w-8 md:h-8 inline-flex items-center justify-center rounded-lg hover:bg-[var(--link-academic)]/10 transition-colors cursor-pointer shrink-0"
               >
-                ✕
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           )}
 
           {/* Familiar Academic Navigation Bar (Underline Tabs like Google Scholar / Semantic Scholar) */}
-          <nav className="hidden sm:flex items-center gap-6 mt-3 overflow-x-auto" aria-label={t('mobileNavAria')}>
+          <nav className="hidden md:flex items-center gap-6 mt-3 overflow-x-auto" aria-label={t('mobileNavAria')}>
             <button
               type="button"
               onClick={() => navigateToTab('platforms')}
@@ -1095,7 +1256,7 @@ export default function AcademicCommandCenter() {
               onClick={() => setShowSearchHistoryModal(true)}
               className="ml-auto pb-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--link-academic)] transition-colors cursor-pointer whitespace-nowrap"
             >
-              <History className="w-3.5 h-3.5" />
+              <History className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{t('searchHistoryBtn', { count: searchLogs.length })}</span>
             </button>
           </nav>
@@ -1103,14 +1264,12 @@ export default function AcademicCommandCenter() {
       </header>
 
       {/* Main Content Workspace */}
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6">
         {isNotFound ? (
           <NotFoundView
             invalidPath={typeof window !== 'undefined' ? window.location.pathname : ''}
-            onNavigateTab={(tab) => {
-              navigateToTab(tab);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onNavigateTab={navigateToTab}
             onFocusSearch={() => searchInputRef.current?.focus()}
           />
         ) : (
@@ -1119,7 +1278,12 @@ export default function AcademicCommandCenter() {
             {activeTab === 'platforms' && (
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr] gap-6 xl:gap-8 items-start">
             {/* Left Sidebar — Scroll Individual com Gavetas Retráteis / Expansíveis */}
-            <ResponsiveSidebar ariaLabel={t('sidebarAriaLabel')} triggerLabel={t('mobileFiltersBtn')}>
+            <ResponsiveSidebar
+              ariaLabel={t('sidebarAriaLabel')}
+              triggerLabel={t('mobileFiltersBtn')}
+              activeCount={activePlatformFilterCount}
+              onClearFilters={activePlatformFilterCount > 0 ? clearAllPlatformFilters : undefined}
+            >
               <SidebarDrawersHeader allOpen={allDrawersOpen} onToggleAll={toggleAllSidebarDrawers} />
 
               {/* Gaveta 1: Sort Controls (Primary ordering control — top priority) */}
@@ -1153,7 +1317,7 @@ export default function AcademicCommandCenter() {
                         e.stopPropagation();
                         setPlatformSortBy('curated');
                       }}
-                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                      className="min-h-11 lg:min-h-0 px-2 lg:px-0 inline-flex items-center text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                     >
                       {t('clearFilter')}
                     </button>
@@ -1165,7 +1329,7 @@ export default function AcademicCommandCenter() {
                     key={mode}
                     type="button"
                     onClick={() => setPlatformSortBy(mode)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    className={`w-full min-h-11 lg:min-h-0 flex items-center text-left px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer ${
                       platformSortBy === mode
                         ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
@@ -1207,14 +1371,14 @@ export default function AcademicCommandCenter() {
               >
                 {/* Sub-barra de Ações da Gaveta */}
                 <div className="flex items-center justify-between px-2.5 py-1 mb-1.5 bg-[var(--bg-subtle)]/70 rounded-md border border-[var(--divider)]">
-                  <span className="text-xs text-[var(--text-muted)] font-medium">
+                  <span className="text-xs text-[var(--text-muted)] font-medium tabular-nums">
                     {t('quickSelectionActiveCount', { selected: selectedPlatformIds.length, total: PLATFORMS.length })}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => workspaceActions.setSelectedPlatformIds(PLATFORMS.map((p) => p.id))}
-                      className="text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
+                      className="min-h-10 lg:min-h-0 px-1.5 lg:px-0 inline-flex items-center text-xs font-semibold text-[var(--link-academic)] hover:underline cursor-pointer"
                     >
                       {t('quickSelectionAllBtn')}
                     </button>
@@ -1222,7 +1386,7 @@ export default function AcademicCommandCenter() {
                     <button
                       type="button"
                       onClick={() => workspaceActions.setSelectedPlatformIds([])}
-                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                      className="min-h-10 lg:min-h-0 px-1.5 lg:px-0 inline-flex items-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                     >
                       {t('clearFilter')}
                     </button>
@@ -1243,7 +1407,7 @@ export default function AcademicCommandCenter() {
                       type="button"
                       onClick={() => workspaceActions.togglePreset(preset, localizedPresets)}
                       title={preset.description}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                      className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                         isFullyActive
                           ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
@@ -1261,7 +1425,7 @@ export default function AcademicCommandCenter() {
                         />
                         <span className="truncate">{preset.name}</span>
                       </div>
-                      <span className="text-xs text-[var(--text-muted)] shrink-0">
+                      <span className="text-xs text-[var(--text-muted)] shrink-0 tabular-nums">
                         {matchedCount}/{preset.platformIds.length}
                       </span>
                     </button>
@@ -1296,7 +1460,7 @@ export default function AcademicCommandCenter() {
                         e.stopPropagation();
                         setActiveCategory('all');
                       }}
-                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                      className="min-h-11 lg:min-h-0 px-2 lg:px-0 inline-flex items-center text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                     >
                       {t('clearFilter')}
                     </button>
@@ -1306,14 +1470,14 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setActiveCategory('all')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     activeCategory === 'all'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('platformTypeAll')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">{PLATFORMS.length}</span>
                 </button>
 
                 {(Object.keys(localizedCategoryMeta) as PlatformCategory[]).map((catKey) => {
@@ -1324,14 +1488,14 @@ export default function AcademicCommandCenter() {
                       key={catKey}
                       type="button"
                       onClick={() => setActiveCategory(catKey)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                      className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                         activeCategory === catKey
                           ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       <span className="truncate pr-2">{meta.label.split('&')[0].trim()}</span>
-                      <span className="text-xs text-[var(--text-muted)] shrink-0">{count}</span>
+                      <span className="text-xs text-[var(--text-muted)] shrink-0 tabular-nums">{count}</span>
                     </button>
                   );
                 })}
@@ -1371,7 +1535,7 @@ export default function AcademicCommandCenter() {
                         setAccessFilter('all');
                         setOwnedOnlyFilter(false);
                       }}
-                      className="text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
+                      className="min-h-11 lg:min-h-0 px-2 lg:px-0 inline-flex items-center text-xs text-[var(--link-academic)] hover:underline cursor-pointer"
                     >
                       {t('clearFilter')}
                     </button>
@@ -1381,27 +1545,27 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setAccessFilter('all')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     accessFilter === 'all'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('accessModelAll')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">{PLATFORMS.length}</span>
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">{PLATFORMS.length}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setAccessFilter('gratuito')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     accessFilter === 'gratuito'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('accessModelFree')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {PLATFORMS.filter((p) => p.accessModel === 'gratuito').length}
                   </span>
                 </button>
@@ -1409,14 +1573,14 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setAccessFilter('pago')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     accessFilter === 'pago'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('accessModelPaid')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {PLATFORMS.filter((p) => p.accessModel === 'pago').length}
                   </span>
                 </button>
@@ -1424,14 +1588,14 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setAccessFilter('aberto-institucional')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     accessFilter === 'aberto-institucional'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('accessModelInstitutional')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {PLATFORMS.filter((p) => p.accessModel === 'aberto-institucional').length}
                   </span>
                 </button>
@@ -1439,14 +1603,14 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setAccessFilter('freemium')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     accessFilter === 'freemium'
                       ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span>{t('accessModelFreemium')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {PLATFORMS.filter((p) => p.accessModel === 'freemium').length}
                   </span>
                 </button>
@@ -1454,14 +1618,14 @@ export default function AcademicCommandCenter() {
                 <button
                   type="button"
                   onClick={() => setOwnedOnlyFilter((prev) => !prev)}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full min-h-11 lg:min-h-0 flex items-center justify-between px-2.5 py-2 lg:py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
                     ownedOnlyFilter
                       ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span className="truncate">{t('filterOwnedOnly')}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {userAccessConfig.ownedPlatformIds.length}
                   </span>
                 </button>
@@ -1487,19 +1651,19 @@ export default function AcademicCommandCenter() {
             {/* Right Main Directory Area */}
             <div className="min-w-0">
               {/* Specialized Areas Horizontal Quick Filter */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-3 scrollbar-none">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2.5 mb-3 no-scrollbar">
                 <button
                   type="button"
                   onClick={() => handleSelectUnifiedArea('all')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center gap-1.5 min-h-10 px-3.5 py-2 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     selectedArea === 'all'
-                      ? 'bg-[var(--link-academic)] text-white'
+                      ? 'bg-[var(--link-academic)] text-[var(--bg-canvas)]'
                       : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  <Globe className="w-3.5 h-3.5" />
+                  <Globe className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>{t('areaAll')}</span>
-                  <span className="opacity-75 text-[11.5px]">({PLATFORMS.length})</span>
+                  <span className="opacity-75 text-[11.5px] tabular-nums">({PLATFORMS.length})</span>
                 </button>
                 {THEMATIC_AREAS.map((areaKey) => {
                   const meta = localizedThematicAreas[areaKey];
@@ -1510,19 +1674,35 @@ export default function AcademicCommandCenter() {
                       key={areaKey}
                       type="button"
                       onClick={() => handleSelectUnifiedArea(areaKey)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                      className={`inline-flex items-center gap-1.5 min-h-10 px-3.5 py-2 rounded-full text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                         isActive
-                          ? 'bg-[var(--link-academic)] text-white'
+                          ? 'bg-[var(--link-academic)] text-[var(--bg-canvas)]'
                           : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       {renderAreaIcon(areaKey, 'w-3.5 h-3.5')}
                       <span>{meta.label}</span>
-                      <span className="opacity-75 text-[11.5px]">({count})</span>
+                      <span className="opacity-75 text-[11.5px] tabular-nums">({count})</span>
                     </button>
                   );
                 })}
               </div>
+
+              {/* Quick Active Filters Bar on Mobile / Tablet (< 1024px) */}
+              {activePlatformFilterCount > 0 && (
+                <div className="lg:hidden mb-3 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--divider)] flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-medium text-[var(--text-primary)] tabular-nums">
+                    {t('mobileActiveFiltersBadge', { count: activePlatformFilterCount })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearAllPlatformFilters}
+                    className="min-h-10 px-3 -mr-1.5 inline-flex items-center rounded-lg text-[13px] font-semibold text-[var(--link-academic)] hover:bg-[var(--bg-subtle)] cursor-pointer transition-colors"
+                  >
+                    {t('mobileClearFiltersBtn')}
+                  </button>
+                </div>
+              )}
 
               {/* Directory Header */}
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -1535,43 +1715,47 @@ export default function AcademicCommandCenter() {
                         : activeCategoryHeading.title}
                     </span>
                   </h1>
-                  <p className="text-[13px] text-[var(--text-muted)] mt-0.5">
+                  <p className="text-[13px] text-[var(--text-muted)] mt-0.5 tabular-nums">
                     {t('directoryResultsSummary', { visible: visiblePlatforms.length, selected: selectedPlatformIds.length })}
                   </p>
                 </div>
 
                 {/* Borderless View Switcher */}
-                <div className="inline-flex rounded-lg bg-[var(--bg-subtle)] p-1">
+                <div className="inline-flex rounded-lg bg-[var(--bg-subtle)] p-1 gap-1 md:gap-0">
                   <button
                     type="button"
                     onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    aria-pressed={viewMode === 'grid'}
+                    aria-label={t('gridViewTitle')}
+                    className={`w-11 h-11 md:w-auto md:h-auto md:p-1.5 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer ${
                       viewMode === 'grid'
                         ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
                     title={t('gridViewTitle')}
                   >
-                    <LayoutGrid className="w-4 h-4" />
+                    <LayoutGrid className="w-4 h-4" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewMode('list')}
-                    className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    aria-pressed={viewMode === 'list'}
+                    aria-label={t('listViewTitle')}
+                    className={`w-11 h-11 md:w-auto md:h-auto md:p-1.5 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer ${
                       viewMode === 'list'
                         ? 'bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-xs'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
                     title={t('listViewTitle')}
                   >
-                    <List className="w-4 h-4" />
+                    <List className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
               {/* VIEW 1: BORDERLESS SOFT SURFACE CARDS */}
               {viewMode === 'grid' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 md:gap-4">
                   {visiblePlatforms.map((platform) => {
                     const isSelected = selectedPlatformIds.includes(platform.id);
                     const isOwned = ownedPlatformSet.has(platform.id);
@@ -1599,14 +1783,19 @@ export default function AcademicCommandCenter() {
                       >
                         <div>
                           <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <div className="flex items-start gap-2.5 min-w-0">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => workspaceActions.togglePlatform(platform.id)}
-                                className="mt-1 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
+                            <div className="flex items-start gap-1.5 md:gap-2.5 min-w-0">
+                              <label
+                                className="w-11 h-11 -ml-2.5 -mt-2 md:w-auto md:h-auto md:m-0 md:mt-1 inline-flex items-center justify-center cursor-pointer shrink-0"
                                 title={t('includeInBatchTitle')}
-                              />
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => workspaceActions.togglePlatform(platform.id)}
+                                  aria-label={`${t('includeInBatchTitle')}: ${platform.name}`}
+                                  className="w-4 h-4 md:w-3.5 md:h-3.5 rounded accent-[var(--link-academic)] cursor-pointer"
+                                />
+                              </label>
                               <div className="min-w-0">
                                 <a
                                   href={targetUrl}
@@ -1615,14 +1804,17 @@ export default function AcademicCommandCenter() {
                                   className="text-base font-semibold text-[var(--link-academic)] hover:underline inline-flex items-center gap-1 leading-snug"
                                 >
                                   <span>{platform.name}</span>
-                                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  <ArrowUpRight
+                                    className="w-3.5 h-3.5 opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0"
+                                    aria-hidden="true"
+                                  />
                                 </a>
                                 <div className="text-[13px] text-[var(--meta-green)] truncate">
                                   {localizedInfo.shortTag} · {accessBadge.label.split('/')[0].trim()}
                                 </div>
                                 {isOwned && (
                                   <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--accent-blue-tint)] text-[var(--link-academic)]">
-                                    <Check className="w-2.5 h-2.5" />
+                                    <Check className="w-2.5 h-2.5" aria-hidden="true" />
                                     <span>{t('activeSubscriptionBadge')}</span>
                                   </span>
                                 )}
@@ -1630,29 +1822,12 @@ export default function AcademicCommandCenter() {
                             </div>
                           </div>
 
-                          <p className="text-sm text-[var(--text-secondary)] leading-relaxed mt-2 mb-2.5">
+                          <p className="text-sm text-[var(--text-secondary)] leading-relaxed mt-1.5 md:mt-2 mb-2.5 line-clamp-2 md:line-clamp-none">
                             {localizedInfo.description}
                           </p>
 
                           {/* Discipline Tags */}
-                          <div className="flex flex-wrap gap-1 mb-3">
-                            {platform.thematicAreas
-                              .filter((a) => a !== 'multidisciplinar')
-                              .map((area) => (
-                                <button
-                                  key={area}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSelectUnifiedArea(area);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
-                                >
-                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-75')}
-                                  <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
-                                </button>
-                              ))}
-                          </div>
+                          {renderPlatformAreaTags(platform.thematicAreas, 'mb-2.5 md:mb-3')}
                         </div>
 
                         <div className="flex items-center justify-between gap-2 text-[13px] text-[var(--text-muted)] pt-1">
@@ -1661,7 +1836,7 @@ export default function AcademicCommandCenter() {
                             href={targetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-medium text-[var(--link-academic)] hover:underline shrink-0"
+                            className="inline-flex items-center min-h-11 md:min-h-0 px-2 -mr-2 md:px-0 md:mr-0 font-medium text-[var(--link-academic)] hover:underline shrink-0"
                           >
                             {isValidQuery ? t('cardSearchAction') : t('cardOpenAction')}
                           </a>
@@ -1674,7 +1849,7 @@ export default function AcademicCommandCenter() {
 
               {/* VIEW 2: CLASSIC GOOGLE SCHOLAR / SEMANTIC SCHOLAR LIST */}
               {viewMode === 'list' && (
-                <div className="space-y-6 max-w-3xl">
+                <div className="space-y-5 md:space-y-6 max-w-3xl">
                   {visiblePlatforms.map((platform) => {
                     const isSelected = selectedPlatformIds.includes(platform.id);
                     const isOwned = ownedPlatformSet.has(platform.id);
@@ -1692,31 +1867,40 @@ export default function AcademicCommandCenter() {
                     );
 
                     return (
-                      <div key={platform.id} className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => workspaceActions.togglePlatform(platform.id)}
-                          className="mt-1.5 rounded accent-[var(--link-academic)] cursor-pointer shrink-0"
+                      <div key={platform.id} className="group flex items-start gap-1.5 md:gap-3">
+                        <label
+                          className="w-11 h-11 -ml-2.5 -mt-1.5 md:w-auto md:h-auto md:m-0 md:mt-1.5 inline-flex items-center justify-center cursor-pointer shrink-0"
                           title={t('includeInBatchTitle')}
-                        />
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => workspaceActions.togglePlatform(platform.id)}
+                            aria-label={`${t('includeInBatchTitle')}: ${platform.name}`}
+                            className="w-4 h-4 md:w-3.5 md:h-3.5 rounded accent-[var(--link-academic)] cursor-pointer"
+                          />
+                        </label>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline justify-between gap-4">
+                          <div className="flex items-baseline justify-between gap-3 md:gap-4">
                             <h3 className="text-lg font-semibold leading-snug">
                               <a
                                 href={targetUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[var(--link-academic)] hover:underline"
+                                className="text-[var(--link-academic)] hover:underline inline-flex items-center gap-1"
                               >
-                                {platform.name}
+                                <span>{platform.name}</span>
+                                <ArrowUpRight
+                                  className="w-3.5 h-3.5 opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0"
+                                  aria-hidden="true"
+                                />
                               </a>
                             </h3>
                             <a
                               href={targetUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[13px] font-medium text-[var(--link-academic)] hover:underline shrink-0"
+                              className="inline-flex items-center min-h-11 md:min-h-0 px-2 -mr-2 md:px-0 md:mr-0 text-[13px] font-medium text-[var(--link-academic)] hover:underline shrink-0"
                             >
                               {isValidQuery ? t('cardSearchAction') : t('cardOpenPortalAction')}
                             </a>
@@ -1726,35 +1910,18 @@ export default function AcademicCommandCenter() {
                             <span>{localizedInfo.shortTag} - {localizedInfo.coverageNote} - {accessBadge.label}</span>
                             {isOwned && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--accent-blue-tint)] text-[var(--link-academic)]">
-                                <Check className="w-2.5 h-2.5" />
+                                <Check className="w-2.5 h-2.5" aria-hidden="true" />
                                 <span>{t('activeSubscriptionBadge')}</span>
                               </span>
                             )}
                           </div>
 
-                          <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
+                          <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed line-clamp-2 md:line-clamp-none">
                             {localizedInfo.description}
                           </p>
 
                           {/* Discipline Tags */}
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {platform.thematicAreas
-                              .filter((a) => a !== 'multidisciplinar')
-                              .map((area) => (
-                                <button
-                                  key={area}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSelectUnifiedArea(area);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--link-academic)] font-medium cursor-pointer transition-colors"
-                                >
-                                  {renderAreaIcon(area, 'w-2.5 h-2.5 opacity-75')}
-                                  <span>{localizedThematicAreas[area]?.shortLabel || area}</span>
-                                </button>
-                              ))}
-                          </div>
+                          {renderPlatformAreaTags(platform.thematicAreas, 'mt-2')}
                         </div>
                       </div>
                     );
@@ -1810,29 +1977,27 @@ export default function AcademicCommandCenter() {
             <AboutView
               activeSection={aboutSection}
               onSelectSection={navigateToAboutSection}
-              onNavigateTab={(tab) => {
-                navigateToTab(tab);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onNavigateTab={navigateToTab}
             />
           </Suspense>
         )}
           </>
         )}
+        </div>
       </main>
 
       {/* Institutional Footer */}
-      <footer className="mt-20 border-t border-[var(--divider)] pt-7 pb-12 text-[13px] text-[var(--text-muted)]">
+      <footer className="mt-12 md:mt-20 border-t border-[var(--divider)] pt-6 md:pt-7 pb-8 md:pb-12 pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] text-[13px] text-[var(--text-muted)]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <PrismSpectralBar className="h-[2px] w-full opacity-80" />
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 md:gap-6">
             {/* Brand Signature: Cartograph */}
             <div className="flex flex-wrap items-center gap-4">
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('cartograph')}
-                className="inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
+                className="min-h-11 md:min-h-0 inline-flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left"
                 title={t('footerBrandTitle')}
               >
                 <PrismMonogram className="h-5 w-auto shrink-0" />
@@ -1849,13 +2014,13 @@ export default function AcademicCommandCenter() {
 
             {/* Direct Non-Redundant Institutional & Legal Navigation */}
             <nav
-              className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]"
+              className="flex flex-wrap items-center gap-x-5 gap-y-1 md:gap-y-2 text-[13px]"
               aria-label={t('footerNavAria')}
             >
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('cartograph')}
-                className={`transition-colors cursor-pointer ${
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   activeTab === 'about' && aboutSection === 'cartograph'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1866,7 +2031,7 @@ export default function AcademicCommandCenter() {
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('apis')}
-                className={`transition-colors cursor-pointer ${
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   activeTab === 'about' && aboutSection === 'apis'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1877,7 +2042,7 @@ export default function AcademicCommandCenter() {
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('citation')}
-                className={`transition-colors cursor-pointer ${
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   activeTab === 'about' && aboutSection === 'citation'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1888,7 +2053,7 @@ export default function AcademicCommandCenter() {
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('copyright')}
-                className={`transition-colors cursor-pointer ${
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   activeTab === 'about' && aboutSection === 'copyright'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1899,7 +2064,7 @@ export default function AcademicCommandCenter() {
               <button
                 type="button"
                 onClick={() => navigateToAboutSection('privacy')}
-                className={`transition-colors cursor-pointer ${
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   activeTab === 'about' && aboutSection === 'privacy'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1909,11 +2074,8 @@ export default function AcademicCommandCenter() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  navigateToTab('feedback');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`transition-colors cursor-pointer ${
+                onClick={() => navigateToTab('feedback')}
+                className={`min-h-11 md:min-h-0 inline-flex items-center transition-colors cursor-pointer ${
                   !isNotFound && activeTab === 'feedback'
                     ? 'font-semibold text-[var(--link-academic)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--link-academic)]'
@@ -1976,22 +2138,191 @@ export default function AcademicCommandCenter() {
         </Suspense>
       )}
 
+      <MobileSheet
+        open={showMobileQuickTools}
+        onClose={() => setShowMobileQuickTools(false)}
+        title={t('mobileQuickToolsTitle')}
+        mobileBreakpoint="md"
+        initialSnap="auto"
+        closeLabel={t('mobileCloseSheetBtn')}
+        dragHandleLabel={t('mobileDragHandleLabel')}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={!isValidQuery || isTranslating}
+              onClick={() => {
+                setShowMobileQuickTools(false);
+                void handleTranslatePtToEn();
+              }}
+              className="w-full min-h-12 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] disabled:opacity-45 disabled:cursor-not-allowed transition-colors cursor-pointer text-left"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <Languages className="w-[18px] h-[18px] text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+                <span className="text-[14px] font-medium truncate">{t('translateTitle')}</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-[var(--bg-canvas)] border border-[var(--divider)] text-[11.5px] font-mono font-semibold text-[var(--text-secondary)] shrink-0">
+                {isTranslating ? '...' : 'PT→EN'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!isValidQuery}
+              onClick={() => {
+                setShowMobileQuickTools(false);
+                void handleShareSearch();
+              }}
+              className="w-full min-h-12 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] disabled:opacity-45 disabled:cursor-not-allowed transition-colors cursor-pointer text-left"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <Share2 className="w-[18px] h-[18px] text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+                <span className="text-[14px] font-medium truncate">{t('shareSearchTitle')}</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileQuickTools(false);
+                setShowSearchHistoryModal(true);
+              }}
+              className="w-full min-h-12 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] transition-colors cursor-pointer text-left"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <History className="w-[18px] h-[18px] text-[var(--text-secondary)] shrink-0" aria-hidden="true" />
+                <span className="text-[14px] font-medium truncate">
+                  {t('searchHistoryBtn', { count: searchLogs.length })}
+                </span>
+              </span>
+              <span className="text-xs text-[var(--text-muted)] tabular-nums shrink-0">
+                {searchLogs.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileQuickTools(false);
+                openAccessSettings('proxy');
+              }}
+              className="w-full min-h-12 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] transition-colors cursor-pointer text-left"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <KeyRound
+                  className={`w-[18px] h-[18px] shrink-0 ${
+                    hasActiveAccessEnhancement ? 'text-[var(--link-academic)]' : 'text-[var(--text-secondary)]'
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="text-[14px] font-medium truncate">{t('accessSettingsBtn')}</span>
+              </span>
+              {hasActiveAccessEnhancement && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--accent-blue-tint)] text-[var(--link-academic)] shrink-0">
+                  {t('activeBadge')}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-[var(--divider)]">
+            <button
+              type="button"
+              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+              className="w-full min-h-12 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-subtle)] text-[var(--text-primary)] transition-colors cursor-pointer text-left"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                {theme === 'light' ? (
+                  <Sun className="w-[18px] h-[18px] text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+                ) : (
+                  <Moon className="w-[18px] h-[18px] text-[var(--link-academic)] shrink-0" aria-hidden="true" />
+                )}
+                <span className="text-[14px] font-medium truncate">{t('toggleThemeTitle')}</span>
+              </span>
+              <span
+                aria-hidden="true"
+                className="inline-flex items-center gap-1 p-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--divider)] shrink-0"
+              >
+                <span
+                  className={`p-1 rounded-full transition-colors ${
+                    theme === 'light'
+                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                      : 'text-[var(--text-muted)]'
+                  }`}
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                </span>
+                <span
+                  className={`p-1 rounded-full transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)]'
+                      : 'text-[var(--text-muted)]'
+                  }`}
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-[var(--divider)] space-y-2">
+            <div className="px-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              {t('languageMenuLabel')}
+            </div>
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => resetToSystemLanguage()}
+                className={`w-full min-h-11 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl text-[14px] transition-colors cursor-pointer text-left ${
+                  isAutoLanguage
+                    ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">{t('languageAutoSystem')}</span>
+                {isAutoLanguage && <Check className="w-4 h-4 shrink-0" aria-hidden="true" />}
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {availableLanguages.map((langOpt) => {
+                  const isActiveLang = !isAutoLanguage && language === langOpt.code;
+                  return (
+                    <button
+                      key={langOpt.code}
+                      type="button"
+                      onClick={() => setLanguage(langOpt.code)}
+                      className={`min-h-11 flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[13.5px] transition-colors cursor-pointer text-left ${
+                        isActiveLang
+                          ? 'bg-[var(--accent-blue-tint)] text-[var(--link-academic)] font-semibold'
+                          : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                      }`}
+                    >
+                      <span className="truncate">{langOpt.nativeLabel}</span>
+                      <span className="text-[11px] font-mono uppercase opacity-75 shrink-0">
+                        {langOpt.code}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </MobileSheet>
+
       <MobileTabBar
         activeTab={isNotFound ? null : activeTab}
         resultsCount={federatedPapers.length}
         savedCount={savedPapers.length}
         historyCount={searchLogs.length}
         isSearching={isSearchingApis}
-        onNavigate={(tab) => {
-          navigateToTab(tab);
-          window.scrollTo({ top: 0 });
-        }}
+        onNavigate={navigateToTab}
         onOpenHistory={() => setShowSearchHistoryModal(true)}
       />
 
       {analyticsConsentPrompt && (
         <div
-          className="fixed left-4 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:left-auto sm:bottom-4 sm:right-4 z-40 sm:max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
+          className="fixed left-4 right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:left-auto md:bottom-4 md:right-4 z-40 md:max-w-sm bg-[var(--bg-canvas)] border border-[var(--divider)] rounded-2xl shadow-xl p-4 space-y-3"
           role="region"
           aria-label={t('analyticsConsentAria')}
         >
@@ -2005,7 +2336,7 @@ export default function AcademicCommandCenter() {
                 denyAnalyticsConsent();
                 setAnalyticsConsentPrompt(false);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+              className="min-h-11 md:min-h-0 px-3.5 py-2 md:px-3 md:py-1.5 rounded-xl md:rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
             >
               {t('analyticsDeclineBtn')}
             </button>
@@ -2015,7 +2346,7 @@ export default function AcademicCommandCenter() {
                 grantAnalyticsConsent();
                 setAnalyticsConsentPrompt(false);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
+              className="min-h-11 md:min-h-0 px-3.5 py-2 md:px-3 md:py-1.5 rounded-xl md:rounded-lg text-xs font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:opacity-90 cursor-pointer"
             >
               {t('analyticsAcceptBtn')}
             </button>

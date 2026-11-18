@@ -106,7 +106,7 @@ export function LibrarySidebar({
             key={mode}
             type="button"
             onClick={() => onSortChange(mode)}
-            className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+            className={`w-full min-h-10 lg:min-h-0 text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
               savedSortBy === mode
                 ? 'bg-[var(--bg-subtle)] text-[var(--link-academic)] font-medium'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
@@ -143,7 +143,7 @@ export function LibrarySidebar({
         contentClassName="space-y-2"
         title={
           <>
-            <Pin className="w-4 h-4 text-[var(--link-academic)] shrink-0" />
+            <Pin className="w-4 h-4 text-[var(--link-academic)] shrink-0" aria-hidden="true" />
             <span className="truncate">{t('defaultSaveTargetTitle')}</span>
           </>
         }
@@ -151,7 +151,8 @@ export function LibrarySidebar({
         <select
           value={activeSaveGroupId ?? ''}
           onChange={(e) => actions.setActiveSaveGroup(e.target.value ? e.target.value : null)}
-          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
+          aria-label={t('defaultSaveTargetTitle')}
+          className="w-full min-h-11 lg:min-h-0 px-3 py-2 lg:py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--divider)] text-base lg:text-[13px] font-medium text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--link-academic)]/25"
         >
           <option value="">{t('ungroupedOption')}</option>
           {groups.map((g) => (
